@@ -3,7 +3,7 @@
 To install Training and Inference for SST, please run the following:
 
 ```
-git clone https://github.com/architvasan/HPC_SurrogateScreens 
+git clone https://github.com/architvasan/MLDocking_Dragon 
 conda env create -f environment.yml
 ```
 
