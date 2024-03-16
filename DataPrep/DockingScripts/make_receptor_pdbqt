@@ -1,0 +1,12 @@
+#!/bin/tcsh
+
+set start = $1
+set end = $2
+
+#num of reps
+foreach q (`seq $start 1 $end`)
+
+	/Scr/akvasan2/autodocktools/MGLTools-1.5.6/bin/pythonsh /Scr/akvasan2/autodocktools/MGLTools-1.5.6/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py -r ./pdb.receptor/$q.frame.pdb -o ./pdbqt.receptor/$q.frame.pdbqt -v -U nphs_lps_waters	
+
+end
+

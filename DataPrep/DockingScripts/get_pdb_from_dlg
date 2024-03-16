@@ -1,0 +1,26 @@
+#!/bin/tcsh
+
+#check: http://autodock.scripps.edu/faqs-help/faq/is-there-a-way-to-save-a-protein-ligand-complex-as-a-pdb-file-in-autodock
+
+set start = $1
+set end = $2
+
+#set what = $3
+#num of reps
+foreach q (`seq $start 1 $end`)
+
+  #set file_name="${what}.${q}_dock"
+  set file_name2="${q}.ligand"
+
+	#get pdbqt first
+
+	#grep '^DOCKED' ./dlg_dir/$file_name.dlg | cut -c9- >! ./pdbqt.ligand/$file_name.pdbqt 
+	#grep '^DOCKED' ./dlg_dir/$file_name.dlg | cut -c9- >! ./pdbqt.ligand/$file_name.pdbqt 
+	
+	#make pdb from pdbqt
+
+	grep '^ATOM\|^MODEL\|^REMARK\|^USER\|^TER\|^ENDMDL' ./pdbqt.ligand/$file_name2.pdbqt >! ./pdb.ligand/$file_name2.pdb	
+
+end
+
+

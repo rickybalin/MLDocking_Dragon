@@ -1,0 +1,416 @@
+I am rank 5 of 8
+[[  12 2537  619 ...    0    0    0]
+ [  12  495  175 ...    0    0    0]
+ [  12  804 1107 ...    0    0    0]
+ ...
+ [  12  183  134 ...    0    0    0]
+ [  12  379   93 ...    0    0    0]
+ [  12  524  888 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 6 of 8
+[[  12  152  266 ...    0    0    0]
+ [  12  152  266 ...    0    0    0]
+ [  12  574 1345 ...    0    0    0]
+ ...
+ [  12  235 1911 ...    0    0    0]
+ [  12  426 1191 ...    0    0    0]
+ [  12  727  179 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 2 of 8
+[[  12  261  179 ...    0    0    0]
+ [  12  418  801 ...    0    0    0]
+ [  12  226  593 ...    0    0    0]
+ ...
+ [  12  196 1031 ...    0    0    0]
+ [  12  377  134 ...    0    0    0]
+ [  12  379 1536 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 4 of 8
+[[  12  152  266 ...    0    0    0]
+ [  12  379   26 ...    0    0    0]
+ [  12 2228  755 ...    0    0    0]
+ ...
+ [  12  412  311 ...    0    0    0]
+ [  12  152  266 ...    0    0    0]
+ [  12  244 1107 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 1 of 8
+[[  12  183  296 ...    0    0    0]
+ [  12 1892  849 ...    0    0    0]
+ [  12  614  160 ...    0    0    0]
+ ...
+ [  12  131   11 ...    0    0    0]
+ [  12  235  429 ...    0    0    0]
+ [  12  574  175 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 3 of 8
+[[  12  321  181 ...    0    0    0]
+ [  12  727  266 ...    0    0    0]
+ [  12  151 1901 ...    0    0    0]
+ ...
+ [  12  495  327 ...    0    0    0]
+ [  12 2690  233 ...    0    0    0]
+ [  12 1865   11 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 0 of 8
+[[ 12 235 757 ...   0   0   0]
+ [ 12 495 175 ...   0   0   0]
+ [ 12 182 166 ...   0   0   0]
+ ...
+ [ 12 412 483 ...   0   0   0]
+ [ 12 183 296 ...   0   0   0]
+ [ 12 181 172 ...   0   0   0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000
+I am rank 7 of 8
+[[  12  244  179 ...    0    0    0]
+ [  12  804  266 ...    0    0    0]
+ [  12 1832  266 ...    0    0    0]
+ ...
+ [  12  131  473 ...    0    0    0]
+ [  12  131  181 ...    0    0    0]
+ [  12  495  175 ...    0    0    0]]
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 45)]         0           []                               
+                                                                                                  
+ token_and_position_embedding (  (None, 45, 128)     406656      ['input_1[0][0]']                
+ TokenAndPositionEmbedding)                                                                       
+                                                                                                  
+ transformer_block (Transformer  (None, 45, 128)     1417984     ['token_and_position_embedding[0]
+ Block)                                                          [0]',                            
+                                                                  'transformer_block[0][0]',      
+                                                                  'transformer_block[1][0]',      
+                                                                  'transformer_block[2][0]',      
+                                                                  'transformer_block[3][0]']      
+                                                                                                  
+ reshape (Reshape)              (None, 1, 5760)      0           ['transformer_block[4][0]']      
+                                                                                                  
+ dropout_2 (Dropout)            (None, 1, 5760)      0           ['reshape[0][0]']                
+                                                                                                  
+ dense_2 (Dense)                (None, 1, 1024)      5899264     ['dropout_2[0][0]']              
+                                                                                                  
+ dropout_3 (Dropout)            (None, 1, 1024)      0           ['dense_2[0][0]']                
+                                                                                                  
+ dense_3 (Dense)                (None, 1, 256)       262400      ['dropout_3[0][0]']              
+                                                                                                  
+ dropout_4 (Dropout)            (None, 1, 256)       0           ['dense_3[0][0]']                
+                                                                                                  
+ dense_4 (Dense)                (None, 1, 64)        16448       ['dropout_4[0][0]']              
+                                                                                                  
+ dropout_5 (Dropout)            (None, 1, 64)        0           ['dense_4[0][0]']                
+                                                                                                  
+ dense_5 (Dense)                (None, 1, 16)        1040        ['dropout_5[0][0]']              
+                                                                                                  
+ dropout_6 (Dropout)            (None, 1, 16)        0           ['dense_5[0][0]']                
+                                                                                                  
+ dense_6 (Dense)                (None, 1, 1)         17          ['dropout_6[0][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 8,003,809
+Trainable params: 8,003,809
+Non-trainable params: 0
+__________________________________________________________________________________________________
+Epoch 1/1000

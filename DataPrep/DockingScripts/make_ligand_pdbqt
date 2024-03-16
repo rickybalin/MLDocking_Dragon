@@ -1,0 +1,14 @@
+#!/bin/tcsh
+
+#set start = $1
+#set end = $2
+
+#num of reps
+#foreach q (`seq $start 1 $end`)
+
+#lig=$1
+
+	/Scr/akvasan2/autodocktools/MGLTools-1.5.6/bin/pythonsh /Scr/akvasan2/autodocktools/MGLTools-1.5.6/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_ligand4.py -l pdb.ligand/CBD.pdb -o pdbqt.ligand/CBD.pdbqt -v -U nphs_lps_waters	
+
+#end
+

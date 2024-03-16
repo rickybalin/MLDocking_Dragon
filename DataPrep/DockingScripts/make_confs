@@ -1,0 +1,42 @@
+#!/bin/bash
+
+what=$1
+start=$2
+end=$3
+#NCPUS=$1
+
+pwd=`eval pwd`
+
+for i in `seq $start 1 $end`;
+do
+	file=conf.files/dock.${i}.conf
+
+	echo "receptor = ../pdbqt.receptor/${i}.frame.pdbqt" >> $file 
+	echo "ligand = ../pdbqt.ligand/${what}.pdbqt" >> $file
+
+	echo "center_x = 3.108" >> $file
+	echo "center_y = 8.092" >> $file
+	echo "center_z = 17.345" >> $file
+
+	echo "size_x = 40" >> $file
+	echo "size_y = 54" >> $file
+	echo "size_z = 44" >> $file
+
+#randomize_only
+
+	echo "exhaustiveness = 20" >> $file
+
+#cpu = 8
+
+echo "num_modes  = 20" >> $file
+echo "energy_range = 10" >> $file
+
+echo "out = ../pdbqt.ligand/${i}.ligand.pdbqt" >> $file
+echo "log = ../log.files/${i}.frame.log" >> $file
+
+	#echo $i
+
+	#/home/baylonc2/bin/vina --receptor pdbqts/8300.${i}.frame.pdbqt --ligand ligand.pdbqt --center_x 4 --center_y 6 --center_z 53 --size_x 20 --size_y 20 --size_z 15 --cpu $NCPUS --num_modes 10 --energy_range 5 --out pdbqts.ligand/${i}.ligand.pdbqt --log ligand.log/${i}.log 
+
+
+done

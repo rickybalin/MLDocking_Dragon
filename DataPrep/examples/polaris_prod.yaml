@@ -1,0 +1,15 @@
+output_dir: prod_output
+smiles_file: data/SMILES_2M.dat
+receptor_oedu_file: /local/scratch/8gcy_receptor.oedu #data/8gcy_receptor.oedu
+node_local_path: /local/scratch
+num_parallel_tasks: 4224 # should be 64 * num_nodes
+smiles_batch_size: 410 #15625
+
+compute_settings:
+  name: polaris
+  num_nodes: 66
+  worker_init: "module load conda/2023-01-10-unstable; conda activate pipt; mpiexec --np `wc -l < $PBS_NODEFILE` -ppn 1 cp /lus/eagle/projects/CVD-Mol-AI/braceal/src/PIPT/data/8gcy_receptor.oedu /local/scratch"
+  scheduler_options: "#PBS -l filesystems=home:eagle"
+  account: RL-fold
+  queue: prod
+  walltime: 06:00:00

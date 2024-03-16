@@ -1,0 +1,11 @@
+output_dir: prod_output_lambda
+smiles_file: data/SMILES_2M.dat
+receptor_oedu_file: data/8gcy_receptor.oedu
+num_parallel_tasks: 80 # should be same as max_workers
+smiles_batch_size: 1000
+
+compute_settings:
+  name: local
+  max_workers: 80
+  cores_per_worker: 1
+  worker_init: "conda activate pipt"
