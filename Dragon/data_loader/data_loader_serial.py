@@ -15,7 +15,7 @@ def raw_data_loader(data_path: str) -> dict:
     data_dict = {}
 
     # Loop over sub-directories of compunt sizes
-    for sub_dir in base_p.iterdir():
+    for sub_dir in sorted(base_p.iterdir()):
         if sub_dir.is_dir():
             sub_data_dict = {}
             sub_dir_name = str(sub_dir).split("/")[-1]
@@ -26,7 +26,7 @@ def raw_data_loader(data_path: str) -> dict:
             # Loop over all compunds of specific type and accumulate smiles
             # smi files first
             smi_file_list = []
-            for file in smi_files:
+            for file in sorted(smi_files):
                 fname = str(file).split("/")[-1].split(".")[0]
                 smi_file_list.append(fname)
                 smiles = []
@@ -38,7 +38,7 @@ def raw_data_loader(data_path: str) -> dict:
 
             # smi.gz files next
             gz_file_list = []
-            for file in gz_files:
+            for file in sorted(gz_files):
                 fname = str(file).split("/")[-1].split(".")[0]
                 if fname not in smi_file_list:
                     smiles = []
@@ -61,15 +61,20 @@ if __name__ == "__main__":
                         help='Path to SMILES strings to load')
     args = parser.parse_args()
 
-    print("Loading inference data from files ...")
+    print("Loading inference data from files")
+    print(f"at path {args.data_path} ...")
     tic = perf_counter()
     data = raw_data_loader(args.data_path)
     toc = perf_counter()
     load_time = toc - tic
-    print(f"Done. Loaded inference data from files in {load_time:.3f} seconds \n")
+    print(f"Done. Loaded inference data from files in {load_time:.3f} seconds \n", flush=True)
 
-    #print("Printing data dictionary for debugging:")
-    #for key, val in data.items():
-    #    print("sub dir: ", key)
-    #    for keyy, vall in val.items():
-    #        print(f"sub sub dir: {keyy} has {len(vall)} smiles")
+    base_dir = "/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/validation"
+    case = args.data_path.split("/")[-1]
+    fname = case + "_serial.txt"
+    fname = base_dir + "/" + fname
+    with open(fname, "w") as f:
+        for key, val in data.items():
+            for keyy, vall in val.items():
+                f.write(f"{keyy}: {len(vall)}\n")
+    print("Printed data to file for validation")

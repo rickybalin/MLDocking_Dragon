@@ -1,21 +1,20 @@
 import pathlib
 import gzip
 from time import perf_counter
-from typing import Optional, Union
+from typing import Optional, Tuple
 import argparse
 import filecmp
 
 import dragon
 import multiprocessing as mp
-from multiprocessing.queues import Queue
 
 def get_files(base_p: pathlib.PosixPath) -> list:
     """Count the number of files in all sub-directories
 
     :param base_p: file path to location of raw data
     :type base_p: pathlib.PosixPath
-    :return: list of files
-    :rtype: list
+    :return: total number of files
+    :rtype: int
     """
     files = []
     file_count = 0
@@ -35,13 +34,11 @@ def get_files(base_p: pathlib.PosixPath) -> list:
                     file_count += 1
     return files
 
-def read_smiles(file_path: pathlib.PosixPath, q: Optional[Queue] = None) -> Union[list, None]:
+def read_smiles(file_path: pathlib.PosixPath) -> list:
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
-    :param q: Queue to put data in
-    :type q: mp.queues.Queue
     :return: list of smiles strings
     :rtype: list
     """
@@ -57,18 +54,15 @@ def read_smiles(file_path: pathlib.PosixPath, q: Optional[Queue] = None) -> Unio
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    if q is not None:
-        q.put(smiles)
-    else:
-        return smiles
+    return smiles
 
-def read_subdir(sub_dir_p: pathlib.PosixPath, q: Queue) -> None:
+def read_subdir(sub_dir_p: pathlib.PosixPath) -> dict:
     """Read the files from a sub directory
 
     :param sub_dir_p: path to sub-directory
     :type sub_dir_p: pathlib.PosixPath
-    :param q: Queue to put data in
-    :type q: mp.queues.Queue
+    :return: dictionary of file names and smiles strings
+    :rtype: dict
     """
     sub_data_dict = {}
     smi_files = sub_dir_p.glob("**/*.smi")
@@ -88,117 +82,91 @@ def read_subdir(sub_dir_p: pathlib.PosixPath, q: Queue) -> None:
         fname = str(file).split("/")[-1].split(".")[0]
         if fname not in smi_file_list:
             gz_file_list.append(fname)
-            sub_data_dict[fname] = read_smiles(file)    
-    q.put(sub_data_dict)
+            sub_data_dict[fname] = read_smiles(file)
+    return sub_data_dict
 
-def read_subdir_mp(sub_dir_p: pathlib.PosixPath, q: Queue) -> None:
+def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
     """Read the files from a sub directory with multiprocessing
 
     :param sub_dir_p: path to sub-directory
     :type sub_dir_p: pathlib.PosixPath
-    :param q: Queue to put data in
-    :type q: mp.queues.Queue
+    :return: list of smiles strings
+    :rtype: list
     """
-    sub_data_dict = {}
+    sub_data_list = []
     smi_files = sub_dir_p.glob("**/*.smi")
     gz_files = sub_dir_p.glob("**/*.smi.gz")
             
     # Accumulate files to read
-    smi_file_list = []
     file_list = []
+    file_name_list = []
     for file in sorted(smi_files):
         file_list.append(file)
         fname = str(file).split("/")[-1].split(".")[0]
-        smi_file_list.append(fname)
+        file_name_list.append(fname)
     for file in sorted(gz_files):
         fname = str(file).split("/")[-1].split(".")[0]
-        if fname not in smi_file_list:
+        if fname not in file_name_list:
             file_list.append(file)
+            file_name_list.append(fname)
 
     # Launch processes for parallel loading
     num_procs = len(file_list)
-    #print(f"\nLaunching {num_procs} sub-sub-processes ... ")
-    processes = []
-    queues = []
-    for ip in range(num_procs):
-        sub_q = mp.Queue()
-        p = mp.Process(target=read_smiles, args=(file_list[ip],sub_q))
-        processes.append(p)
-        queues.append(sub_q)
+    num_procs = 1
+    pool = mp.Pool(num_procs)
+    sub_data_list = pool.map(read_smiles, file_list)
+    pool.close()
+    pool.join()
+    return file_name_list, sub_data_list
+    
 
-    for p in processes:
-        p.start()
-
-    for ip in range(num_procs):
-        fname = str(file_list[ip]).split("/")[-1].split(".")[0]
-        sub_data_dict[fname] = queues[ip].get()
-        processes[ip].join()    
-    q.put(sub_data_dict)
-
-def raw_data_loader_mp(data_path: str, granularity: str) -> dict:
+def raw_data_loader_mp(data_path: str, granularity: str) -> Tuple[list, list]:
     """Load raw inference data from files and load to Dragon dictionary
 
     :param data_path: file path to location of raw data
     :type data_path: str
     :param granularity: granularity used to read files
     :type granularity: str
-    :return: dictionary containing the smile strings of all the inference compounds
-    :rtype: dict
+    :return: list containing the smile strings of all the inference compounds
+    :rtype: list
     """
     base_p = pathlib.Path(data_path)
-    data_dict = {}
+    file_list = []
+    data_list = []
 
     # Determine granularity for data loading
     if granularity=="directory" or granularity=="directory_file":
         sub_dirs = sorted([str(sub_dir).split("/")[-1] for sub_dir in base_p.iterdir() if sub_dir.is_dir()])
+        sub_dir_paths = [base_p / sub_dirs[ip] for ip in range(len(sub_dirs))]
         num_procs = len(sub_dirs)
 
-        # Launch processes for parallel loading
-        #print(f"\nLaunching {num_procs} sub-processes ... ")
-        processes = []
-        queues = []
-        for ip in range(num_procs):
-            sub_dir_p = base_p / sub_dirs[ip]
-            q = mp.Queue()
-            if granularity=="directory":
-                p = mp.Process(target=read_subdir, args=(sub_dir_p,q))
-            elif granularity=="directory_file":
-                p = mp.Process(target=read_subdir_mp, args=(sub_dir_p,q))
-            processes.append(p)
-            queues.append(q)
-
-        for p in processes:
-            p.start()
-
-        for ip in range(num_procs):
-            data_dict[sub_dirs[ip]] = queues[ip].get()
-            processes[ip].join()
-        #print("Done \n", flush=True)
+        # Create and launch a Pool
+        print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
+        pool = mp.Pool(num_procs)
+        if granularity=="directory":
+            data_list = pool.map(read_subdir, sub_dir_paths)
+        elif granularity=="directory_file":
+            file_list, data_list = pool.map(read_subdir_mp, sub_dir_paths)
+        pool.close()
+        pool.join()
+        print("Done \n", flush=True)
+        print(file_list[0], data_list[0])
 
     elif granularity=="file":
         files = get_files(base_p)
+        file_list = [str(file).split("/")[-1].split(".")[0] for file in files]
         num_procs = len(files)
+        num_procs = 20
 
-        # Launch processes for parallel loading
-        #print(f"\nLaunching {num_procs} sub-processes ... ")
-        processes = []
-        queues = []
-        for ip in range(num_procs):
-            q = mp.Queue()
-            p = mp.Process(target=read_smiles, args=(files[ip],q))
-            processes.append(p)
-            queues.append(q)
+         # Create and launch a Pool
+        print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
+        pool = mp.Pool(num_procs)
+        data_list = pool.map(read_smiles, files)
+        pool.close()
+        pool.join()
+        print("Done \n", flush=True)
 
-        for p in processes:
-            p.start()
-
-        for ip in range(num_procs):
-            fname = str(files[ip]).split("/")[-1].split(".")[0]
-            data_dict[fname] = queues[ip].get()
-            processes[ip].join()
-        #print("Done \n", flush=True)
-
-    return data_dict
+    return file_list, data_list
 
 
 if __name__ == "__main__":
@@ -226,7 +194,7 @@ if __name__ == "__main__":
     print(f"with granularity: {args.granularity}")
     print(f"with {args.mp_launch} ...", flush=True)
     tic = perf_counter()
-    data = raw_data_loader_mp(args.data_path, args.granularity)
+    files, data = raw_data_loader_mp(args.data_path, args.granularity)
     toc = perf_counter()
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
@@ -234,15 +202,16 @@ if __name__ == "__main__":
     if args.validate:
         base_dir = "/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/validation"
         case = args.data_path.split("/")[-1]
-        mp_case = f"{args.mp_launch}_{args.granularity}.txt"
+        mp_case = f"pool_{args.mp_launch}_{args.granularity}.txt"
         fname = base_dir + "/" + case + "_" + mp_case
         with open(fname, "w") as f:
-            for key, val in data.items():
-                if "directory" in args.granularity:
-                    for keyy, vall in val.items():
-                        f.write(f"{keyy}: {len(vall)}\n")
-                else:
-                    f.write(f"{key}: {len(val)}\n")
+            if args.granularity=="directory":
+                for item in data:
+                    for key, val in item.items():
+                        f.write(f"{key}: {len(val)}\n")
+            else:
+                for name, item in zip(files,data):
+                    f.write(f"{name}: {len(item)}\n")
         
         serial_fname = base_dir + "/" + case + "_serial.txt"
         if filecmp.cmp(serial_fname, fname):
