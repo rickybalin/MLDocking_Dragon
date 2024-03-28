@@ -136,7 +136,7 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath, q: Queue) -> None:
     q.put(sub_data_dict)
 
 def raw_data_loader_mp(data_path: str, granularity: str) -> dict:
-    """Load raw inference data from files and load to Dragon dictionary
+    """Load raw inference data from files
 
     :param data_path: file path to location of raw data
     :type data_path: str

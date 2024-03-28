@@ -9,12 +9,12 @@ import dragon
 import multiprocessing as mp
 
 def get_files(base_p: pathlib.PosixPath) -> list:
-    """Count the number of files in all sub-directories
+    """Return the file paths in all sub-directories
 
     :param base_p: file path to location of raw data
     :type base_p: pathlib.PosixPath
-    :return: total number of files
-    :rtype: int
+    :return: list of file paths
+    :rtype: list
     """
     files = []
     file_count = 0
@@ -90,8 +90,8 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
 
     :param sub_dir_p: path to sub-directory
     :type sub_dir_p: pathlib.PosixPath
-    :return: list of smiles strings
-    :rtype: list
+    :return: tuple with list of smiles strings and names
+    :rtype: tuple
     """
     sub_data_list = []
     smi_files = sub_dir_p.glob("**/*.smi")
@@ -112,7 +112,6 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
 
     # Launch processes for parallel loading
     num_procs = len(file_list)
-    num_procs = 1
     pool = mp.Pool(num_procs)
     sub_data_list = pool.map(read_smiles, file_list)
     pool.close()
@@ -120,8 +119,8 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
     return file_name_list, sub_data_list
     
 
-def raw_data_loader_mp(data_path: str, granularity: str) -> Tuple[list, list]:
-    """Load raw inference data from files and load to Dragon dictionary
+def raw_data_loader_mp(data_path: str, granularity: str, max_procs: int) -> Tuple[list, list]:
+    """Load raw inference data from files
 
     :param data_path: file path to location of raw data
     :type data_path: str
@@ -138,10 +137,10 @@ def raw_data_loader_mp(data_path: str, granularity: str) -> Tuple[list, list]:
     if granularity=="directory" or granularity=="directory_file":
         sub_dirs = sorted([str(sub_dir).split("/")[-1] for sub_dir in base_p.iterdir() if sub_dir.is_dir()])
         sub_dir_paths = [base_p / sub_dirs[ip] for ip in range(len(sub_dirs))]
-        num_procs = len(sub_dirs)
+        num_procs = min(max_procs, len(sub_dirs))
 
         # Create and launch a Pool
-        print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
+        #print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
         pool = mp.Pool(num_procs)
         if granularity=="directory":
             data_list = pool.map(read_subdir, sub_dir_paths)
@@ -149,22 +148,19 @@ def raw_data_loader_mp(data_path: str, granularity: str) -> Tuple[list, list]:
             file_list, data_list = pool.map(read_subdir_mp, sub_dir_paths)
         pool.close()
         pool.join()
-        print("Done \n", flush=True)
-        print(file_list[0], data_list[0])
-
+        #print("Done \n", flush=True)
     elif granularity=="file":
         files = get_files(base_p)
         file_list = [str(file).split("/")[-1].split(".")[0] for file in files]
-        num_procs = len(files)
-        num_procs = 20
+        num_procs = min(max_procs, len(files))
 
          # Create and launch a Pool
-        print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
+        #print(f"\nLaunching a Pool with {num_procs} sub-processes ... ")
         pool = mp.Pool(num_procs)
         data_list = pool.map(read_smiles, files)
         pool.close()
         pool.join()
-        print("Done \n", flush=True)
+        #print("Done \n", flush=True)
 
     return file_list, data_list
 
@@ -178,6 +174,8 @@ if __name__ == "__main__":
                         help='Granularity used to load data (directory,file,directory_file)')
     parser.add_argument('--mp_launch', type=str, default="spawn",
                         help='Backend for multiprocessing (dragon,spawn)')
+    parser.add_argument('--max_procs', type=int, default=10,
+                        help='Maximum number of processes in a Pool')
     parser.add_argument('--validate', type=bool, default=True,
                         help='Validate the data loader with the serial case')
     args = parser.parse_args()
@@ -194,7 +192,7 @@ if __name__ == "__main__":
     print(f"with granularity: {args.granularity}")
     print(f"with {args.mp_launch} ...", flush=True)
     tic = perf_counter()
-    files, data = raw_data_loader_mp(args.data_path, args.granularity)
+    files, data = raw_data_loader_mp(args.data_path, args.granularity, args.max_procs)
     toc = perf_counter()
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)

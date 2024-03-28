@@ -4,7 +4,7 @@ from time import perf_counter
 import argparse
 
 def raw_data_loader(data_path: str) -> dict:
-    """Load raw inference data from files and load to Dragon dictionary
+    """Load raw inference data from files
 
     :param data_path: file path to location of raw data
     :type data_path: str
