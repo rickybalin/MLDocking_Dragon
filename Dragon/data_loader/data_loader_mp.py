@@ -204,14 +204,14 @@ def raw_data_loader_mp(data_path: str, granularity: str) -> dict:
 if __name__ == "__main__":
     # Import command line arguments
     parser = argparse.ArgumentParser(description='SMILES Data Loader')
-    parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC_22/zinc-22-2d/2d-small",
+    parser.add_argument('--data_path', type=str, default="/grand/hpe_dragon_collab/balin/ZINC_22/zinc-22-2d/2d-small",
                         help='Path to SMILES strings to load')
     parser.add_argument('--granularity', type=str, default="directory",
                         help='Granularity used to load data (directory,file,directory_file)')
     parser.add_argument('--mp_launch', type=str, default="spawn",
                         help='Backend for multiprocessing (dragon,spawn)')
-    parser.add_argument('--validate', type=bool, default=True,
-                        help='Validate the data loader with the serial case')
+    parser.add_argument('--validate', type=str, default="no",
+                        help='Validate the data loader with the serial case (yes,no)')
     args = parser.parse_args()
 
     # Start multiprocessing
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
 
-    if args.validate:
+    if args.validate!="no":
         base_dir = "/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/validation"
         case = args.data_path.split("/")[-1]
         mp_case = f"{args.mp_launch}_{args.granularity}.txt"

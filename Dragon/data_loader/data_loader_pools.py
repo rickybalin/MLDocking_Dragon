@@ -176,8 +176,8 @@ if __name__ == "__main__":
                         help='Backend for multiprocessing (dragon,spawn)')
     parser.add_argument('--max_procs', type=int, default=10,
                         help='Maximum number of processes in a Pool')
-    parser.add_argument('--validate', type=bool, default=True,
-                        help='Validate the data loader with the serial case')
+    parser.add_argument('--validate', type=str, default="no",
+                        help='Validate the data loader with the serial case (yes,no)')
     args = parser.parse_args()
 
     # Start multiprocessing
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
 
-    if args.validate:
+    if args.validate!="no":
         base_dir = "/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/validation"
         case = args.data_path.split("/")[-1]
         mp_case = f"pool_{args.mp_launch}_{args.granularity}.txt"
