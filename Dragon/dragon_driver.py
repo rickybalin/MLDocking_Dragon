@@ -25,6 +25,10 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024*1024*1024)
+    # total_mem_size is total across all nodes or on each node?
+    # what happens when we run out of memory?
+    # is the memory pre-allocated?
+    # how close can we get to SSD memory on node?
     dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
