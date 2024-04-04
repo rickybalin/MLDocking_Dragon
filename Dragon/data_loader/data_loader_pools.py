@@ -150,7 +150,7 @@ def raw_data_loader_mp(data_path: str, granularity: str, max_procs: int) -> Tupl
             result = pool.map(read_subdir_mp, sub_dir_paths)
             for files, data in result:
                 file_list.extend(files)
-                data_list.extend(files)
+                data_list.extend(data)
         pool.close()
         pool.join()
         #print("Done \n", flush=True)
