@@ -93,6 +93,7 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
     :return: tuple with list of smiles strings and names
     :rtype: tuple
     """
+    mp.set_start_method("dragon", force=True)
     sub_data_list = []
     smi_files = sub_dir_p.glob("**/*.smi")
     gz_files = sub_dir_p.glob("**/*.smi.gz")
@@ -112,6 +113,7 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
 
     # Launch processes for parallel loading
     num_procs = len(file_list)
+    num_proc = 10
     pool = mp.Pool(num_procs)
     sub_data_list = pool.map(read_smiles, file_list)
     pool.close()
@@ -145,7 +147,10 @@ def raw_data_loader_mp(data_path: str, granularity: str, max_procs: int) -> Tupl
         if granularity=="directory":
             data_list = pool.map(read_subdir, sub_dir_paths)
         elif granularity=="directory_file":
-            file_list, data_list = pool.map(read_subdir_mp, sub_dir_paths)
+            result = pool.map(read_subdir_mp, sub_dir_paths)
+            for files, data in result:
+                file_list.extend(files)
+                data_list.extend(files)
         pool.close()
         pool.join()
         #print("Done \n", flush=True)
