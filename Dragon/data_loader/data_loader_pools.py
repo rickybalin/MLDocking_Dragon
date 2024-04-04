@@ -112,8 +112,8 @@ def read_subdir_mp(sub_dir_p: pathlib.PosixPath) -> Tuple[list, list]:
             file_name_list.append(fname)
 
     # Launch processes for parallel loading
-    num_procs = len(file_list)
-    num_proc = 10
+    #num_procs = len(file_list)
+    num_procs = 5
     pool = mp.Pool(num_procs)
     sub_data_list = pool.map(read_smiles, file_list)
     pool.close()
