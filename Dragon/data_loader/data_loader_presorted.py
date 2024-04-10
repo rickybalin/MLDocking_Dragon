@@ -69,7 +69,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     # Get list of files to read
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
-    print(f"{num_files=}", flush=True)
+    print(f"Reading from {num_files} files", flush=True)
     
     # Launch Pool
     num_procs = min(max_procs, num_files)
@@ -78,6 +78,8 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     pool.starmap(read_smiles, inputs)
     pool.close()
     pool.join()
+
+    _dict.close()
 
 if __name__ == "__main__":
     # Import command line arguments

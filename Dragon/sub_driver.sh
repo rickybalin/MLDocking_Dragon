@@ -13,7 +13,7 @@
 #PBS -V
 
 # Set env
-source /lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/env.sh
+source /lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/env_st.sh
 export DRAGON_DEFAULT_SEG_SZ=68719476736
 
 # Setup

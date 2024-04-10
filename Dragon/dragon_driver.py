@@ -6,6 +6,7 @@ import multiprocessing as mp
 from dragon.data.distdictionary.dragon_dict import DragonDict
 
 from data_loader.data_loader_presorted import load_inference_data
+from inference.launch_inference import launch_inference_mpi
 
 if __name__ == "__main__":
     # Import command line arguments
@@ -14,7 +15,7 @@ if __name__ == "__main__":
                         help='number of nodes the dictionary distributed across')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
-    parser.add_argument('--total_mem_size', type=int, default=1,
+    parser.add_argument('--total_mem_size', type=int, default=16,
                         help='total managed memory size for dictionary in GB')
     parser.add_argument('--max_procs', type=int, default=10,
                         help='Maximum number of processes in a Pool')
@@ -25,10 +26,6 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024*1024*1024)
-    # total_mem_size is total across all nodes or on each node?
-    # what happens when we run out of memory?
-    # is the memory pre-allocated?
-    # how close can we get to SSD memory on node?
     dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
@@ -41,6 +38,17 @@ if __name__ == "__main__":
     toc = perf_counter()
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
+
+    # Launch the data inference component
+    num_ranks = 4
+    print("Launching inference with 4 ranks ...", flush=True)
+    tic = perf_counter()
+    loader_proc = mp.Process(target=launch_inference_mpi, args=(dd,num_ranks))
+    loader_proc.start()
+    loader_proc.join()
+    toc = perf_counter()
+    infer_time = toc - tic
+    print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
 
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)

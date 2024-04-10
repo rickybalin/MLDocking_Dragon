@@ -13,7 +13,7 @@
 #PBS -V
 
 # Set env
-source /grand/hpe_dragon_collab/balin/env.sh
+source /grand/hpe_dragon_collab/balin/env_base.sh
 export DRAGON_DEFAULT_SEG_SZ=68719476736
 
 # Setup
