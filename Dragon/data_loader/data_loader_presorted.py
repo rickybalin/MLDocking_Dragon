@@ -3,11 +3,19 @@ import gzip
 from time import perf_counter
 from typing import Tuple
 import argparse
+import time
 
 import dragon
 import multiprocessing as mp
 from dragon.data.distdictionary.dragon_dict import DragonDict
 
+global data_dict 
+data_dict = None
+
+def init_worker(q):
+    global data_dict
+    data_dict = q.get()
+    return
 
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """Return the file paths
@@ -35,14 +43,16 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(_dict, file_path: pathlib.PosixPath):
+def read_smiles(file_path: pathlib.PosixPath):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
+    global data_dict
+
     smiles = []
-    f_name = str(file_path).split("/")[-1].split(".")[0]
+    f_name = str(file_path).split("/")[-1]
     f_extension = str(file_path).split("/")[-1].split(".")[-1]
     if f_extension=="smi":
         with file_path.open() as f:
@@ -54,8 +64,10 @@ def read_smiles(_dict, file_path: pathlib.PosixPath):
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    _dict[f_name] = smiles
+    
+    data_dict[f_name] = smiles
 
+    
 def load_inference_data(_dict, data_path: str, max_procs: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
@@ -70,12 +82,17 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
+
     
     # Launch Pool
     num_procs = min(max_procs, num_files)
-    inputs = [(_dict, file) for file in files]
-    pool = mp.Pool(num_procs)
-    pool.starmap(read_smiles, inputs)
+
+    initq = mp.Queue(maxsize=num_procs)
+    for _ in range(num_procs):
+        initq.put(_dict)
+        
+    pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
+    pool.map(read_smiles, files)
     pool.close()
     pool.join()
 
