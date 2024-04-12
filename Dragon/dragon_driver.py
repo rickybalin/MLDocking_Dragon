@@ -3,11 +3,16 @@ import numpy as np
 import dragon
 import argparse
 import multiprocessing as mp
+import sys
+
 from dragon.data.distdictionary.dragon_dict import DragonDict
 
 from data_loader.data_loader_presorted import load_inference_data
 
+
+
 if __name__ == "__main__":
+    
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
     parser.add_argument('--num_nodes', type=int, default=1,
@@ -16,32 +21,45 @@ if __name__ == "__main__":
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--total_mem_size', type=int, default=1,
                         help='total managed memory size for dictionary in GB')
-    parser.add_argument('--max_procs', type=int, default=10,
+    parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
     args = parser.parse_args()
+    
+    print("Begun dragon driver", flush=True)
+    print(f"data_path:{args.data_path}", flush=True)
+    print(f"num_nodes:{args.num_nodes}", flush=True)
 
+    sys.stdout.flush()
+    
     # Start distributed dictionary
     mp.set_start_method("dragon")
-    total_mem_size = args.total_mem_size * (1024*1024*1024)
-    # total_mem_size is total across all nodes or on each node?
-    # what happens when we run out of memory?
-    # is the memory pre-allocated?
-    # how close can we get to SSD memory on node?
-    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
-    print("Launched Dragon Dictionary \n", flush=True)
 
+    # Set the total mem size to have a minimum of 1 GB per node
+    total_mem_size = max(args.total_mem_size, 1*args.num_nodes) 
+    print(f"total_mem_size:{total_mem_size}", flush=True)
+    total_mem_size*=(1024*1024*1024)
+    
+    print("Started Dragon Dictionary Launch", flush=True)
+    sys.stdout.flush()
+    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    print("Launched Dragon Dictionary", flush=True)
+
+    sys.stdout.flush()
     # Launch the data loader component
+    max_procs = args.max_procs_per_node*args.num_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
     tic = perf_counter()
-    loader_proc = mp.Process(target=load_inference_data, args=(dd,args.data_path,args.max_procs))
+    loader_proc = mp.Process(target=load_inference_data, args=(dd,args.data_path,max_procs))
     loader_proc.start()
     loader_proc.join()
+
     toc = perf_counter()
     load_time = toc - tic
-    print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
+    print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
+    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+    print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
+    sys.stdout.flush()
 
-    # Close the dictionary
-    print("Closing the Dragon Dictionary and exiting ...", flush=True)
     dd.close()

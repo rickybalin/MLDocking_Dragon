@@ -83,16 +83,18 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
 
+    num_procs = min(max_procs, num_files)
+    print(f"Number of pool procs is {num_procs}",flush=True)
     
     # Launch Pool
-    num_procs = min(max_procs, num_files)
-
     initq = mp.Queue(maxsize=num_procs)
     for _ in range(num_procs):
         initq.put(_dict)
         
     pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
+    print(f"Pool initialized", flush=True)
     pool.map(read_smiles, files)
+    print(f"Mapped function complete", flush=True)
     pool.close()
     pool.join()
 
