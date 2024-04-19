@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import Tuple
 import argparse
 import time
+import sys
 
 import dragon
 import multiprocessing as mp
@@ -64,8 +65,14 @@ def read_smiles(file_path: pathlib.PosixPath):
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    
+
+    smiles_size = sys.getsizeof(smiles)
+    with open("smile_sizes.out",'a') as f:
+        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+    #print(f"Read smiles from {f_name}, smiles size is {smiles_size}",flush=True)
     data_dict[f_name] = smiles
+    return smiles_size
+    
 
     
 def load_inference_data(_dict, data_path: str, max_procs: int):
@@ -93,7 +100,13 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
         
     pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
     print(f"Pool initialized", flush=True)
-    pool.map(read_smiles, files)
+    with open("smile_sizes.out",'a') as f:
+        f.write(f"Reading smiles for {num_files}\n")
+    smiles_sizes = pool.map(read_smiles, files)
+    with open("smile_sizes.out",'a') as f:
+        f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
+
+    print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
     print(f"Mapped function complete", flush=True)
     pool.close()
     pool.join()
