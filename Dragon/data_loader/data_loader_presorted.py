@@ -77,7 +77,7 @@ def read_smiles(file_path: pathlib.PosixPath):
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
     #print(f"Read smiles from {f_name}, smiles size is {smiles_size}",flush=True)
     data_dict[f_name] = smiles
-    with open(f"smile_sizes/{f_name}.out",'a') as f:
+    with open(f"{outfiles_path}/{f_name}.out",'a') as f:
         f.write(f"Stored data in dragon dictionary\n")
     return smiles_size
     
