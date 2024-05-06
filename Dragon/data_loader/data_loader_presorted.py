@@ -8,7 +8,9 @@ import sys
 
 import dragon
 import multiprocessing as mp
-from dragon.data.distdictionary.dragon_dict import DragonDict
+#from dragon.data.distdictionary.dragon_dict import DragonDict
+from dragon.data.ddict.ddict import DDict
+
 
 global data_dict 
 data_dict = None
@@ -67,10 +69,12 @@ def read_smiles(file_path: pathlib.PosixPath):
                 smiles.append(smile)
 
     smiles_size = sys.getsizeof(smiles)
-    with open("smile_sizes.out",'a') as f:
+    with open(f"smile_sizes/{f_name}.out",'w') as f:
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
     #print(f"Read smiles from {f_name}, smiles size is {smiles_size}",flush=True)
     data_dict[f_name] = smiles
+    with open(f"smile_sizes/{f_name}.out",'a') as f:
+        f.write(f"Stored data in dragon dictionary\n")
     return smiles_size
     
 
@@ -100,16 +104,19 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
         
     pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
     print(f"Pool initialized", flush=True)
-    with open("smile_sizes.out",'a') as f:
-        f.write(f"Reading smiles for {num_files}\n")
+    #with open("smile_sizes.out",'w') as f:
+    #    f.write(f"Reading smiles for {num_files}\n")
+    print(f"Reading smiles for {num_files}",flush=True)
     smiles_sizes = pool.map(read_smiles, files)
-    with open("smile_sizes.out",'a') as f:
-        f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
+    #with open("smile_sizes.out",'w') as f:
+    #    f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
 
     print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
     print(f"Mapped function complete", flush=True)
     pool.close()
+    print(f"Pool closed",flush=True)
     pool.join()
+    print(f"Pool joined",flush=True)
 
 if __name__ == "__main__":
     # Import command line arguments
@@ -129,7 +136,7 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024*1024*1024)
-    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
     # Launch the data loader

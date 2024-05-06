@@ -5,7 +5,8 @@ import argparse
 import multiprocessing as mp
 import sys
 
-from dragon.data.distdictionary.dragon_dict import DragonDict
+#from dragon.data.distdictionary.dragon_dict import DragonDict
+from dragon.data.ddict.ddict import DDict
 
 from data_loader.data_loader_presorted import load_inference_data
 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     
     print("Started Dragon Dictionary Launch", flush=True)
     sys.stdout.flush()
-    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary", flush=True)
 
     sys.stdout.flush()
@@ -53,7 +54,9 @@ if __name__ == "__main__":
     tic = perf_counter()
     loader_proc = mp.Process(target=load_inference_data, args=(dd,args.data_path,max_procs))
     loader_proc.start()
+    print("Process started",flush=True)
     loader_proc.join()
+    print("Process ended",flush=True)
 
     toc = perf_counter()
     load_time = toc - tic
@@ -62,4 +65,4 @@ if __name__ == "__main__":
     print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
     sys.stdout.flush()
 
-    dd.close()
+    dd.destroy()
