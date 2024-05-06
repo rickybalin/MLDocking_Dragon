@@ -3,8 +3,9 @@ import gzip
 from time import perf_counter
 from typing import Tuple
 import argparse
-import time
+import os
 import sys
+import time
 
 import dragon
 import multiprocessing as mp
@@ -69,7 +70,10 @@ def read_smiles(file_path: pathlib.PosixPath):
                 smiles.append(smile)
 
     smiles_size = sys.getsizeof(smiles)
-    with open(f"smile_sizes/{f_name}.out",'w') as f:
+    outfiles_path = "smiles_sizes"
+    if not os.path.exists(outfiles_path):
+        os.mkdir(outfiles_path)
+    with open(f"{outfiles_path}/{f_name}.out",'w') as f:
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
     #print(f"Read smiles from {f_name}, smiles size is {smiles_size}",flush=True)
     data_dict[f_name] = smiles
