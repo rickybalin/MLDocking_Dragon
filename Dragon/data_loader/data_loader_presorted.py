@@ -6,6 +6,10 @@ import argparse
 import os
 import sys
 import time
+import socket
+
+sys.path.append("..")
+from key_decode import MyKey
 
 import dragon
 import multiprocessing as mp
@@ -47,13 +51,16 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(file_path: pathlib.PosixPath):
+def read_smiles(file_tuple):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
     global data_dict
+
+    file_hash_int = file_tuple[0]
+    file_path = file_tuple[1]
 
     smiles = []
     f_name = str(file_path).split("/")[-1]
@@ -70,20 +77,26 @@ def read_smiles(file_path: pathlib.PosixPath):
                 smiles.append(smile)
 
     smiles_size = sys.getsizeof(smiles)
+    f_name_list = f_name.split('.gz')
+    logname =  f_name_list[0].split(".")[0]+f_name_list[1]
+    key = MyKey(f_name, file_hash_int)
     outfiles_path = "smiles_sizes"
     if not os.path.exists(outfiles_path):
         os.mkdir(outfiles_path)
-    with open(f"{outfiles_path}/{f_name}.out",'w') as f:
+    
+    with open(f"{outfiles_path}/{logname}.out",'w') as f:
+        f.write(f"Worker located on {socket.gethostname()}\n")
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
-    #print(f"Read smiles from {f_name}, smiles size is {smiles_size}",flush=True)
-    data_dict[f_name] = smiles
-    with open(f"{outfiles_path}/{f_name}.out",'a') as f:
+
+    data_dict[key] = smiles
+
+    with open(f"{outfiles_path}/{logname}.out",'a') as f:
         f.write(f"Stored data in dragon dictionary\n")
     return smiles_size
     
 
     
-def load_inference_data(_dict, data_path: str, max_procs: int):
+def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
@@ -97,6 +110,8 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
+    file_tuples = [(i%num_managers, f) for i,f in enumerate(files)]
+
 
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
@@ -111,7 +126,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     #with open("smile_sizes.out",'w') as f:
     #    f.write(f"Reading smiles for {num_files}\n")
     print(f"Reading smiles for {num_files}",flush=True)
-    smiles_sizes = pool.map(read_smiles, files)
+    smiles_sizes = pool.map(read_smiles, file_tuples)
     #with open("smile_sizes.out",'w') as f:
     #    f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
 
