@@ -9,7 +9,7 @@
     },
 
     "inference_data": {
-        "data_dir": "/lus/gila/projects/Shared/avasan/Inference_Data",
+        "data_dir": "/lus/eagle/projects/datascience/avasan/Workflow/EarlyESPRuns/Data/InferenceData",
         "databases": ["BDB","CAS", "CHM", "DBK",  "DCL",  "DUD",  "E15",  "EDB",  "EMO",  "ENA",  "FFI",  "G13",  "G17",  "HOP",  "LIT",  "MCU",  "MOS",  "PCH.incomplete",  "QM9",  "REP",  "SAV.incomplete",  "SUR",  "ZIN"]
     },
 

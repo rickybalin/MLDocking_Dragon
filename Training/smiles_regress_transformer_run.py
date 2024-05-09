@@ -35,14 +35,15 @@ hyper_params = ParamsJson(json_file)
 if hyper_params['general']['use_hvd']==True:
     initialize_hvd()
 
-########Create training and validation data##### 
-x_train, y_train, x_val, y_val = train_val_data(hyper_params)
 
 ######## Build model #############
 
 model = ModelArchitecture(hyper_params).call()
 
 ####### Set callbacks + train model ##############
+########Create training and validation data##### 
+x_train, y_train, x_val, y_val = train_val_data(hyper_params)
+
 
 train_and_callbacks = TrainingAndCallbacks(hyper_params)
 

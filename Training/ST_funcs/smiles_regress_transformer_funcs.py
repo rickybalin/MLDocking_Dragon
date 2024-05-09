@@ -271,7 +271,7 @@ class TransformerBlock(layers.Layer):
         out1 = self.layernorm1(inputs + attn_output)
         ffn_output = self.ffn(out1)
         ffn_output = self.dropout2(ffn_output, training=training)
-
+        
         return self.layernorm2(out1 + ffn_output)
 
 class ModelArchitecture(layers.Layer):
@@ -334,7 +334,7 @@ class ModelArchitecture(layers.Layer):
     def call(self):
         x = self.embedding_layer(self.inputs)
         for tb in range(self.num_tb):
-            x = self.transformer_block(x)
+            x = self.transformer_block(x, training=False)
 
         x = self.reshape(x)
 
@@ -357,7 +357,7 @@ class ModelArchitecture(layers.Layer):
         model.summary()
 
         model.compile(
-            loss=self.loss_fn, optimizer=self.opt, metrics=["mae", r2], steps_per_execution=100
+            loss=self.loss_fn, optimizer=self.opt, metrics=["mae", r2], steps_per_execution=100, train=True
         )
         
         return model

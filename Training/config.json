@@ -1,6 +1,6 @@
 {
     "general": {
-        "use_hvd": true,
+        "use_hvd": false,
         "batch_size": 64,
         "epochs": 1000,
         "lr": 0.00000991301767144166,

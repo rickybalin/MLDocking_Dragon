@@ -329,8 +329,9 @@ class ModelArchitecture(layers.Layer):
     
     def call(self):
         x = self.embedding_layer(self.inputs)
+        #x = self.transformer_block(x, training=False)
         for tb in range(self.num_tb):
-            x = self.transformer_block(x)
+            x = self.transformer_block(x, training=False)
 
         x = self.reshape(x)
 
