@@ -35,7 +35,7 @@ hyper_params = ParamsJson(json_file)
 ######## Load model #############
 
 model = ModelArchitecture(hyper_params).call()
-#model.load_weights(f'smile_regress.autosave.model.h5')
+model.load_weights(f'smile_regress.autosave.model.h5')
 
 ######## Set up MPI #############
 
