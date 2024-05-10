@@ -3,12 +3,27 @@ import gzip
 from time import perf_counter
 from typing import Tuple
 import argparse
+import os
+import sys
+import time
+import socket
+
+sys.path.append("..")
+from key_decode import MyKey
 
 import dragon
 import multiprocessing as mp
 #from dragon.data.distdictionary.dragon_dict import DragonDict
 from dragon.data.ddict.ddict import DDict
 
+
+global data_dict 
+data_dict = None
+
+def init_worker(q):
+    global data_dict
+    data_dict = q.get()
+    return
 
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """Return the file paths
@@ -36,14 +51,19 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(dd, file_path: pathlib.PosixPath):
+def read_smiles(file_tuple):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
+    global data_dict
+
+    file_hash_int = file_tuple[0]
+    file_path = file_tuple[1]
+
     smiles = []
-    f_name = str(file_path).split("/")[-1].split(".")[0]
+    f_name = str(file_path).split("/")[-1]
     f_extension = str(file_path).split("/")[-1].split(".")[-1]
     if f_extension=="smi":
         with file_path.open() as f:
@@ -55,13 +75,32 @@ def read_smiles(dd, file_path: pathlib.PosixPath):
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    dd[f_name] = smiles
 
-def load_inference_data(dd: DDict, data_path: str, max_procs: int):
+    smiles_size = sys.getsizeof(smiles)
+    f_name_list = f_name.split('.gz')
+    logname =  f_name_list[0].split(".")[0]+f_name_list[1]
+    key = MyKey(f_name, file_hash_int)
+    outfiles_path = "smiles_sizes"
+    if not os.path.exists(outfiles_path):
+        os.mkdir(outfiles_path)
+    
+    with open(f"{outfiles_path}/{logname}.out",'w') as f:
+        f.write(f"Worker located on {socket.gethostname()}\n")
+        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+
+    data_dict[key] = smiles
+
+    with open(f"{outfiles_path}/{logname}.out",'a') as f:
+        f.write(f"Stored data in dragon dictionary\n")
+    return smiles_size
+    
+
+    
+def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
-    :param dd: Dragon distributed dictionary
-    :type dd: DDict
+    :param _dict: Dragon distributed dictionary
+    :type _dict: DDict
     :param data_path: path to pre-sorted data
     :type data_path: str
     :param max_procs: maximum number of processes to launch for loading
@@ -70,16 +109,33 @@ def load_inference_data(dd: DDict, data_path: str, max_procs: int):
     # Get list of files to read
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
-    print(f"Reading from {num_files} files", flush=True)
+    print(f"{num_files=}", flush=True)
+    file_tuples = [(i%num_managers, f) for i,f in enumerate(files)]
+
+
+    num_procs = min(max_procs, num_files)
+    print(f"Number of pool procs is {num_procs}",flush=True)
     
     # Launch Pool
-    num_procs = min(max_procs, num_files)
-    inputs = [(dd, file) for file in files]
-    pool = mp.Pool(num_procs)
-    pool.starmap(read_smiles, inputs)
-    pool.close()
-    pool.join()
+    initq = mp.Queue(maxsize=num_procs)
+    for _ in range(num_procs):
+        initq.put(_dict)
+        
+    pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
+    print(f"Pool initialized", flush=True)
+    #with open("smile_sizes.out",'w') as f:
+    #    f.write(f"Reading smiles for {num_files}\n")
+    print(f"Reading smiles for {num_files}",flush=True)
+    smiles_sizes = pool.map(read_smiles, file_tuples)
+    #with open("smile_sizes.out",'w') as f:
+    #    f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
 
+    print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+    print(f"Mapped function complete", flush=True)
+    pool.close()
+    print(f"Pool closed",flush=True)
+    pool.join()
+    print(f"Pool joined",flush=True)
 
 if __name__ == "__main__":
     # Import command line arguments
