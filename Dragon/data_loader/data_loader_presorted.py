@@ -17,6 +17,10 @@ import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
 
 
+class WorkerStopException(Exception):
+    pass
+
+
 global data_dict 
 data_dict = None
 
@@ -84,17 +88,26 @@ def read_smiles(file_tuple):
     if not os.path.exists(outfiles_path):
         os.mkdir(outfiles_path)
     
+    # if logname == "H29P090zbfh":
+    #     raise Exception("Failed to process H29P090zbfh")
+
     with open(f"{outfiles_path}/{logname}.out",'w') as f:
         f.write(f"Worker located on {socket.gethostname()}\n")
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
 
-    data_dict[key] = smiles
+    try:
+        data_dict[key] = smiles
+        with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"Stored data in dragon dictionary\n")
+        return smiles_size
+    except:
+        smiles_size = 0
+        with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"Exception!\n")
+        return smiles_size
+        #raise WorkerStopException("Failed to save smiles")
 
-    with open(f"{outfiles_path}/{logname}.out",'a') as f:
-        f.write(f"Stored data in dragon dictionary\n")
-    return smiles_size
     
-
     
 def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
@@ -112,7 +125,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     print(f"{num_files=}", flush=True)
     file_tuples = [(i%num_managers, f) for i,f in enumerate(files)]
 
-
+    _dict["file_tuples"] = file_tuples
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
     
@@ -123,19 +136,32 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
         
     pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
     print(f"Pool initialized", flush=True)
-    #with open("smile_sizes.out",'w') as f:
-    #    f.write(f"Reading smiles for {num_files}\n")
-    print(f"Reading smiles for {num_files}",flush=True)
-    smiles_sizes = pool.map(read_smiles, file_tuples)
-    #with open("smile_sizes.out",'w') as f:
-    #    f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
 
-    print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
-    print(f"Mapped function complete", flush=True)
-    pool.close()
-    print(f"Pool closed",flush=True)
-    pool.join()
-    print(f"Pool joined",flush=True)
+    print(f"Reading smiles for {num_files}",flush=True)
+    
+    #smiles_sizes = pool.map(read_smiles, file_tuples)
+    #raise Exception("test")
+    try:
+        smiles_sizes = pool.imap(read_smiles, file_tuples)
+
+        print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+        print(f"Mapped function complete", flush=True)
+        pool.close()
+        print(f"Pool closed",flush=True)
+        pool.join()
+        print(f"Pool joined",flush=True)
+        
+    except Exception as e:
+        print(f"reading smiles failed")
+        pool.terminate()
+        raise Exception(e)
+   
+    # print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+    # print(f"Mapped function complete", flush=True)
+    # pool.close()
+    # print(f"Pool closed",flush=True)
+    # pool.join()
+    # print(f"Pool joined",flush=True)
 
 if __name__ == "__main__":
     # Import command line arguments
