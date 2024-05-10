@@ -1,9 +1,11 @@
 from time import perf_counter
 import numpy as np
-import dragon
 import argparse
+
+import dragon
 import multiprocessing as mp
-from dragon.data.distdictionary.dragon_dict import DragonDict
+from dragon.data.ddict.ddict import DDict
+#from dragon.data.distdictionary.dragon_dict import DragonDict
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference_mpi
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024*1024*1024)
-    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
     # Launch the data loader component
@@ -52,4 +54,4 @@ if __name__ == "__main__":
 
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
-    dd.close()
+    dd.destroy()

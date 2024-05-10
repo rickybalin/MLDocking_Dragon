@@ -23,11 +23,11 @@ from tensorflow.keras.callbacks import (
 import codecs
 from SmilesPE.tokenizer import *
 #from SmilesPE.spe2vec import *
-from utils_encoder import SMILES_SPE_Tokenizer
+from inference.utils_encoder import SMILES_SPE_Tokenizer
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
 from mpi4py import MPI
-from clr_callback import CyclicLR
+from inference.clr_callback import CyclicLR
 from tensorflow.python.client import device_lib
 from itertools import chain, repeat, islice
 

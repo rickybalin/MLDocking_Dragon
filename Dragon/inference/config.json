@@ -24,8 +24,8 @@
         "maxlen": 45,
         "tokenizer": {
             "category": "smilespair",
-            "spe_file": "VocabFiles/SPE_ChEMBL.txt",
-            "vocab_file": "VocabFiles/vocab_spe.txt"
+            "spe_file": "inference/VocabFiles/SPE_ChEMBL.txt",
+            "vocab_file": "inference/VocabFiles/vocab_spe.txt"
         }
     },
 

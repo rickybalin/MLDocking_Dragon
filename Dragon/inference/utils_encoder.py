@@ -86,10 +86,12 @@ class SMILES_SPE_Tokenizer(PreTrainedTokenizer):
         )
 
         if not os.path.isfile(vocab_file):
+            print('vocab file',flush=True)
             raise ValueError(
                 "Can't find a vocabulary file at path '{}'.".format(vocab_file)
             )
         if not os.path.isfile(spe_file):
+            print('spe file',flush=True)
             raise ValueError(
                 "Can't find a SPE vocabulary file at path '{}'.".format(spe_file)
             )

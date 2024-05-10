@@ -6,7 +6,8 @@ import argparse
 
 import dragon
 import multiprocessing as mp
-from dragon.data.distdictionary.dragon_dict import DragonDict
+#from dragon.data.distdictionary.dragon_dict import DragonDict
+from dragon.data.ddict.ddict import DDict
 
 
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
@@ -35,7 +36,7 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(_dict, file_path: pathlib.PosixPath):
+def read_smiles(dd, file_path: pathlib.PosixPath):
     """Read the smile strings from file
 
     :param file_path: file path to open
@@ -54,13 +55,13 @@ def read_smiles(_dict, file_path: pathlib.PosixPath):
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    _dict[f_name] = smiles
+    dd[f_name] = smiles
 
-def load_inference_data(_dict, data_path: str, max_procs: int):
+def load_inference_data(dd: DDict, data_path: str, max_procs: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
-    :param _dict: Dragon distributed dictionary
-    :type _dict: ...
+    :param dd: Dragon distributed dictionary
+    :type dd: DDict
     :param data_path: path to pre-sorted data
     :type data_path: str
     :param max_procs: maximum number of processes to launch for loading
@@ -73,13 +74,12 @@ def load_inference_data(_dict, data_path: str, max_procs: int):
     
     # Launch Pool
     num_procs = min(max_procs, num_files)
-    inputs = [(_dict, file) for file in files]
+    inputs = [(dd, file) for file in files]
     pool = mp.Pool(num_procs)
     pool.starmap(read_smiles, inputs)
     pool.close()
     pool.join()
 
-    _dict.close()
 
 if __name__ == "__main__":
     # Import command line arguments
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024*1024*1024)
-    dd = DragonDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
     # Launch the data loader
