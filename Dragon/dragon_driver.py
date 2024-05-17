@@ -46,8 +46,10 @@ if __name__ == "__main__":
     total_mem_size*=(1024*1024*1024)
     
     print("Started Dragon Dictionary Launch", flush=True)
-    sys.stdout.flush()
-    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size,timeout=args.dictionary_timeout)
+    dd = DDict(args.managers_per_node, 
+               args.num_nodes, 
+               total_mem_size,
+               timeout=args.dictionary_timeout)
     print("Launched Dragon Dictionary", flush=True)
 
     sys.stdout.flush()
@@ -63,12 +65,9 @@ if __name__ == "__main__":
                                    args.num_nodes*args.managers_per_node), 
                              )#ignore_exit_on_error=True)
     loader_proc.start()
-    print("Process started",flush=True)
-
     loader_proc.join()
-    print("Process ended",flush=True)
     print(f"loader_proc exit code is {loader_proc.exitcode}")
-    #print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
     print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
     dd.destroy()
     toc = perf_counter()

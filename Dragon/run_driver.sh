@@ -7,10 +7,10 @@ source /grand/hpe_dragon_collab/csimpson/env.sh
 #cd $PBS_O_WORKDIR
 NODES=$(cat $PBS_NODEFILE | wc -l)
 
-DATA_PATH=/grand/hpe_dragon_collab/test_dataset/data/med
+DATA_PATH=/grand/hpe_dragon_collab/csimpson/ZINC-22-presorted-big/tiny
 DRIVER_PATH=./
 PROCS_PER_NODE=60
-MEM_PER_NODE=500
+MEM_PER_NODE=100
 TIMEOUT=10
 MANAGERS=1
 echo Running on $NODES nodes

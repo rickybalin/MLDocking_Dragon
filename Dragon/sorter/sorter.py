@@ -170,7 +170,6 @@ if __name__ == "__main__":
 
     print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
 
-#sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: list):
     candidate_queue = mp.Queue()
     top_candidate_number = 10
     sorter_proc = mp.Process(target=sort_dictionary, 

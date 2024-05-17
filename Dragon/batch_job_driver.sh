@@ -2,12 +2,12 @@
 #PBS -S /bin/bash
 #PBS -N ml_docking_dragon
 #PBS -l walltime=00:30:00
-#PBS -l select=4:ncpus=64:ngpus=4
+#PBS -l select=16:ncpus=64:ngpus=4
 #PBS -l filesystems=home:eagle:grand
 #PBS -k doe
 #PBS -j oe
 #PBS -A hpe_dragon_collab
-#PBS -q debug-scaling
+#PBS -q prod
 #PBS -V
 
 # Set env
