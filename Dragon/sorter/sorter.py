@@ -73,9 +73,8 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
         j = j + 1
         k = k + 1
 
-    merged_list.reverse()
-
-    return merged_list[:num_return_sorted]
+    # only return the last num_return_sorted elements
+    return merged_list[-num_return_sorted:]
     
 def direct_key_sort(_dict,
                     key_list,
@@ -85,7 +84,7 @@ def direct_key_sort(_dict,
     my_results = []
     for key in key_list:
         this_value = _dict[key]
-        this_value.sort(reverse=True)
+        this_value.sort()
         my_results = merge(this_value, my_results, num_return_sorted)
     sorted_dict_queue.put(my_results)
 
@@ -143,8 +142,7 @@ def sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: lis
     result_queue = mp.Queue()
     parallel_dictionary_sort(_dict, key_list, direct_sort_num, num_return_sorted, result_queue)
     result = result_queue.get()
-    result.reverse()
-    top_candidates = result[:num_return_sorted]
+    top_candidates = result[-num_return_sorted:]
     
     return top_candidates
 
