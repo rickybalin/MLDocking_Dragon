@@ -8,9 +8,6 @@ import sys
 import time
 import socket
 
-sys.path.append("..")
-from key_decode import MyKey
-
 import dragon
 import multiprocessing as mp
 #from dragon.data.distdictionary.dragon_dict import DragonDict
@@ -79,7 +76,7 @@ def read_smiles(file_tuple):
     smiles_size = sys.getsizeof(smiles)
     f_name_list = f_name.split('.gz')
     logname =  f_name_list[0].split(".")[0]+f_name_list[1]
-    key = MyKey(f_name, file_hash_int)
+    #key = MyKey(f_name, file_hash_int)
     outfiles_path = "smiles_sizes"
     if not os.path.exists(outfiles_path):
         os.mkdir(outfiles_path)
@@ -88,7 +85,7 @@ def read_smiles(file_tuple):
         f.write(f"Worker located on {socket.gethostname()}\n")
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
 
-    data_dict[key] = smiles
+    data_dict[f_name] = smiles
 
     with open(f"{outfiles_path}/{logname}.out",'a') as f:
         f.write(f"Stored data in dragon dictionary\n")
@@ -96,11 +93,12 @@ def read_smiles(file_tuple):
     
 
     
-def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
+def load_inference_data(_dict, nodelist, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
     :type _dict: DDict
+    :param nodelist: Dragon nodelist where to run Pools
     :param data_path: path to pre-sorted data
     :type data_path: str
     :param max_procs: maximum number of processes to launch for loading

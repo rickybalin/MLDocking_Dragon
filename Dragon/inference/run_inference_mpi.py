@@ -1,48 +1,34 @@
-############# Module Loading ##############
 import os
 import sys
 from collections import OrderedDict
 from typing import List
+import numpy as np
+import psutil
 
-import mpi4py
-mpi4py.rc.initialize = False
-from mpi4py import MPI
+from dragon.native.process import current as current_process
 
-#import tensorflow as tf
-#from tensorflow import keras
-#from tensorflow.keras import backend as K
-#from tensorflow.keras import layers
-#from tensorflow.keras.callbacks import (
-#    CSVLogger,
-#    EarlyStopping,
-#    ModelCheckpoint,
-#    ReduceLROnPlateau,
-#)
-#from tensorflow.keras.optimizers import Adam
-#from tensorflow.keras.preprocessing import sequence, text
-#from tensorflow.python.client import device_lib
-
-from inference.utils_transformer import ParamsJson, ModelArchitecture
+from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_encoder import SMILES_SPE_Tokenizer
 
-def split_dict_keys(keys: List[str], size: int, rank: int) -> List[str]:
+
+def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     """Read the keys containing inference data from the Dragon Dictionary 
-    and split equally among the MPI ranks
+    and split equally among the procs
 
     :param keys: list of keys in the dictionary 
     :type keys: List[str] 
-    :param size: Number of total ranks (MPI comm size)
+    :param size: Number of total procs 
     :type size: int
-    :param rank: Local rank ID
-    :type rank: int
+    :param proc: Local proc ID
+    :type proc: int
     :return: list of strings containing the split keys
     :rtype: List[str]
     """
     num_keys = len(keys)
-    num_keys_per_rank = num_keys//size
-    start_ind = rank*num_keys_per_rank
-    end_ind = (rank+1)*num_keys_per_rank
-    if rank!=(size-1):
+    num_keys_per_proc = num_keys//size
+    start_ind = proc*num_keys_per_proc
+    end_ind = (proc+1)*num_keys_per_proc
+    if proc!=(size-1):
         split_keys = keys[start_ind:end_ind]
     else:
         split_keys = keys[start_ind:-1]
@@ -61,77 +47,74 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     :rtype: ...
     """
     maxlen = hyper_params['tokenization']['maxlen']
-    #x_inference = preprocess_smiles_pair_encoding(smiles_raw, tokenizer, maxlen)
     x_inference = np.array([list(pad(tokenizer(smi)['input_ids'], maxlen, 0)) for smi in smiles_raw])
     return x_inference
 
-def infer(dd):
-    """Run inference with MPI reading from and writing data to the Dragon Dictionary
+def infer(dd, num_procs, proc):
+    """Run inference reading from and writing data to the Dragon Dictionary
     """
-    # Initialize MPI
-    MPI.Init()
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-    comm.Barrier()
-    if rank==0:
-        print("Initialized MPI", flush=True)
-
-    if rank==0:
-        print(dd["H04M000"], flush=True)
+    # !!! DEBUG !!!
+    debug = False
+    if debug:
+        myp = current_process()
+        p = psutil.Process()
+        core_list = p.cpu_affinity()
+        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            f.write(f"\n\n\n\nNew run\n")
+            f.write(f"Hello from process {proc} on core {core_list}\n")
+    
 
     # Read HyperParameters 
     json_file = 'inference/config.json'
     hyper_params = ParamsJson(json_file)
-    comm.Barrier()
-    if rank==0:
-        print("Loaded hyperparameters", flush=True)
 
     # Load model and weights
-    #model = ModelArchitecture(hyper_params).call()
-    #model.load_weights(f'inference/smile_regress.autosave.model.h5')
-    comm.Barrier()
-    if rank==0:
-        print("Loaded model", flush=True)
+    try:
+        model = ModelArchitecture(hyper_params).call()
+        model.load_weights(f'inference/smile_regress.autosave.model.h5')
+    except Exception as e:
+        if debug:
+            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                f.write(f"{proc}: Loading model exception {e}\n")
 
     # Split keys in Dragon Dict
     keys = dd.keys()
-    split_keys = split_dict_keys(keys, size, rank)
-    comm.Barrier()
-    if rank==0:
-        print("Split keys across ranks", flush=True)
+    if num_procs>1:
+        split_keys = split_dict_keys(keys, num_procs, proc)
+    else:
+        split_keys = keys
 
     # Set up tokenizer
     if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
         vocab_file = hyper_params['tokenization']['tokenizer']['vocab_file']
         spe_file = hyper_params['tokenization']['tokenizer']['spe_file']
-        print(f'loading file {vocab_file} from {os.getcwd()}',flush=True)
-        #tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
-    comm.Barrier()
-    if rank==0:
-        print("Set up tokenizer", flush=True)
+        tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
 
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params['general']['batch_size']
     cutoff = 9
-    for key in split_keys:
-        if rank==0:
-            print(f"reading key {key}", flush=True)
-        smiles_raw = dd[key]
-        #x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+    try:
+        for key in split_keys:
+            smiles_raw = dd[key]
+            x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+            output = model.predict(x_inference, batch_size = BATCH)
         
-        #Output = model.predict(x_inference, batch_size = BATCH)
-        
-        #sort the output so the inference data per key is pre-sorted
+            smiles_ds = np.vstack((smiles_raw, output.flatten())).T
+            smiles_ds = sorted(smiles_ds, key=lambda x: x[1], reverse=True)
+            filtered_data = list(OrderedDict((item[0], item) for item in smiles_ds if float(item[1]) >= cutoff).values())
+            if debug:
+                with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                    f.write(f"created filtered list\n")
+                    f.write(f"{filtered_data}\n")
 
-        #dd[f'inf_{key}'] = 
+            if filtered_data:
+                dd[f'inf_{key}'] = filtered_data
 
-        #SMILES_DS = np.vstack((Data_smiles_inf, np.array(Output).flatten())).T
-        #SMILES_DS = sorted(SMILES_DS, key=lambda x: x[1], reverse=True)
-
-        #filtered_data = list(OrderedDict((item[0], item) for item in SMILES_DS if item[1] >= cutoff).values())
-
-    MPI.Finalize()
+    except Exception as e:
+        if debug:
+            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                f.write(f'{e}\n')
+        pass
 
 ## Run main
 if __name__ == "__main__":
