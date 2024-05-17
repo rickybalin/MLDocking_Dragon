@@ -8,6 +8,7 @@ import sys
 import time
 import socket
 import uuid
+import random
 
 sys.path.append("..")
 from key_decode import MyKey
@@ -130,7 +131,7 @@ def parallel_dictionary_sort(_dict,
     
 
     
-def sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: list):
+def sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_queue):
     """Sort dictionary and return top num_return_sorted smiles strings
 
     :param _dict: Dragon distributed dictionary
@@ -143,8 +144,18 @@ def sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: lis
     parallel_dictionary_sort(_dict, key_list, direct_sort_num, num_return_sorted, result_queue)
     result = result_queue.get()
     top_candidates = result[-num_return_sorted:]
-    
-    return top_candidates
+    print(f"{top_candidates=}",flush=True)
+    candidate_queue.put(top_candidates)
+
+
+def create_dummy_data(_dict,num_managers):
+
+    NUMKEYS = 100
+
+    for i in range(NUMKEYS):
+        key=f"{i%num_managers}_{i}"
+        _dict[key] = [random.randrange(0,1000,1) for j in range(10)]
+
 
 
 if __name__ == "__main__":
@@ -154,22 +165,52 @@ if __name__ == "__main__":
                         help='number of nodes the dictionary distributed across')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
-    parser.add_argument('--total_mem_size', type=int, default=8,
-                        help='total managed memory size for dictionary in GB')
-    parser.add_argument('--max_procs', type=int, default=10,
+    parser.add_argument('--mem_per_node', type=int, default=1,
+                        help='managed memory size per node for dictionary in GB')
+    parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
+    parser.add_argument('--dictionary_timeout', type=int, default=10,
+                        help='Timeout for Dictionary in seconds')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
     args = parser.parse_args()
 
     # Start distributed dictionary
     mp.set_start_method("dragon")
-    total_mem_size = args.total_mem_size * (1024*1024*1024)
+    total_mem_size = args.mem_per_node * args.num_nodes * (1024*1024*1024)
     dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
+    loader_proc = mp.Process(target=create_dummy_data, 
+                             args=(dd,
+                                   args.num_nodes*args.managers_per_node), 
+                             )#ignore_exit_on_error=True)
+    loader_proc.start()
+    print("Process started",flush=True)
 
-    
+    loader_proc.join()
+    print("Process ended",flush=True)
+
+    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+
+#sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: list):
+    candidate_queue = mp.Queue()
+    top_candidate_number = 10
+    sorter_proc = mp.Process(target=sort_dictionary, 
+                             args=(dd,
+                                   top_candidate_number,
+                                   args.max_procs_per_node*args.num_nodes,
+                                   dd.keys(),
+                                    candidate_queue), 
+                             )#ignore_exit_on_error=True)
+    sorter_proc.start()
+    print("Process started",flush=True)
+
+    sorter_proc.join()
+    print("Process ended",flush=True)
+    top_candidates = candidate_queue.get(timeout=None)
+    print(f"{top_candidates=}")
+
     # # Launch the data loader
     # print("Loading inference data into Dragon Dictionary ...", flush=True)
     # tic = perf_counter()
