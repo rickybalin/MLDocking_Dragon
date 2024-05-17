@@ -1,35 +1,12 @@
-import pathlib
-import gzip
 from time import perf_counter
 from typing import Tuple
 import argparse
-import os
 import sys
-import time
-import socket
-import uuid
 import random
-
-sys.path.append("..")
-from key_decode import MyKey
 
 import dragon
 import multiprocessing as mp
-#from dragon.data.distdictionary.dragon_dict import DragonDict
 from dragon.data.ddict.ddict import DDict
-
-
-class WorkerStopException(Exception):
-    pass
-
-
-global data_dict 
-data_dict = None
-
-def init_worker(q):
-    global data_dict
-    data_dict = q.get()
-    return
 
 
 def merge(left: list, right: list, num_return_sorted: int) -> list:
