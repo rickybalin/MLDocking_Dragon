@@ -9,6 +9,7 @@ import sys
 from dragon.data.ddict.ddict import DDict
 
 from data_loader.data_loader_presorted import load_inference_data
+from sorter.sorter import sort_dictionary
 
 
 
@@ -55,19 +56,25 @@ if __name__ == "__main__":
     max_procs = args.max_procs_per_node*args.num_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
     tic = perf_counter()
-    loader_proc = mp.Process(target=load_inference_data, args=(dd,args.data_path,max_procs,args.num_nodes*args.managers_per_node))
+    loader_proc = mp.Process(target=load_inference_data, 
+                             args=(dd,
+                                   args.data_path,
+                                   max_procs,
+                                   args.num_nodes*args.managers_per_node), 
+                             )#ignore_exit_on_error=True)
     loader_proc.start()
     print("Process started",flush=True)
 
     loader_proc.join()
     print("Process ended",flush=True)
     print(f"loader_proc exit code is {loader_proc.exitcode}")
+    #print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
     print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
     dd.destroy()
     toc = perf_counter()
     load_time = toc - tic
     print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
-    #print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+    
     print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
     sys.stdout.flush()
     if loader_proc.exitcode != 0:

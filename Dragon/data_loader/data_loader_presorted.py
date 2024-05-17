@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import socket
+import uuid
 
 sys.path.append("..")
 from key_decode import MyKey
@@ -55,7 +56,7 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(file_tuple):
+def read_smiles(file_tuple: Tuple[int, str]):
     """Read the smile strings from file
 
     :param file_path: file path to open
@@ -63,7 +64,8 @@ def read_smiles(file_tuple):
     """
     global data_dict
 
-    file_hash_int = file_tuple[0]
+    file_index = file_tuple[0]
+    manager_index = file_tuple[2]
     file_path = file_tuple[1]
 
     smiles = []
@@ -80,10 +82,10 @@ def read_smiles(file_tuple):
                 smile = line.split("\t")[0]
                 smiles.append(smile)
 
-    smiles_size = sys.getsizeof(smiles)
+    smiles_size = sum([sys.getsizeof(s) for s in smiles])
     f_name_list = f_name.split('.gz')
     logname =  f_name_list[0].split(".")[0]+f_name_list[1]
-    key = MyKey(f_name, file_hash_int)
+    
     outfiles_path = "smiles_sizes"
     if not os.path.exists(outfiles_path):
         os.mkdir(outfiles_path)
@@ -94,18 +96,25 @@ def read_smiles(file_tuple):
     with open(f"{outfiles_path}/{logname}.out",'w') as f:
         f.write(f"Worker located on {socket.gethostname()}\n")
         f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+        
 
     try:
-        data_dict[key] = smiles
+        #key = MyKey(f_name,manager_index)
+        key = f"{manager_index}_{file_index}"
+        data_dict[key] = {"f_name": f_name, "smiles": smiles}
         with open(f"{outfiles_path}/{logname}.out",'a') as f:
             f.write(f"Stored data in dragon dictionary\n")
+            f.write(f"key is {key}")
+            #f.write(f"MyKey {f_name} {manager_index} {key.__getstate__()}\n")
+        smiles_size += sys.getsizeof(f_name)
+        smiles_size += sys.getsizeof(key)
         return smiles_size
-    except:
+    except Exception as e:
         smiles_size = 0
         with open(f"{outfiles_path}/{logname}.out",'a') as f:
             f.write(f"Exception!\n")
-        return smiles_size
-        #raise WorkerStopException("Failed to save smiles")
+        #raise Exception(e)
+        return 0
 
     
     
@@ -123,9 +132,9 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
-    file_tuples = [(i%num_managers, f) for i,f in enumerate(files)]
+    file_tuples = [(i, f, i%num_managers) for i,f in enumerate(files)]
 
-    _dict["file_tuples"] = file_tuples
+    #_dict["file_tuples"] = file_tuples
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
     
