@@ -85,7 +85,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int):
                                                      cwd=run_dir,
                                                      policy=local_policy, 
                                                      stdout=MSG_DEVNULL,
-                                                     stderr=MSG_PIPE))
+                                                     stderr=MSG_DEVNULL))
     
     # Launch the ProcessGroup 
     grp.init()

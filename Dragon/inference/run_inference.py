@@ -10,6 +10,8 @@ from dragon.native.process import current as current_process
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_encoder import SMILES_SPE_Tokenizer
 
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     """Read the keys containing inference data from the Dragon Dictionary 
@@ -24,14 +26,15 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     :return: list of strings containing the split keys
     :rtype: List[str]
     """
-    num_keys = len(keys)
+    inf_keys = [key for key in keys if 'H' in key]
+    num_keys = len(inf_keys)
     num_keys_per_proc = num_keys//size
     start_ind = proc*num_keys_per_proc
     end_ind = (proc+1)*num_keys_per_proc
     if proc!=(size-1):
-        split_keys = keys[start_ind:end_ind]
+        split_keys = inf_keys[start_ind:end_ind]
     else:
-        split_keys = keys[start_ind:-1]
+        split_keys = inf_keys[start_ind:-1]
     return split_keys
 
 def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str]):
@@ -73,9 +76,9 @@ def infer(dd, num_procs, proc):
         model = ModelArchitecture(hyper_params).call()
         model.load_weights(f'inference/smile_regress.autosave.model.h5')
     except Exception as e:
-        if debug:
-            with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                f.write(f"{proc}: Loading model exception {e}\n")
+        #eprint(e, flush=True)
+        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            f.write(f"{e}")
 
     # Split keys in Dragon Dict
     keys = dd.keys()
@@ -83,6 +86,9 @@ def infer(dd, num_procs, proc):
         split_keys = split_dict_keys(keys, num_procs, proc)
     else:
         split_keys = keys
+    if debug:
+        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            f.write(f"Running inference on {len(split_keys)} keys\n")
 
     # Set up tokenizer
     if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
@@ -94,7 +100,9 @@ def infer(dd, num_procs, proc):
     BATCH = hyper_params['general']['batch_size']
     cutoff = 9
     try:
-        for key in split_keys:
+        #for key in split_keys:
+        for ikey in range(2):
+            key = split_keys[ikey]
             smiles_raw = dd[key]
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
             output = model.predict(x_inference, batch_size = BATCH)
@@ -102,19 +110,18 @@ def infer(dd, num_procs, proc):
             smiles_ds = np.vstack((smiles_raw, output.flatten())).T
             smiles_ds = sorted(smiles_ds, key=lambda x: x[1], reverse=True)
             filtered_data = list(OrderedDict((item[0], item) for item in smiles_ds if float(item[1]) >= cutoff).values())
-            if debug:
-                with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                    f.write(f"created filtered list\n")
-                    f.write(f"{filtered_data}\n")
 
             if filtered_data:
                 dd[f'inf_{key}'] = filtered_data
+            
+            if debug:
+                with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                    f.write(f"Performed inference on key {key}\n")
 
     except Exception as e:
-        if debug:
-            with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                f.write(f'{e}\n')
-        pass
+        #eprint(e, flush=True)
+        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            f.write(f"{e}")
 
 ## Run main
 if __name__ == "__main__":
