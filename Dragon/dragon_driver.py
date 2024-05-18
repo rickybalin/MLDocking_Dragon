@@ -81,8 +81,11 @@ if __name__ == "__main__":
     print("Loading inference data into Dragon Dictionary ...", flush=True)
     tic = perf_counter()
     loader_proc = mp.Process(target=load_inference_data, 
-                             args=(inf_dd, inf_dd_nodelist, args.data_path, 
-                                   max_procs, args.inf_dd_nodes*args.managers_per_node))
+                             args=(inf_dd, 
+	                               args.data_path, 
+                                   max_procs, 
+								   args.inf_dd_nodes*args.managers_per_node),
+							 )
     loader_proc.start()
     loader_proc.join()
     toc = perf_counter()
@@ -103,3 +106,6 @@ if __name__ == "__main__":
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
     inf_dd.destroy()
+	
+	if loader_proc.exitcode != 0:
+	    raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")

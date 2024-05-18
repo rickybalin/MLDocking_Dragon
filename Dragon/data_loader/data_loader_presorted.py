@@ -10,7 +10,6 @@ import socket
 
 import dragon
 import multiprocessing as mp
-#from dragon.data.distdictionary.dragon_dict import DragonDict
 from dragon.data.ddict.ddict import DDict
 
 
@@ -48,7 +47,7 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(file_tuple):
+def read_smiles(file_tuple: Tuple[int, str, int]):
     """Read the smile strings from file
 
     :param file_path: file path to open
@@ -56,7 +55,8 @@ def read_smiles(file_tuple):
     """
     global data_dict
 
-    file_hash_int = file_tuple[0]
+    file_index = file_tuple[0]
+    manager_index = file_tuple[2]
     file_path = file_tuple[1]
 
     smiles = []
@@ -73,32 +73,47 @@ def read_smiles(file_tuple):
                 smile = line.split("\t")[0]
                 smiles.append(smile)
 
-    smiles_size = sys.getsizeof(smiles)
+    inf_results = [0.0 for i in range(len(smiles))]
+
+    smiles_size = sum([sys.getsizeof(s) for s in smiles])
+    inf_size = sum([sys.getsizeof(infr) for infr in inf_results])
+
     f_name_list = f_name.split('.gz')
     logname =  f_name_list[0].split(".")[0]+f_name_list[1]
-    #key = MyKey(f_name, file_hash_int)
     outfiles_path = "smiles_sizes"
     if not os.path.exists(outfiles_path):
         os.mkdir(outfiles_path)
-    
+
     with open(f"{outfiles_path}/{logname}.out",'w') as f:
         f.write(f"Worker located on {socket.gethostname()}\n")
-        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
 
-    data_dict[f_name] = smiles
+    try:
+        key = f"{manager_index}_{file_index}"
+        data_dict[key] = {"f_name": f_name, 
+                          "smiles": smiles,
+                          "inf": inf_results}
+        with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"Stored data in dragon dictionary\n")
+            f.write(f"key is {key}")
 
-    with open(f"{outfiles_path}/{logname}.out",'a') as f:
-        f.write(f"Stored data in dragon dictionary\n")
-    return smiles_size
+        smiles_size += sys.getsizeof(f_name)
+        smiles_size += sys.getsizeof(key)
+        smiles_size += inf_size
+        return smiles_size
+    except Exception as e:
+        smiles_size = 0
+        with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"Exception!\n")
+        #raise Exception(e)
+        return 0
     
-
     
-def load_inference_data(_dict, nodelist, data_path: str, max_procs: int, num_managers: int):
+def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
     :type _dict: DDict
-    :param nodelist: Dragon nodelist where to run Pools
     :param data_path: path to pre-sorted data
     :type data_path: str
     :param max_procs: maximum number of processes to launch for loading
@@ -108,8 +123,7 @@ def load_inference_data(_dict, nodelist, data_path: str, max_procs: int, num_man
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
-    file_tuples = [(i%num_managers, f) for i,f in enumerate(files)]
-
+    file_tuples = [(i, f, i%num_managers) for i,f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
@@ -121,19 +135,24 @@ def load_inference_data(_dict, nodelist, data_path: str, max_procs: int, num_man
         
     pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
     print(f"Pool initialized", flush=True)
-    #with open("smile_sizes.out",'w') as f:
-    #    f.write(f"Reading smiles for {num_files}\n")
-    print(f"Reading smiles for {num_files}",flush=True)
-    smiles_sizes = pool.map(read_smiles, file_tuples)
-    #with open("smile_sizes.out",'w') as f:
-    #    f.write(f"Finished Reading smiles, {sum(smiles_sizes)} bytes\n\n")
 
-    print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
-    print(f"Mapped function complete", flush=True)
-    pool.close()
-    print(f"Pool closed",flush=True)
-    pool.join()
-    print(f"Pool joined",flush=True)
+    print(f"Reading smiles for {num_files}",flush=True)
+    
+    try:
+        smiles_sizes = pool.imap(read_smiles, file_tuples)
+
+        print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+        print(f"Mapped function complete", flush=True)
+        pool.close()
+        print(f"Pool closed",flush=True)
+        pool.join()
+        print(f"Pool joined",flush=True)
+        
+    except Exception as e:
+        print(f"reading smiles failed")
+        pool.terminate()
+        raise Exception(e)
+   
 
 if __name__ == "__main__":
     # Import command line arguments
@@ -166,4 +185,4 @@ if __name__ == "__main__":
 
     # Close the dictionary
     print("Done, closing the Dragon Dictionary", flush=True)
-    dd.close()
+    dd.destroy()
