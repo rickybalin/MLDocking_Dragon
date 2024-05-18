@@ -26,15 +26,14 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     :return: list of strings containing the split keys
     :rtype: List[str]
     """
-    inf_keys = [key for key in keys if 'H' in key]
-    num_keys = len(inf_keys)
+    num_keys = len(keys)
     num_keys_per_proc = num_keys//size
     start_ind = proc*num_keys_per_proc
     end_ind = (proc+1)*num_keys_per_proc
     if proc!=(size-1):
-        split_keys = inf_keys[start_ind:end_ind]
+        split_keys = keys[start_ind:end_ind]
     else:
-        split_keys = inf_keys[start_ind:-1]
+        split_keys = keys[start_ind:-1]
     return split_keys
 
 def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str]):
@@ -103,16 +102,23 @@ def infer(dd, num_procs, proc):
         #for key in split_keys:
         for ikey in range(2):
             key = split_keys[ikey]
-            smiles_raw = dd[key]
+            #smiles_raw = dd[key]['smiles']
+            val = dd[key]
+            smiles_raw = val['smiles']
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
             output = model.predict(x_inference, batch_size = BATCH)
-        
-            smiles_ds = np.vstack((smiles_raw, output.flatten())).T
-            smiles_ds = sorted(smiles_ds, key=lambda x: x[1], reverse=True)
-            filtered_data = list(OrderedDict((item[0], item) for item in smiles_ds if float(item[1]) >= cutoff).values())
 
-            if filtered_data:
-                dd[f'inf_{key}'] = filtered_data
+            sort_index = np.flip(np.argsort(output)).tolist()
+            smiles_sorted = smiles_raw[sort_index]
+            pred_sorted = [output[sorted_index[i]].item() for i in range(len(sorted_index)) \
+                           if output[sorted_index[i]]>cutoff else 0.0]
+            if debug:
+                with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                    f.write(f"{pred_sorted}\n")
+
+            val['smiles'] = smiles_sorted
+            val['inf'] = pred_sorted
+            dd[key] = val
             
             if debug:
                 with open(f"ws_worker_{myp.ident}.log",'a') as f:

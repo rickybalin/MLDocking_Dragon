@@ -74,7 +74,7 @@ if __name__ == "__main__":
     print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)
 
     # Place key used to stop workflow (possible way of syncing components)
-    inf_dd['keep_runing'] = True
+    #inf_dd['keep_runing'] = True # needs update to inference.run_inference.split_dict_keys
 
     # Launch the data loader component
     max_procs = args.max_procs_per_node*args.inf_dd_nodes
