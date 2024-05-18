@@ -1,13 +1,15 @@
 import os
 
-import multiprocessing as mp
 import dragon
+import multiprocessing as mp
 from dragon.native.process_group import ProcessGroup
 from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
 from dragon.infrastructure.connection import Connection
 from dragon.data.ddict.ddict import DDict
+from dragon.infrastructure.policy import Policy
+from dragon.native.machine import Node
 
-from .run_inference_mpi import infer
+from .run_inference import infer
 
 def read_output(stdout_conn: Connection) -> str:
     """Read stdout from the Dragon connection.
@@ -49,44 +51,43 @@ def read_error(stderr_conn: Connection) -> str:
         stderr_conn.close()
     return output
 
-def mpi_worker(q):
-    """Start the MPI inference job
-    """
-    dd = q.get()
-    infer(dd)
-
-def launch_inference_mpi(dd: DDict, num_ranks: int):
-    """Launch the MPI inference ruotine
+def launch_inference(dd: DDict, nodelist, num_procs: int):
+    """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
     :type dd: DDict
-    :param num_ranks: number of MPI ranks to use for inference
-    :type num_ranks: int
+    :param num_procs: number of processes to use for inference
+    :type num_procs: int
     """
-    # Create a queue for each rank
-    dd_q = mp.Queue(maxsize=num_ranks)
-    for _ in range(num_ranks):
-        dd_q.put(dd)
-
-    # Set up the MPI inference routine arguments
+    num_inf_nodes = len(nodelist)
+    num_procs_pn = num_procs//num_inf_nodes
+    inf_cpu_bind = [4, 12, 20, 28]
+    inf_gpu_bind = [3, 2, 1, 0]
     run_dir = os.getcwd()
 
+    # Load pretrained model weights into DDict
+    # TO DO: currently in h5 file loaded with TF model.load_weights()
+    #        what other loading methods are available?
+
     # Create the process group
-    grp = ProcessGroup(restart=False, pmi_enabled=True)
-    grp.add_process(nproc=1, 
-                    template=ProcessTemplate(target=mpi_worker, 
-                                             args=(dd_q,), 
-                                             cwd=run_dir, 
-                                             stdout=MSG_PIPE,
-                                             stderr=MSG_PIPE))
-    grp.add_process(nproc=num_ranks - 1,
-                    template=ProcessTemplate(target=mpi_worker, 
-                                             args=(dd_q,), 
-                                             cwd=run_dir, 
-                                             stdout=MSG_PIPE))
-                                             #stdout=MSG_DEVNULL))
+    global_policy = Policy(distribution=Policy.Distribution.BLOCK)
+    grp = ProcessGroup(restart=False, pmi_enabled=True, ignore_error_on_exit=True, policy=global_policy)
+    for node_num in range(num_inf_nodes):   
+        node_name = Node(nodelist[node_num]).hostname
+        for proc in range(num_procs_pn):
+            proc_id = node_num*num_procs_pn+proc
+            local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, 
+                                                                        cpu_affinity=[inf_cpu_bind[proc]],
+                                  device=Policy.Device.GPU, gpu_affinity=[inf_gpu_bind[proc]])
+            grp.add_process(nproc=1, 
+                            template=ProcessTemplate(target=infer, 
+                                                     args=(dd,num_procs,proc_id), 
+                                                     cwd=run_dir,
+                                                     policy=local_policy, 
+                                                     stdout=MSG_DEVNULL,
+                                                     stderr=MSG_DEVNULL))
     
-    # Launch the ProcessGroup (MPI inference routine)
+    # Launch the ProcessGroup 
     grp.init()
     grp.start()
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
