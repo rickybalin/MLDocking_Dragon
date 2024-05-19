@@ -102,19 +102,15 @@ def infer(dd, num_procs, proc):
         #for key in split_keys:
         for ikey in range(2):
             key = split_keys[ikey]
-            #smiles_raw = dd[key]['smiles']
             val = dd[key]
             smiles_raw = val['smiles']
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
-            output = model.predict(x_inference, batch_size = BATCH)
+            output = model.predict(x_inference, batch_size = BATCH).flatten()
 
             sort_index = np.flip(np.argsort(output)).tolist()
-            smiles_sorted = smiles_raw[sort_index]
-            pred_sorted = [output[sorted_index[i]].item() for i in range(len(sorted_index)) \
-                           if output[sorted_index[i]]>cutoff else 0.0]
-            if debug:
-                with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                    f.write(f"{pred_sorted}\n")
+            smiles_sorted = [smiles_raw[i] for i in sort_index]
+            pred_sorted = [output[sort_index[i]].item() if output[sort_index[i]]>cutoff else 0.0 \
+                           for i in range(len(sort_index))]
 
             val['smiles'] = smiles_sorted
             val['inf'] = pred_sorted
