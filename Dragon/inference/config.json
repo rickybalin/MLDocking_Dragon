@@ -1,7 +1,7 @@
 {
     "general": {
         "use_hvd": false,
-        "use_mpi": true,
+        "use_mpi": false,
         "batch_size": 256,
         "epochs": 400,
         "lr": 0.00000991301767144166,

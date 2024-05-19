@@ -26,7 +26,7 @@ from SmilesPE.tokenizer import *
 from inference.utils_encoder import SMILES_SPE_Tokenizer
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
-from mpi4py import MPI
+#from mpi4py import MPI
 from inference.clr_callback import CyclicLR
 from tensorflow.python.client import device_lib
 from itertools import chain, repeat, islice
