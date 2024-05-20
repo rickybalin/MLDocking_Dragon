@@ -19,14 +19,6 @@ def init_worker(q):
     data_dict = q.get()
     return
 
-global data_dict 
-data_dict = None
-
-def init_worker(q):
-    global data_dict
-    data_dict = q.get()
-    return
-
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """Return the file paths
 

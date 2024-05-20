@@ -89,17 +89,12 @@ if __name__ == "__main__":
     )
     loader_proc.start()
     loader_proc.join()
-    print(f"loader_proc exit code is {loader_proc.exitcode}")
-    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
-    print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
-    dd.destroy()
     toc = perf_counter()
     load_time = toc - tic
     if loader_proc.exitcode == 0:
         print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
-    
         
     # Launch the data inference component
     num_procs = 4*args.inf_dd_nodes
