@@ -7,11 +7,9 @@ import os
 import sys
 import socket
 
-
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
-
 
 global data_dict 
 data_dict = None
@@ -113,7 +111,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
-    :type _dict: ...
+    :type _dict: DDict
     :param data_path: path to pre-sorted data
     :type data_path: str
     :param max_procs: maximum number of processes to launch for loading
