@@ -5,13 +5,19 @@ from typing import Tuple
 import argparse
 import os
 import sys
-import time
 import socket
 
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
 
+global data_dict 
+data_dict = None
+
+def init_worker(q):
+    global data_dict
+    data_dict = q.get()
+    return
 
 global data_dict 
 data_dict = None

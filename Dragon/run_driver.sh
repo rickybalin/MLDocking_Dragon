@@ -22,3 +22,4 @@ export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
 # Run
 dragon -l DEBUG ${DRIVER_PATH}/dragon_driver.py --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH} --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
+

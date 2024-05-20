@@ -13,6 +13,7 @@ from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
+from sorter.sorter import sort_dictionary
 
 def parseNodeList() -> List[str]:
     """
@@ -30,6 +31,7 @@ def parseNodeList() -> List[str]:
     return nodelist
 
 if __name__ == "__main__":
+    
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
     parser.add_argument('--inf_dd_nodes', type=int, default=1,
@@ -74,7 +76,7 @@ if __name__ == "__main__":
 
     # Place key used to stop workflow (possible way of syncing components)
     #inf_dd['keep_runing'] = True # needs update to inference.run_inference.split_dict_keys
-
+    
     # Launch the data loader component
     max_procs = args.max_procs_per_node*args.inf_dd_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
@@ -87,10 +89,18 @@ if __name__ == "__main__":
     )
     loader_proc.start()
     loader_proc.join()
+    print(f"loader_proc exit code is {loader_proc.exitcode}")
+    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+    print(f"Closing the Dragon Dictionary and exiting ...\n", flush=True)
+    dd.destroy()
     toc = perf_counter()
     load_time = toc - tic
-    print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
-
+    if loader_proc.exitcode == 0:
+        print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
+    else:
+        raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
+    
+        
     # Launch the data inference component
     num_procs = 4*args.inf_dd_nodes
     print(f"Launching inference with {num_procs} processes ...", flush=True)
@@ -106,10 +116,6 @@ if __name__ == "__main__":
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
     inf_dd.destroy()
 
-    if loader_proc.exitcode != 0:
-        raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
-
-
-
+   
 
 
