@@ -1,14 +1,14 @@
 {
     "general": {
         "use_hvd": false,
-        "batch_size": 64,
+        "batch_size": 128,
         "epochs": 1000,
         "lr": 0.00000991301767144166,
         "loss_fn": "mean_squared_error"
     },
 
     "data_loading": {
-        "data_path": "/grand/datascience/avasan/DockingSurrogates/FineTune/Fine_Tuning",
+        "data_path": "./",
         "rec": "3CLPro_7BQY_A_1_F",
         "pattern": "Data/data"
     },
@@ -18,13 +18,13 @@
         "maxlen": 45,
         "tokenizer": {
             "category": "smilespair",
-            "spe_file": "VocabFiles/SPE_ChEMBL.txt",
-            "vocab_file": "VocabFiles/vocab_spe.txt"
+            "spe_file": "../Training/VocabFiles/SPE_ChEMBL.txt",
+            "vocab_file": "../Training/VocabFiles/vocab_spe.txt"
         }
     },
 
     "architecture": {
-        "compile": false,
+        "compile": true,
         "embedding": {
             "embed_dim": 128 
         },
