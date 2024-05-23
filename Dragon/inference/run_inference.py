@@ -52,11 +52,29 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     x_inference = np.array([list(pad(tokenizer(smi)['input_ids'], maxlen, 0)) for smi in smiles_raw])
     return x_inference
 
+def infer_switch(dd, num_procs, proc, continue_event):
+    #for i in range(1):
+    iter = 0
+    if proc == 0:
+        with open("infer_switch.log",'w') as f:
+            f.write("Starting inference\n")
+    while continue_event.is_set():
+    #if True:
+        if proc == 0:
+            with open("infer_switch.log","a") as f:
+                f.write(f"Inference on iter {iter}\n")
+        print(f"Inference on iter {iter}",flush=True)
+        infer(dd, num_procs, proc)
+        if proc == 0:
+            dd["inf_iter"] = iter
+        iter += 1
+
+
 def infer(dd, num_procs, proc):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
     # !!! DEBUG !!!
-    debug = False
+    debug = True
     if debug:
         myp = current_process()
         p = psutil.Process()
@@ -69,7 +87,7 @@ def infer(dd, num_procs, proc):
     # Read HyperParameters 
     json_file = 'inference/config.json'
     hyper_params = ParamsJson(json_file)
-
+    model_iter = "0"
     # Load model and weights
     try:
         model = ModelArchitecture(hyper_params).call()
@@ -114,6 +132,7 @@ def infer(dd, num_procs, proc):
 
             val['smiles'] = smiles_sorted
             val['inf'] = pred_sorted
+            val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
             dd[key] = val
             
             if debug:

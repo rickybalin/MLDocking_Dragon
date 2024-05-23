@@ -1,24 +1,40 @@
 from time import perf_counter
 from typing import Tuple
 import argparse
-import sys
+import os
 import random
 
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
+from dragon.native.process_group import ProcessGroup
+from dragon.infrastructure.policy import Policy, GS_DEFAULT_POLICY
+from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
+from dragon.infrastructure.connection import Connection
+from dragon.native.machine import cpu_count, current, System, Node
+from .sort_mpi import mpi_sort
 
+global data_dict 
+data_dict = None
+
+def init_worker(q):
+    global data_dict
+    data_dict = q.get()
+    return
 
 def merge(left: list, right: list, num_return_sorted: int) -> list:
     """This function merges two lists.
 
-    :param left: First list containing data
+    :param left: First list of tuples containing data
     :type left: list
-    :param right: Second list containing data
+    :param right: Second list of tuples containing data
     :type right: list
     :return: Merged data
     :rtype: list
     """
+    
+    # Merge by 0th element of tuples
+    # i.e. [(9.4, "asdfasd"), (3.5, "oisdjfosa"), ...]
 
     merged_list = [None] * (len(left) + len(right))
 
@@ -27,7 +43,7 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
     k = 0
 
     while i < len(left) and j < len(right):
-        if left[i] < right[j]:
+        if left[i][0] < right[j][0]:
             merged_list[k] = left[i]
             i = i + 1
         else:
@@ -52,6 +68,7 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
         k = k + 1
 
     # only return the last num_return_sorted elements
+    #print(f"Merged list returned {merged_list[-num_return_sorted:]}",flush=True)
     return merged_list[-num_return_sorted:]
     
 def direct_key_sort(_dict,
@@ -59,12 +76,41 @@ def direct_key_sort(_dict,
                     num_return_sorted,
                     sorted_dict_queue):
 
+    tic = perf_counter()
     my_results = []
     for key in key_list:
-        this_value = _dict[key]
-        this_value.sort()
-        my_results = merge(this_value, my_results, num_return_sorted)
+        val = _dict[key]
+        if any(val["inf"]):
+            this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
+            this_value.sort(key=lambda tup: tup[0])
+            my_results = merge(this_value, my_results, num_return_sorted)
+        #print(f"my_results {my_results}")
     sorted_dict_queue.put(my_results)
+    toc = perf_counter()
+    load_time = toc - tic
+    print(f"sorted {len(key_list)} keys in {load_time} s", flush=True)
+
+def direct_key_sort_pool(args):
+
+    global data_dict
+
+    key_list, kwargs = args
+    num_return_sorted = kwargs['num_return_sorted']
+    tic = perf_counter()
+    my_results = []
+    for key in key_list:
+        val = data_dict[key]
+        #print(f"{key=}",flush=True)
+        #print(f"inf is {val['inf']}")
+        if any(val["inf"]):
+            this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
+            this_value.sort(key=lambda tup: tup[0])
+            my_results = merge(this_value, my_results, num_return_sorted)
+        #print(f"my_results {my_results}")
+    toc = perf_counter()
+    load_time = toc - tic
+    print(f"sorted {len(key_list)} keys in {load_time} s", flush=True)
+    return my_results
 
 
 def parallel_dictionary_sort(_dict, 
@@ -90,7 +136,7 @@ def parallel_dictionary_sort(_dict,
 
     my_keys_proc = mp.Process(target=direct_key_sort, 
                                      args=(_dict, my_keys, num_return_sorted, my_result_queue))
-    my_keys_proc.start()        
+    my_keys_proc.start()            
 
     if len(key_list) > 0:
         other_result_queue = mp.Queue()
@@ -98,32 +144,242 @@ def parallel_dictionary_sort(_dict,
                                      args=(_dict, key_list, direct_sort_num, num_return_sorted, other_result_queue))
 
         other_keys_proc.start()
-        other_keys_result = other_result_queue.get(timeout=None)
+        
+        print(f"Merging results with {len(key_list)} keys left", flush=True)
         my_result = my_result_queue.get(timeout=None)
+        other_keys_result = other_result_queue.get(timeout=None)
         result = merge(my_result,other_keys_result,num_return_sorted)
     else:
+        print(f"Finished Launching sorting procs", flush=True)
         result = my_result_queue.get(timeout=None)
 
     sorted_dict_queue.put(result)
     
+def compare_candidate_results(candidate_dict, continue_event, num_return_sorted, ncompare = 3, max_iter = 100, purge=True):
+    
+    end_workflow = False
+    candidate_keys = candidate_dict.keys()
+    sort_iter = 0
+    if "iter" in candidate_keys:
+        sort_iter = candidate_dict["iter"]
+        candidate_keys.remove('iter')
+    print(f"{candidate_keys=}")
+    #ncompare = min(ncompare,len(candidate_keys))
+    candidate_keys.sort(reverse=True)
+    num_top_candidates = 0
+    if len(candidate_keys) > 0:
+        num_top_candidates = len(candidate_dict[candidate_keys[0]]["smiles"])
+    
+
+    if sort_iter > max_iter:
+        # end if maximum number of iterations reached
+        end_workflow = True
+        print(f"Ending workflow: sort_iter {sort_iter} exceeded max_iter {max_iter}", flush=True)
+    elif len(candidate_keys) > ncompare and num_top_candidates == num_return_sorted:
+        # look for unique entries in most recent ncompare lists
+        # only do this if there are enough lists to compare and if enough candidates have been identified
+        
+        
+        not_in_common = []
+        model_iters = []
+        print(f"{candidate_dict=}",flush=True)
+        for i in range(ncompare):
+            for j in range(ncompare):
+                if i < j:
+                    ckey_i = candidate_keys[i]
+                    ckey_j = candidate_keys[j]
+                    not_in_common+=list(set(candidate_dict[ckey_i]["smiles"]) ^ set(candidate_dict[ckey_j]["smiles"]))
+                    model_iter_i = list(set(candidate_dict[ckey_i]["model_iter"]))
+                    model_iter_j = list(set(candidate_dict[ckey_j]["model_iter"]))
+                    model_iters+=model_iter_i
+                    model_iters+=model_iter_j
+        print(f"Number not in common {len(not_in_common)}")
+        # ncompare consecutive lists are identical, end workflow
+        print(f"{model_iters=}")
+
+        # End workflow if ncompare lists with unique model_iters are idententical
+        if len(not_in_common) == 0 and len(model_iters) == 2*ncompare:
+            if len(set(model_iters)) == ncompare:
+                print(f"Ending workflow: {ncompare} lists identical", flush=True)
+                end_workflow = True
+
+        # If purge, only keep ncompare sorting lists
+        if purge:
+            if len(candidate_keys) > ncompare:
+                del candidate_dict[candidate_keys[-1]]
+
+    print(f"{end_workflow=}")
+    if end_workflow:
+        continue_event.clear()
+        
 
     
-def sort_dictionary(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_queue):
+def sort_dictionary_queue(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_dict):
     """Sort dictionary and return top num_return_sorted smiles strings
 
     :param _dict: Dragon distributed dictionary
     :type _dict: ...
     """
-
-    direct_sort_num = int(round(len(key_list)/max_procs))
-
+    key_list = _dict.keys()
+    if "inf_iter" in key_list:
+        key_list.remove("inf_iter")
+    direct_sort_num = max(int(round(len(key_list)/max_procs))+1,1024)
+    print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
+    tic = perf_counter()
     result_queue = mp.Queue()
     parallel_dictionary_sort(_dict, key_list, direct_sort_num, num_return_sorted, result_queue)
     result = result_queue.get()
     top_candidates = result[-num_return_sorted:]
-    print(f"{top_candidates=}",flush=True)
-    candidate_queue.put(top_candidates)
+    #print(f"{top_candidates=}",flush=True)
+    print(f"Found {len(top_candidates)} top candidates")
+    
+    num_top_candidates = len(top_candidates)
+    if num_top_candidates > 0:
+        candidate_keys = candidate_dict.keys()
+        if "iter" in candidate_keys:
+            candidate_keys.remove("iter")
+        print(f"candidate keys {candidate_keys}")
+        ckey = "0"
+        if len(candidate_keys) > 0:
+            ckey = str(int(max(candidate_keys))+1)
+        candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+        candidate_dict[ckey] = {"inf": candidate_inf, "smiles": candidate_smiles, "model_iter": candidate_model_iter}
+        candidate_dict["iter"] = int(ckey)
+        print(f"candidate dictionary on iter {int(ckey)}",flush=True)
+        toc = perf_counter()
+        print(f"Queue total time {toc - tic} s")
 
+
+def sort_dictionary_pool(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_dict):
+    """Sort dictionary and return top num_return_sorted smiles strings
+
+    :param _dict: Dragon distributed dictionary
+    :type _dict: ...
+    """
+    
+    key_list = _dict.keys()
+    if "inf_iter" in key_list:
+        key_list.remove("inf_iter")
+    num_keys = len(key_list)
+    direct_sort_num = max(num_keys//max_procs+1,1)
+    print(f"Direct sorting {direct_sort_num} keys per process on {max_procs} processes",flush=True)
+
+    # Launch Pool
+    tic = perf_counter()
+    initq = mp.Queue(maxsize=max_procs)
+    for _ in range(max_procs):
+        initq.put(_dict)
+        
+    pool = mp.Pool(max_procs, initializer=init_worker, initargs=(initq,))
+    print(f"Pool initialized", flush=True)
+    kwargs = {"num_return_sorted": num_return_sorted}
+    key_lists = [(key_list[st*direct_sort_num:min((st+1)*direct_sort_num,num_keys)], kwargs) 
+                for st in range(max_procs) if st*direct_sort_num < num_keys]
+    
+    print(f"Created {len(key_lists)} key lists from {num_keys} keys")
+    
+    sort_results = pool.map(direct_key_sort_pool, key_lists)
+    sort_results = [sr for sr in sort_results if len(sr) > 0]
+    print(f"number of sort_results returned {len(sort_results)}", flush=True)
+    pool.close()
+    pool.join()
+    toc = perf_counter()
+    print(f"Pool sort time {toc - tic} s")
+    
+    if len(sort_results) > 1:
+        pool = mp.Pool(max_procs)
+        while len(sort_results) > 1:
+            merge_pairs = [(sort_results[i],sort_results[i+1],num_return_sorted) 
+                        for i in range(0,int(len(sort_results)),2) 
+                        if i + 1 < len(sort_results)
+                        ]
+            print(f"merge_pairs: {len(merge_pairs)} merge pairs for {len(sort_results)} sort results", flush=True)
+            merge_results = pool.starmap(merge, merge_pairs)
+            print(f"merge pool returned",flush=True)
+            if len(sort_results)%2 == 0:
+                sort_results = merge_results
+            else:
+                sort_results = merge_results+[sort_results[-1]]
+        print(f"Finished merge", flush=True)
+        pool.close()
+        print(f"Merge pool closed",flush=True)
+        pool.join()
+        print(f"Merge pool joined",flush=True)
+    
+    if len(sort_results) == 0:
+        result = []
+    else:
+        result = sort_results[0]
+   
+    toc = perf_counter()
+    print(f"Pool merge time {toc - tic} s")
+
+    top_candidates = result[-num_return_sorted:]
+    #print(f"{top_candidates=}",flush=True)
+    print(f"Found {len(top_candidates)} top candidates")
+    num_top_candidates = len(top_candidates)
+    if num_top_candidates > 0:
+        candidate_keys = candidate_dict.keys()
+        if "iter" in candidate_keys:
+            candidate_keys.remove("iter")
+        print(f"candidate keys {candidate_keys}")
+        ckey = "0"
+        if len(candidate_keys) > 0:
+            ckey = str(int(max(candidate_keys))+1)
+        candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+        candidate_dict[ckey] = {"inf": candidate_inf, "smiles": candidate_smiles, "model_iter": candidate_model_iter}
+        candidate_dict["iter"] = int(ckey)
+        print(f"candidate dictionary on iter {int(ckey)}",flush=True)
+        toc = perf_counter()
+        print(f"Pool total time {toc - tic} s",flush=True)
+
+
+def sort_controller(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_dict, continue_event):
+
+    iter = 0
+    while continue_event.is_set():
+    #if True:
+        print(f"Sort iter {iter}",flush=True)
+        #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
+        #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
+        sort_dictionary_pg(_dict, num_return_sorted, max_procs, None, continue_event, candidate_dict)
+        compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=20)
+        iter += 1
+    ckeys = candidate_dict.keys()
+    print("final {ckeys=}")
+    if "iter" in ckeys:
+        ckeys.remove("iter")
+    if len(ckeys) > 0:
+        ckey_max = max(ckeys)
+        print(f"top candidates = {candidate_dict[ckey_max]}")
+
+def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, continue_event, cdd):
+    #num_sort_nodes = len(nodelist)
+    #num_procs_pn = num_procs//num_inf_nodes
+    run_dir = os.getcwd()
+    key_list = dd.keys()
+    if "inf_iter" in key_list:
+        key_list.remove("inf_iter")
+    num_keys = len(key_list)
+    direct_sort_num = max(len(key_list)//num_procs+1,1)
+    print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
+
+    global_policy = Policy(distribution=Policy.Distribution.BLOCK)
+    grp = ProcessGroup(restart=False, policy=global_policy, pmi_enabled=True, ignore_error_on_exit=True)
+
+    print(f"Launching sorting process group", flush=True)
+    grp.add_process(nproc=num_procs, 
+                        template=ProcessTemplate(target=mpi_sort, 
+                                                 args=(dd, num_return_sorted,cdd), 
+                                                 cwd=run_dir))
+
+    grp.init()
+    grp.start()
+    print(f"Starting Process Group for Sorting")
+
+    
+    grp.join()
+    grp.stop()
 
 def create_dummy_data(_dict,num_managers):
 
@@ -131,8 +387,8 @@ def create_dummy_data(_dict,num_managers):
 
     for i in range(NUMKEYS):
         key=f"{i%num_managers}_{i}"
-        _dict[key] = [random.randrange(0,1000,1) for j in range(10)]
-
+        _dict[key] = {"inf":[random.randrange(0,1000,1) for j in range(10)],
+                      "smiles": [''.join([random.choice(string.ascii_uppercase + string.digits) for k in range(20)]) for j in range(10)]}
 
 
 if __name__ == "__main__":
