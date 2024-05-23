@@ -1,3 +1,5 @@
+import mpi4py
+mpi4py.rc.initialize = False
 from mpi4py import MPI
 import string
 import random
@@ -55,7 +57,7 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
     return merged_list[-num_return_sorted:]
 
 def mpi_sort(_dict, num_return_sorted, candidate_dict):
-
+    MPI.Init()
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -116,34 +118,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             candidate_dict[ckey] = {"inf": candidate_inf, "smiles": candidate_smiles, "model_iter": candidate_model_iter}
             candidate_dict["iter"] = int(ckey)
             print(f"candidate dictionary on iter {int(ckey)}",flush=True)
-            
-        
+    MPI.Finalize()          
 
-    # data = [random.randrange(0,1000,1) for j in range(rank+5)]
-    # data.sort()
-    
-    
-    # print(f'{rank}: {data=}',flush=True)
-    # time.sleep(2)
-    
-
-    # max_k = math.ceil(math.log2(size))
-    # max_j = size//2
-
-    # for k in range(max_k):
-    #     offset = 2**k
-    #     for j in range(max_j):
-    #         #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
-    #         if rank == (2**(k+1))*j:
-                
-    #             neighbor_data = comm.recv(source = rank + offset)
-    #             print(f"{rank=}: {k=} {offset=} {neighbor_data=}")
-    #         if rank == (2**(k+1))*j + 2**k:
-                
-    #             comm.send(data,rank - offset)
-    #     max_j = max(max_j//2,1)
-
-    
-#mpi_sort()
 
     
