@@ -1,10 +1,11 @@
 import mpi4py
 mpi4py.rc.initialize = False
 from mpi4py import MPI
-import string
-import random
 import math
-import time
+
+import dragon
+from dragon.globalservices.api_setup import connect_to_infrastructure
+connect_to_infrastructure()
 
 
 def merge(left: list, right: list, num_return_sorted: int) -> list:

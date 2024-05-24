@@ -12,9 +12,7 @@ from dragon.native.machine import System, Node
 from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
-from inference.launch_inference import launch_inference
-from sorter.sorter import sort_controller as sort_dictionary
-from docking_sim.launch_docking_sim import launch_docking_sim
+
 
 def parseNodeList() -> List[str]:
     """
@@ -107,65 +105,7 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    if not args.only_load_data:
-        # Set the continue event
-        continue_event = mp.Event()
-        continue_event.set()   
-
-        
-        # Launch the data inference component
-        num_procs = 4*args.inf_dd_nodes
-        print(f"Launching inference with {num_procs} processes ...", flush=True)
-        tic = perf_counter()
-        inf_proc = mp.Process(target=launch_inference, args=(inf_dd, inf_dd_nodelist, num_procs, continue_event))
-        inf_proc.start()
-        #inf_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-
-        # Launch data sorter component and create candidate dictionary
-
-        # tic = perf_counter()
-        cand_dict_size = 100
-        cand_dict_nodes = 1
-        cand_dict_size *= (1024*1024*1024)
-        cand_dd = DDict(args.managers_per_node, cand_dict_nodes, cand_dict_size, 
-                    timeout=args.dictionary_timeout, policy=None)
-        print(f"Launched Dragon Dictionary for top candidates with total memory size {cand_dict_size}", flush=True)
-        print(f"on {cand_dict_nodes} nodes", flush=True)
     
-        tic = perf_counter()
-        top_candidate_number = 100
-        max_sorter_procs = args.max_procs_per_node*num_tot_nodes//2
-        sorter_proc = mp.Process(target=sort_dictionary, 
-                                args=(inf_dd, 
-                                    top_candidate_number, 
-                                    max_sorter_procs, 
-                                    inf_dd.keys(), 
-                                    cand_dd, 
-                                    continue_event))
-        sorter_proc.start()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
-        sorter_proc.join()
-        inf_proc.join()
-        tic = perf_counter()
-        print(f"Launched Docking Simulations", flush=True)
-        num_procs = 32*len(inf_dd_nodelist)//2
-        dock_proc = mp.Process(target=launch_docking_sim, args=(cand_dd, inf_dd_nodelist, num_procs, continue_event))
-        dock_proc.start()
-
-        
-        dock_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
-        
-        # Close the dictionary
-        print("Closing the Dragon Dictionary and exiting ...", flush=True)
-        cand_dd.destroy()
     inf_dd.destroy()
    
 

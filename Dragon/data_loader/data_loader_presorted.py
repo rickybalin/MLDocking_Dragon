@@ -91,6 +91,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         data_dict[key] = {"f_name": f_name, 
                           "smiles": smiles,
                           "inf": inf_results}
+        #data_dict[key] = smiles
         with open(f"{outfiles_path}/{logname}.out",'a') as f:
             f.write(f"Stored data in dragon dictionary\n")
             f.write(f"key is {key}")
