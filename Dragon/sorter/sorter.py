@@ -70,7 +70,12 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
     # only return the last num_return_sorted elements
     #print(f"Merged list returned {merged_list[-num_return_sorted:]}",flush=True)
     return merged_list[-num_return_sorted:]
-    
+
+def filter_candidate_keys(ckeys: list):
+    ckeys = [key for key in ckeys if key != "iter" and key[0] != "d" and key[0] != "l"]
+    return ckeys
+
+
 def direct_key_sort(_dict,
                     key_list,
                     num_return_sorted,
@@ -162,7 +167,8 @@ def compare_candidate_results(candidate_dict, continue_event, num_return_sorted,
     sort_iter = 0
     if "iter" in candidate_keys:
         sort_iter = candidate_dict["iter"]
-        candidate_keys.remove('iter')
+        #candidate_keys.remove('iter')
+        candidate_keys = filter_candidate_keys(candidate_keys)
     print(f"{candidate_keys=}")
     #ncompare = min(ncompare,len(candidate_keys))
     candidate_keys.sort(reverse=True)
@@ -236,8 +242,7 @@ def sort_dictionary_queue(_dict, num_return_sorted: str, max_procs: int, key_lis
     num_top_candidates = len(top_candidates)
     if num_top_candidates > 0:
         candidate_keys = candidate_dict.keys()
-        if "iter" in candidate_keys:
-            candidate_keys.remove("iter")
+        candidate_keys = filter_candidate_keys(candidate_keys)
         print(f"candidate keys {candidate_keys}")
         ckey = "0"
         if len(candidate_keys) > 0:
@@ -337,21 +342,20 @@ def sort_dictionary_pool(_dict, num_return_sorted: str, max_procs: int, key_list
 def sort_controller(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_dict, continue_event):
 
     iter = 0
-    while continue_event.is_set():
-    #if True:
+    #while continue_event.is_set():
+    if True:
         print(f"Sort iter {iter}",flush=True)
         #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         sort_dictionary_pg(_dict, num_return_sorted, max_procs, None, continue_event, candidate_dict)
-        compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=20)
+        compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=5)
         iter += 1
     ckeys = candidate_dict.keys()
-    print("final {ckeys=}")
-    if "iter" in ckeys:
-        ckeys.remove("iter")
-    if len(ckeys) > 0:
-        ckey_max = max(ckeys)
-        print(f"top candidates = {candidate_dict[ckey_max]}")
+    print(f"final {ckeys=}")
+    # ckeys = filter_candidate_keys(ckeys)
+    # if len(ckeys) > 0:
+    #     ckey_max = max(ckeys)
+    #     print(f"top candidates = {candidate_dict[ckey_max]}")
 
 def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, continue_event, cdd):
     #num_sort_nodes = len(nodelist)

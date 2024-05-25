@@ -305,7 +305,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             print(f"Docking on iter {iter}",flush=True)
 
         ckeys = cdd.keys()
-        ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "b"]
+        ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
         ckey_max = max(ckeys)
 
         if proc == 0:
@@ -334,7 +334,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         if len(my_candidates) > 0:
             # with open("docking_switch.log","a") as f:
             #     f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
-            run_docking(cdd, my_candidates, f"batch_iter{iter}_proc{proc}")
+            run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}")
         if proc == 0:
             cdd["docking_iter"] = iter
         iter += 1
@@ -344,7 +344,7 @@ def filter_candidates(cdd, candidates: list):
 
     # Get keys that store previous docking results
     ckeys = cdd.keys()
-    cbkeys = [ckey for ckey in ckeys if ckey[0] == "b"]
+    cbkeys = [ckey for ckey in ckeys if ckey[0] == "d"]
 
     for cbk in cbkeys:
         check_smiles = cdd[cbk]["smiles"]

@@ -7,7 +7,6 @@ from typing import List
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
-#from dragon.data.distdictionary.dragon_dict import DragonDict
 from dragon.native.machine import System, Node
 from dragon.infrastructure.policy import Policy
 

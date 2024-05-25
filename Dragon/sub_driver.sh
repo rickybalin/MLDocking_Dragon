@@ -35,7 +35,7 @@ echo Running with $PROCS_PER_NODE max. processes in Pool per Node
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
 # Run
-dragon -l DEBUG ${DRIVER_PATH}/dragon_driver.py --only_load_data=0 --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH}/tiny --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
+dragon -l DEBUG ${DRIVER_PATH}/dragon_driver.py --inference_node_num=2 --sorting_node_num=1 --managers_per_node=$MANAGERS --data_path=${DATA_PATH}/tiny --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
 #dragon -l DEBUG ${DRIVER_PATH}/dragon_driver.py --only_load_data=1 --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH}/small --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
 #dragon ${DRIVER_PATH}/dragon_driver_loadonly.py --only_load_data=1 --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH}/med --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
 

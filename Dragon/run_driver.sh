@@ -12,7 +12,7 @@ DATA_PATH=/grand/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
 DRIVER_PATH=./
 PROCS_PER_NODE=60
 MEM_PER_NODE=200
-TIMEOUT=10
+TIMEOUT=60
 MANAGERS=1
 echo Running on $NODES nodes
 echo Reading files from $DATA_PATH
@@ -21,5 +21,5 @@ echo Running with $PROCS_PER_NODE max. processes in Pool per Node
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
 # Run
-dragon ${DRIVER_PATH}/dragon_driver.py --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH} --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
+dragon ${DRIVER_PATH}/dragon_driver_sequential.py --managers_per_node=$MANAGERS --inf_dd_nodes=$NODES --data_path=${DATA_PATH} --max_procs_per_node=$PROCS_PER_NODE --mem_per_node=$MEM_PER_NODE
 

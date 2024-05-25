@@ -58,8 +58,8 @@ def infer_switch(dd, num_procs, proc, continue_event):
     if proc == 0:
         with open("infer_switch.log",'w') as f:
             f.write("Starting inference\n")
-    while continue_event.is_set():
-    #if True:
+    #while continue_event.is_set():
+    if True:
         if proc == 0:
             with open("infer_switch.log","a") as f:
                 f.write(f"Inference on iter {iter}\n")
@@ -74,7 +74,7 @@ def infer(dd, num_procs, proc):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
     # !!! DEBUG !!!
-    debug = True
+    debug = False
     if debug:
         myp = current_process()
         p = psutil.Process()
@@ -83,22 +83,34 @@ def infer(dd, num_procs, proc):
             f.write(f"\n\n\n\nNew run\n")
             f.write(f"Hello from process {proc} on core {core_list}\n")
     
-
+    keys = dd.keys()
+    
     # Read HyperParameters 
     json_file = 'inference/config.json'
     hyper_params = ParamsJson(json_file)
-    model_iter = "0"
-    # Load model and weights
-    try:
-        model = ModelArchitecture(hyper_params).call()
-        model.load_weights(f'inference/smile_regress.autosave.model.h5')
-    except Exception as e:
-        #eprint(e, flush=True)
-        with open(f"ws_worker_{myp.ident}.log",'a') as f:
-            f.write(f"{e}")
+
+    if "model" in keys:
+        model_iter = "0"
+        # Load model and weights
+        try:
+            model = ModelArchitecture(hyper_params).call()
+            model.load_weights(f'inference/smile_regress.autosave.model.h5')
+        except Exception as e:
+            #eprint(e, flush=True)
+            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                f.write(f"{e}")
+    else:
+        model = dd["model"]
+        model_iter = dd["model_iter"]
+
+    # Set up tokenizer
+    #if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
+    vocab_file = hyper_params['tokenization']['tokenizer']['vocab_file']
+    spe_file = hyper_params['tokenization']['tokenizer']['spe_file']
+    tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
 
     # Split keys in Dragon Dict
-    keys = dd.keys()
+    keys = [key for key in keys if "iter" not in key and "model" not in key]
     if num_procs>1:
         split_keys = split_dict_keys(keys, num_procs, proc)
     else:
@@ -107,19 +119,14 @@ def infer(dd, num_procs, proc):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"Running inference on {len(split_keys)} keys\n")
 
-    # Set up tokenizer
-    if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
-        vocab_file = hyper_params['tokenization']['tokenizer']['vocab_file']
-        spe_file = hyper_params['tokenization']['tokenizer']['spe_file']
-        tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
 
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params['general']['batch_size']
     cutoff = 9
     try:
-        #for key in split_keys:
-        for ikey in range(2):
-            key = split_keys[ikey]
+        for key in split_keys:
+        #for ikey in range(2):
+        #    key = split_keys[ikey]
             val = dd[key]
             smiles_raw = val['smiles']
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)

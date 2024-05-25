@@ -1,6 +1,5 @@
 import os
 from time import perf_counter
-import numpy as np
 import argparse
 from typing import List
 
@@ -15,6 +14,7 @@ from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_controller as sort_dictionary
 from docking_sim.launch_docking_sim import launch_docking_sim
+from training.launch_training import launch_training
 
 def parseNodeList() -> List[str]:
     """
@@ -35,8 +35,12 @@ if __name__ == "__main__":
     
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
-    parser.add_argument('--inf_dd_nodes', type=int, default=1,
+    parser.add_argument('--data_dictionary_mem_fraction', type=float, default=0.7,
                         help='number of nodes the dictionary distributed across')
+    parser.add_argument('--inference_node_num', type=int, default=1,
+                        help='number of nodes running inference')
+    parser.add_argument('--sorting_node_num', type=int, default=1,
+                        help='number of nodes running sorting')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
@@ -49,10 +53,7 @@ if __name__ == "__main__":
                         help='Path to pre-sorted SMILES strings to load')
     parser.add_argument('--only_load_data', type=int, default=0,
                         help='Flag to only do the data loading')
-    
     args = parser.parse_args()
-    
-    
 
     print("Begun dragon driver", flush=True)
     print(f"Reading inference data from path: {args.data_path}", flush=True)
@@ -62,41 +63,57 @@ if __name__ == "__main__":
     alloc = System()
     num_tot_nodes = alloc.nnodes()
     tot_nodelist = alloc.nodes
+    tot_mem = args.mem_per_node*num_tot_nodes
+
+    # num_training_nodes = 1
+    # num_sorting_nodes = args.sorting_node_num
+    # num_inference_nodes = args.inference_node_num
+    # num_docking_nodes = num_tot_nodes - num_inference_nodes - num_sorting_nodes - num_training_nodes
+    
+    node_counts = {"sorting": args.sorting_node_num, 
+                    "training": 1, 
+                    "inference": args.inference_node_num}
+    node_counts["docking"] = num_tot_nodes - node_counts["sorting"] - node_counts["training"] - node_counts["inference"]
+
+    if node_counts["docking"] <= 0:
+        raise(f"Node partitioning not valid! {num_tot_nodes=} {num_docking_nodes=} {num_inference_nodes=} {num_sorting_nodes=}")
+    
+    nodelists = {}
+    offset = 0
+    for key in node_counts.keys():
+        nodelists[key] = tot_nodelist[offset:offset+node_counts[key]]
+        offset += node_counts[key]
+    
+    print(f"{nodelists=}")    
 
     # Set up and launch the inference DDict
-    inf_dd_nodelist = tot_nodelist[:args.inf_dd_nodes]
-    inf_dd_mem_size = args.mem_per_node*args.inf_dd_nodes
-    inf_dd_mem_size *= (1024*1024*1024)
-    
-    num_sort_nodes = max(num_tot_nodes - args.inf_dd_nodes, 1)
-    sort_dd_nodelist = tot_nodelist[args.inf_dd_nodes:num_tot_nodes]
-    if len(sort_dd_nodelist) == 0:
-        sort_dd_nodelist = tot_nodelist[-1]
+    # inf_dd_nodelist = tot_nodelist[:args.inf_dd_nodes]
+    # inf_dd_mem_size = args.mem_per_node*args.inf_dd_nodes
+    # inf_dd_mem_size *= (1024*1024*1024)
+    data_dict_mem = int(args.data_dictionary_mem_fraction*tot_mem)
+    candidate_dict_mem = tot_mem - data_dict_mem
+    data_dict_mem *= (1024*1024*1024)
+    candidate_dict_mem *= (1024*1024*1024)
 
     # Start distributed dictionary used for inference
     #inf_dd_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(inf_dd_nodelist).hostname)
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-    inf_dd_policy = None
-    inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
-                   timeout=args.dictionary_timeout, policy=inf_dd_policy)
-    print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
-    print(f"on {args.inf_dd_nodes} nodes", flush=True)
-    print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)
-
-    # Place key used to stop workflow (possible way of syncing components)
-    #inf_dd['keep_runing'] = True # needs update to inference.run_inference.split_dict_keys
+    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, 
+                   timeout=args.dictionary_timeout)
+    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
+    print(f"on {num_tot_nodes} nodes", flush=True)
     
     # Launch the data loader component
-    max_procs = args.max_procs_per_node*args.inf_dd_nodes
+    max_procs = args.max_procs_per_node*num_tot_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
     tic = perf_counter()
     loader_proc = mp.Process(target=load_inference_data, 
-                             args=(inf_dd, 
+                             args=(data_dd, 
                                    args.data_path, 
                                    max_procs, 
-                                   args.inf_dd_nodes*args.managers_per_node),
+                                   num_tot_nodes*args.managers_per_node),
                             )
     loader_proc.start()
     loader_proc.join()
@@ -107,66 +124,78 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
+    # Set Event and Launch other Components
     if not args.only_load_data:
+
         # Set the continue event
         continue_event = mp.Event()
         continue_event.set()   
-
         
         # Launch the data inference component
-        num_procs = 4*args.inf_dd_nodes
+        num_procs = 4*node_counts["inference"]
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
-        inf_proc = mp.Process(target=launch_inference, args=(inf_dd, inf_dd_nodelist, num_procs, continue_event))
+        inf_proc = mp.Process(target=launch_inference, args=(data_dd, nodelists["inference"], num_procs, continue_event))
         inf_proc.start()
-        #inf_proc.join()
+        inf_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
 
         # Launch data sorter component and create candidate dictionary
-
-        # tic = perf_counter()
-        cand_dict_size = 100
-        cand_dict_nodes = 1
-        cand_dict_size *= (1024*1024*1024)
-        cand_dd = DDict(args.managers_per_node, cand_dict_nodes, cand_dict_size, 
-                    timeout=args.dictionary_timeout, policy=None)
-        print(f"Launched Dragon Dictionary for top candidates with total memory size {cand_dict_size}", flush=True)
-        print(f"on {cand_dict_nodes} nodes", flush=True)
-    
         tic = perf_counter()
-        top_candidate_number = 100
-        max_sorter_procs = args.max_procs_per_node*num_tot_nodes//2
+        cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, 
+                    timeout=args.dictionary_timeout, policy=None)
+        print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
+        print(f"on {num_tot_nodes} nodes", flush=True)
+    
+        top_candidate_number = 10000
+        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
         sorter_proc = mp.Process(target=sort_dictionary, 
-                                args=(inf_dd, 
+                                args=(data_dd_dd, 
                                     top_candidate_number, 
                                     max_sorter_procs, 
-                                    inf_dd.keys(), 
+                                    data_dd.keys(), 
                                     cand_dd, 
                                     continue_event))
         sorter_proc.start()
+        sorter_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
-        sorter_proc.join()
-        inf_proc.join()
-        tic = perf_counter()
-        print(f"Launched Docking Simulations", flush=True)
-        num_procs = 32*len(inf_dd_nodelist)//2
-        dock_proc = mp.Process(target=launch_docking_sim, args=(cand_dd, inf_dd_nodelist, num_procs, continue_event))
-        dock_proc.start()
-
+        #inf_proc.join()
         
+        # Launch Docking Simulations
+        print(f"Launched Docking Simulations", flush=True)
+        tic = perf_counter()
+        num_procs = 32*node_counts["docking"]
+        dock_proc = mp.Process(target=launch_docking_sim, 
+                               args=(cand_dd, 
+                                     nodelists["docking"], 
+                                     num_procs, 
+                                     continue_event))
+        dock_proc.start()
         dock_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
         
+        # Launch Training
+        print(f"Launched Fine Tune Training", flush=True)
+        tic = perf_counter()
+        train_proc = mp.Process(target=launch_training, 
+                                args=(data_dd, 
+                                      nodelists["training"], 
+                                      cand_dd, 
+                                      continue_event))
+        train_proc.start()
+        train_proc.join()
+        toc = perf_counter()
+        print(f"Performed training in {toc-tic} seconds \n", flush=True)
         # Close the dictionary
         print("Closing the Dragon Dictionary and exiting ...", flush=True)
         cand_dd.destroy()
-    inf_dd.destroy()
+    data_dd.destroy()
    
 
 
