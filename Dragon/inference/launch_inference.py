@@ -8,8 +8,14 @@ from dragon.infrastructure.connection import Connection
 from dragon.data.ddict.ddict import DDict
 from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
+import os
+import sys
 
-from .run_inference import infer_switch as infer
+from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
+
+from .run_inference import infer_switch
+
+driver_path = os.getenv("DRIVER_PATH")
 
 def read_output(stdout_conn: Connection) -> str:
     """Read stdout from the Dragon connection.
@@ -51,6 +57,26 @@ def read_error(stderr_conn: Connection) -> str:
         stderr_conn.close()
     return output
 
+def load_pretrained_model(dd: DDict):
+    # Read HyperParameters 
+    json_file = driver_path+'inference/config.json'
+    hyper_params = ParamsJson(json_file)
+
+    # Load model and weights
+    try:
+        #with open(f"pretrained_model.log","w") as sys.stdout:
+        model = ModelArchitecture(hyper_params).call()
+        model.load_weights(driver_path+f'inference/smile_regress.autosave.model.h5')
+        print(f"{model=}", flush=True)
+        dd["model"] = model
+        dd["model_iter"] = 0
+    except Exception as e:
+        #eprint(e, flush=True)
+        with open(f"pretrained_model.log",'a') as f:
+            f.write(f"{e}")
+    
+
+
 def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event):
     """Launch the inference ruotine
 
@@ -64,6 +90,8 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event):
     inf_cpu_bind = [4, 12, 20, 28]
     inf_gpu_bind = [3, 2, 1, 0]
     run_dir = os.getcwd()
+
+    #load_pretrained_model(dd)
 
     # Load pretrained model weights into DDict
     # TO DO: currently in h5 file loaded with TF model.load_weights()
@@ -81,7 +109,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event):
                                                                         cpu_affinity=[inf_cpu_bind[proc]],
                                   device=Policy.Device.GPU, gpu_affinity=[inf_gpu_bind[proc]])
             grp.add_process(nproc=1, 
-                            template=ProcessTemplate(target=infer, 
+                            template=ProcessTemplate(target=infer_switch, 
                                                      args=(dd,num_procs,proc_id, continue_event), 
                                                      cwd=run_dir,
                                                      policy=local_policy, 
@@ -102,4 +130,3 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event):
             print(std_err, flush=True)
     grp.join()
     grp.stop()
-

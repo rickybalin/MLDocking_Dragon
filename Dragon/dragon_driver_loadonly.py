@@ -49,7 +49,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    
 
     print("Begun dragon driver", flush=True)
     print(f"Reading inference data from path: {args.data_path}", flush=True)
@@ -64,11 +63,6 @@ if __name__ == "__main__":
     inf_dd_nodelist = tot_nodelist[:args.inf_dd_nodes]
     inf_dd_mem_size = args.mem_per_node*args.inf_dd_nodes
     inf_dd_mem_size *= (1024*1024*1024)
-    
-    num_sort_nodes = max(num_tot_nodes - args.inf_dd_nodes, 1)
-    sort_dd_nodelist = tot_nodelist[args.inf_dd_nodes:num_tot_nodes]
-    if len(sort_dd_nodelist) == 0:
-        sort_dd_nodelist = tot_nodelist[-1]
 
     # Start distributed dictionary used for inference
     #inf_dd_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(inf_dd_nodelist).hostname)
@@ -77,7 +71,7 @@ if __name__ == "__main__":
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
     inf_dd_policy = None
     inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
-                   timeout=args.dictionary_timeout, policy=inf_dd_policy)
+                   timeout=args.dictionary_timeout, policy=inf_dd_policy, num_streams_per_manager=72)
     print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
     print(f"on {args.inf_dd_nodes} nodes", flush=True)
     print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)

@@ -72,7 +72,7 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
     return merged_list[-num_return_sorted:]
 
 def filter_candidate_keys(ckeys: list):
-    ckeys = [key for key in ckeys if key != "iter" and key[0] != "d" and key[0] != "l"]
+    ckeys = [key for key in ckeys if "iter" not in key and key[0] != "d" and key[0] != "l"]
     return ckeys
 
 
@@ -338,17 +338,43 @@ def sort_dictionary_pool(_dict, num_return_sorted: str, max_procs: int, key_list
         toc = perf_counter()
         print(f"Pool total time {toc - tic} s",flush=True)
 
+def save_top_candidates_list(candidate_dict):
+    ckeys = filter_candidate_keys(candidate_dict.keys())
+    if len(ckeys) > 0:
+        max_ckey = max(ckeys)
+        top_candidates = candidate_dict[max_ckey]
 
-def sort_controller(_dict, num_return_sorted: str, max_procs: int, key_list: list, candidate_dict, continue_event):
+        with open(f"top_candidates.out", 'w') as f:
+            f.writelines(top_candidates["smiles"])
+
+
+def sort_controller(dd, num_return_sorted: str, max_procs: int, nodelist: list, candidate_dict, continue_event, checkpoint_interval_min=10):
 
     iter = 0
+    with open("sort_controller.log", "w") as f:
+        f.write("Starting Sort Controller\n")
+        f.write(f"Sorting for {num_return_sorted} candidates\n")
+
+    check_time = perf_counter()
     #while continue_event.is_set():
     if True:
+        save_list = False
+        with open("sort_controller.log", "a") as f:
+            f.write(f"Starting iter {iter}\n")
+        tic = perf_counter()
         print(f"Sort iter {iter}",flush=True)
         #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
-        sort_dictionary_pg(_dict, num_return_sorted, max_procs, None, continue_event, candidate_dict)
+        sort_dictionary_pg(dd, num_return_sorted, max_procs, nodelist, candidate_dict)
         compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=5)
+        dd["sort_iter"] = iter
+        
+        if (check_time-perf_counter())/60. > checkpoint_interval_min:
+            save_top_candidates_list(candidate_dict)
+            check_time = perf_counter()
+        toc = perf_counter()
+        with open("sort_controller.log", "a") as f:
+            f.write(f"iter {iter}: sort time {toc-tic} s\n")
         iter += 1
     ckeys = candidate_dict.keys()
     print(f"final {ckeys=}")
@@ -357,13 +383,14 @@ def sort_controller(_dict, num_return_sorted: str, max_procs: int, key_list: lis
     #     ckey_max = max(ckeys)
     #     print(f"top candidates = {candidate_dict[ckey_max]}")
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, continue_event, cdd):
-    #num_sort_nodes = len(nodelist)
-    #num_procs_pn = num_procs//num_inf_nodes
+def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, cdd):
+   
+    num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
     key_list = dd.keys()
-    if "inf_iter" in key_list:
-        key_list.remove("inf_iter")
+    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+    # if "inf_iter" in key_list:
+    #     key_list.remove("inf_iter")
     num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//num_procs+1,1)
     print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
@@ -372,10 +399,16 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
     grp = ProcessGroup(restart=False, policy=global_policy, pmi_enabled=True, ignore_error_on_exit=True)
 
     print(f"Launching sorting process group", flush=True)
-    grp.add_process(nproc=num_procs, 
-                        template=ProcessTemplate(target=mpi_sort, 
-                                                 args=(dd, num_return_sorted,cdd), 
-                                                 cwd=run_dir))
+    for node in nodelist:
+        node_name = Node(node).hostname
+        local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
+                            host_name=node_name, 
+                            cpu_affinity=list(range(num_procs_pn)))
+        grp.add_process(nproc=num_procs_pn, 
+                            template=ProcessTemplate(target=mpi_sort, 
+                                                    args=(dd, num_return_sorted,cdd), 
+                                                    policy=local_policy,
+                                                    cwd=run_dir))
 
     grp.init()
     grp.start()

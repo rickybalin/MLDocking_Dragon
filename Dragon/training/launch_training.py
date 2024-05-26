@@ -92,6 +92,7 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event):
             print(std_err, flush=True)
     grp.join()
     grp.stop()
+    print(f"Training process group stopped",flush=True)
     #print(dd["model_iter"])
     #print(dd["model"])
 

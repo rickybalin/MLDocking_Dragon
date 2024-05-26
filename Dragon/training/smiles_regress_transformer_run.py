@@ -8,7 +8,7 @@ from tensorflow.keras.callbacks import (
     ModelCheckpoint,
     ReduceLROnPlateau,
 )
-import subprocess
+
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
 #import horovod.keras as hvd ### importing horovod to use data parallelization in another step
@@ -17,32 +17,55 @@ from .ST_funcs.clr_callback import *
 from .ST_funcs.smiles_regress_transformer_funcs import *
 #from tensorflow.python.client import device_lib
 
+import sys
+import os
+from time import perf_counter
+
 import dragon
 from dragon.data.ddict.ddict import DDict
 
 tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
-def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=128, EPOCH=1000):
-    #for i in range(1):
+driver_path = os.getenv("DRIVER_PATH")
+
+def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=8, EPOCH=10, checkpoint_interval_min=10):
+    
+    switch_log = "train_switch.log"
     iter = 0
     
-    with open("train_switch.log",'w') as f:
-        f.write("Starting inference\n")
+    with open(switch_log,'w') as f:
+        f.write("Starting Training\n")
+    
+    check_time = perf_counter()
+    
+    last_training_docking_iter = -1
     #while continue_event.is_set():
     if True:
-        with open("train_switch.log","a") as f:
-            f.write(f"Training on iter {iter}\n")
-        print(f"Train on iter {iter}",flush=True)
-        fine_tune(dd, candidate_dict, BATCH=BATCH, EPOCH=EPOCH)
-        
-        dd["train_iter"] = iter
-        iter += 1
-    #print(f"{dd['model_iter']=}")
-    #print(f"{dd['model']=}")
+        save_model = False
+        # Only retrain if there are fresh simulation resulsts
+        docking_iter = candidate_dict["docking_iter"]
+        if docking_iter > last_training_docking_iter:
+            tic = perf_counter()
+            with open(switch_log,"a") as f:
+                f.write(f"Training on iter {iter}\n")
+            if (check_time - tic)/60. > checkpoint_interval_min:
+                save_model = True
+                check_time = perf_counter() 
+            history = fine_tune(dd, candidate_dict, BATCH=BATCH, EPOCH=EPOCH, save_model=save_model)
+            
+            dd["train_iter"] = iter
+            
+            toc = perf_counter()
+            with open(switch_log,"a") as f:
+                f.write(f"iter {iter}: train time {toc-tic} s\n")
+                f.write(f"iter {iter}: loss={history['loss']}\n")
+                f.write(f"iter {iter}: r2={history['r2']}\n")
+            last_training_docking_iter = docking_iter
+            iter += 1
 
 
-def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10):
+def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):
 
     ######## Build model #############
     keys = dd.keys()
@@ -50,11 +73,11 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10):
     if "model" not in keys:
         # On first iteration load pre-trained model
         print(f"Loading pretrained model",flush=True)
-        json_file = 'training/config.json'
+        json_file = driver_path+'training/config.json'
         hyper_params = ParamsJson(json_file)
         try:
             model = ModelArchitecture(hyper_params).call()
-            model.load_weights(f'training/smile_regress.autosave.model.h5')
+            model.load_weights(driver_path+f'training/smile_regress.autosave.model.h5')
         except Exception as e:
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
@@ -65,8 +88,11 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10):
             f.write(f"Finished loading pretrained model\n")
             f.write("\n")
     else:
-        model = dd["model"]
+        model_path = dd["model"]
         model_iter = dd["model_iter"] + 1
+        model = keras.saving.load_model(model_path)
+        #model = dd["model"]
+        #model_iter = dd["model_iter"] + 1
 
 
     # Not sure if this is needed, experiment with the print statements in this block
@@ -98,21 +124,23 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10):
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
 
+        steps_per_epoch=min(max(int(len(y_train)/BATCH), 10), 20)
         steps_per_epoch=int(len(y_train)/BATCH)
         with open("train_switch.log", 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {steps_per_epoch=}\n")
 
 
         try:
-            history = model.fit(
-                        train_dataset,
-                        batch_size=BATCH,
-                        epochs=EPOCH,
-                        verbose=2,
-                        steps_per_epoch=steps_per_epoch,
-                        #validation_data=valid_dataset,
-                        #callbacks=callbacks,
-                    )
+            with open("train_switch.log", 'a') as sys.stdout:
+                history = model.fit(
+                            train_dataset,
+                            batch_size=BATCH,
+                            epochs=EPOCH,
+                            verbose=2,
+                            steps_per_epoch=steps_per_epoch,
+                            #validation_data=valid_dataset,
+                            #callbacks=callbacks,
+                        )
         except Exception as e:
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
@@ -120,19 +148,26 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10):
 
         with open("train_switch.log", 'a') as f:
             f.write(f"Finished fitting model\n")
-            f.write(f"history keys {history.history['loss']=}, {history.history['r2']=}\n")
+            #f.write(f"history keys {history.history['loss']=}, {history.history['r2']=}\n")
 
         # model.save("model.keras")
     # Save to dictionary
     try:
+        if save_model:
+            model_path = "current_model.keras"
+            model.save(model_path)
+            with open("model_iter",'w') as f:
+                f.write(f"{model_iter=} {model_path=}")
+        #dd["model"] = model_path
         dd["model"] = model
         dd["model_iter"] = model_iter
-        if "last_training_docking_iter" in candidate_dict.keys():
-            candidate_dict["last_training_docking_iter"] = candidate_dict["last_training_docking_iter"] + 1
-        else:
-            candidate_dict["last_training_docking_iter"] = 0
+        # if "last_training_docking_iter" in candidate_dict.keys():
+        #     candidate_dict["last_training_docking_iter"] = candidate_dict["last_training_docking_iter"] + 1
+        # else:
+        #     candidate_dict["last_training_docking_iter"] = 0
     except Exception as e:
         print("writing model to dictionary failed!")
         raise(e)
+    return history.history
 
 

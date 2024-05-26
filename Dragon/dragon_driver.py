@@ -152,10 +152,10 @@ if __name__ == "__main__":
         top_candidate_number = 10000
         max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
         sorter_proc = mp.Process(target=sort_dictionary, 
-                                args=(data_dd_dd, 
+                                args=(data_dd, 
                                     top_candidate_number, 
                                     max_sorter_procs, 
-                                    data_dd.keys(), 
+                                    nodelists["sorting"],
                                     cand_dd, 
                                     continue_event))
         sorter_proc.start()

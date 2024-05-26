@@ -4,11 +4,18 @@ from collections import OrderedDict
 from typing import List
 import numpy as np
 import psutil
+import os
+from time import perf_counter
 
 from dragon.native.process import current as current_process
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_encoder import SMILES_SPE_Tokenizer
+from training.ST_funcs.clr_callback import *
+from training.ST_funcs.smiles_regress_transformer_funcs import *
+import keras
+
+driver_path = os.getenv("DRIVER_PATH")
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -53,28 +60,46 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     return x_inference
 
 def infer_switch(dd, num_procs, proc, continue_event):
-    #for i in range(1):
+    
+    switch_log = "infer_switch.log"
     iter = 0
     if proc == 0:
-        with open("infer_switch.log",'w') as f:
+        with open(switch_log,'w') as f:
             f.write("Starting inference\n")
+    last_model_iter = -1
     #while continue_event.is_set():
     if True:
+        # Only run inference if there is a new model
+        if "model_iter" in dd.keys():
+            current_model_iter = dd["model_iter"]
+        else:
+            current_model_iter = 0
         if proc == 0:
-            with open("infer_switch.log","a") as f:
-                f.write(f"Inference on iter {iter}\n")
-        print(f"Inference on iter {iter}",flush=True)
-        infer(dd, num_procs, proc)
-        if proc == 0:
-            dd["inf_iter"] = iter
-        iter += 1
+            with open(switch_log,'w') as f:
+                f.write(f"{current_model_iter=} {last_model_iter=}\n")
+        if current_model_iter > last_model_iter:
+            tic = perf_counter()
+            if proc == 0:
+                with open(switch_log,"a") as f:
+                    f.write(f"Inference on iter {iter} with model iter {current_model_iter}\n")
+            time_per_smiles = infer(dd, num_procs, proc)
+            if proc == 0:
+                dd["inf_iter"] = iter
+            with open(switch_log,'a') as f:
+                f.write(f"iter {iter}: proc {proc}: time per smiles {time_per_smiles} s \n")
+            last_model_iter = current_model_iter
+            toc = perf_counter()
+            if proc == 0:
+                with open(switch_log,'a') as f:
+                    f.write(f"iter {iter}: run time {toc - tic} s\n")
+            iter += 1
 
 
 def infer(dd, num_procs, proc):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
     # !!! DEBUG !!!
-    debug = False
+    debug = True
     if debug:
         myp = current_process()
         p = psutil.Process()
@@ -84,33 +109,37 @@ def infer(dd, num_procs, proc):
             f.write(f"Hello from process {proc} on core {core_list}\n")
     
     keys = dd.keys()
-    
-    # Read HyperParameters 
-    json_file = 'inference/config.json'
-    hyper_params = ParamsJson(json_file)
 
-    if "model" in keys:
-        model_iter = "0"
+    # Read HyperParameters 
+    json_file = driver_path+'inference/config.json'
+    hyper_params = ParamsJson(json_file)
+    if "model" not in keys:
+        model_iter = 0
         # Load model and weights
         try:
             model = ModelArchitecture(hyper_params).call()
-            model.load_weights(f'inference/smile_regress.autosave.model.h5')
+            model.load_weights(driver_path+f'inference/smile_regress.autosave.model.h5')
         except Exception as e:
             #eprint(e, flush=True)
             with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                f.write(f"{e}")
+                f.write(f"{e}\n")
     else:
-        model = dd["model"]
-        model_iter = dd["model_iter"]
-
-    # Set up tokenizer
-    #if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
-    vocab_file = hyper_params['tokenization']['tokenizer']['vocab_file']
-    spe_file = hyper_params['tokenization']['tokenizer']['spe_file']
-    tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
+        try:
+            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                f.write(f"Loading retrained model\n")
+            #model_path = dd["model"]
+            #model = keras.saving.load_model(model_path)
+            model_iter = dd["model_iter"]
+            model = dd["model"]
+            if debug:
+                with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                    f.write(f"Loaded model {model_iter}\n")
+        except Exception as e:
+            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                f.write(f"{e}\n")
 
     # Split keys in Dragon Dict
-    keys = [key for key in keys if "iter" not in key and "model" not in key]
+    
     if num_procs>1:
         split_keys = split_dict_keys(keys, num_procs, proc)
     else:
@@ -119,18 +148,24 @@ def infer(dd, num_procs, proc):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"Running inference on {len(split_keys)} keys\n")
 
-
+    # Set up tokenizer
+    #if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
+    vocab_file = driver_path+"inference/VocabFiles/vocab_spe.txt"
+    spe_file = driver_path+"inference/VocabFiles/SPE_ChEMBL.txt"
+    tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
+    tic = perf_counter()
+    num_smiles = 0
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params['general']['batch_size']
     cutoff = 9
     try:
-        for key in split_keys:
-        #for ikey in range(2):
-        #    key = split_keys[ikey]
+        #for key in split_keys:
+        for ikey in range(2):
+            key = split_keys[ikey]
             val = dd[key]
             smiles_raw = val['smiles']
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
-            output = model.predict(x_inference, batch_size = BATCH).flatten()
+            output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
 
             sort_index = np.flip(np.argsort(output)).tolist()
             smiles_sorted = [smiles_raw[i] for i in sort_index]
@@ -141,7 +176,7 @@ def infer(dd, num_procs, proc):
             val['inf'] = pred_sorted
             val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
             dd[key] = val
-            
+            num_smiles += len(smiles_sorted)
             if debug:
                 with open(f"ws_worker_{myp.ident}.log",'a') as f:
                     f.write(f"Performed inference on key {key}\n")
@@ -150,7 +185,9 @@ def infer(dd, num_procs, proc):
         #eprint(e, flush=True)
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"{e}")
-
+    toc = perf_counter()
+    time_per_smiles = (toc-tic)/num_smiles
+    return time_per_smiles
 ## Run main
 if __name__ == "__main__":
     print('Cannot be run as a script at this time', flush=True)

@@ -10,6 +10,7 @@ from functools import partial
 
 matplotlib.use("Agg")
 
+import keras as kr
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
@@ -30,6 +31,8 @@ from tensorflow.keras.preprocessing import sequence, text
 from .clr_callback import *
 from tensorflow.python.client import device_lib
 from itertools import chain, repeat, islice
+
+driver_path = os.getenv("DRIVER_PATH")
 
 # Assuming 'dataset' is your tf.data.Dataset object
 def dataset_to_numpy(dataset):
@@ -126,8 +129,8 @@ def split_data(data_x, data_y):
 # Two seperate embedding layers, one for tokens, one for token index (positions).
 
 class TokenAndPositionEmbedding(layers.Layer):
-    def __init__(self, maxlen, vocab_size, embed_dim):
-        super(TokenAndPositionEmbedding, self).__init__()
+    def __init__(self, maxlen, vocab_size, embed_dim, **kwargs):
+        super(TokenAndPositionEmbedding, self).__init__(**kwargs)
         self.token_emb = layers.Embedding(input_dim=vocab_size, output_dim=embed_dim)
         self.pos_emb = layers.Embedding(input_dim=maxlen, output_dim=embed_dim)
 
@@ -200,9 +203,9 @@ def assemble_docking_data(candidate_dict):
                 if sc > 0:
                     train_smiles.append(sm)
                     train_scores.append([sc])
-    with open("sample_train_data.out",'w') as f:
-        for sm,sc in zip(train_smiles,train_scores):
-            f.write(f"{sm},{sc[0]}\n")
+    # with open("sample_train_data.out",'w') as f:
+    #     for sm,sc in zip(train_smiles,train_scores):
+    #         f.write(f"{sm},{sc[0]}\n")
     return train_smiles, train_scores
 
 def train_val_data(candidate_dict):
@@ -228,8 +231,8 @@ def train_val_data(candidate_dict):
 
         tokenizer_params = {
                 "category": "smilespair",
-                "spe_file": "inference/VocabFiles/SPE_ChEMBL.txt",
-                "vocab_file": "inference/VocabFiles/vocab_spe.txt"
+                "spe_file": driver_path+"inference/VocabFiles/SPE_ChEMBL.txt",
+                "vocab_file": driver_path+"inference/VocabFiles/vocab_spe.txt"
             }
         vocab_file = tokenizer_params['vocab_file']
         spe_file = tokenizer_params['spe_file']
@@ -248,7 +251,7 @@ def train_val_data(candidate_dict):
         #                                             maxlen,
         #                                             vocab_file,
         #                                             spe_file)
-        print(f"xtrain: {x_train}",flush=True)
+        #print(f"xtrain: {x_train}",flush=True)
 
         
         
@@ -287,6 +290,7 @@ def _r2(y_true, y_pred):
     SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
     return 1 - SS_res / (SS_tot + K.epsilon())
 
+@kr.saving.register_keras_serializable()
 def r2(y_true, y_pred):
     """
     Calculate the R-squared (R2) value given true and predicted values.
@@ -324,8 +328,8 @@ def r2(y_true, y_pred):
 
 class TransformerBlock(layers.Layer):
     # __init__: defining all class variables
-    def __init__(self, embed_dim, num_heads, ff_dim, rate, activation, dropout1):
-        super(TransformerBlock, self).__init__()
+    def __init__(self, embed_dim, num_heads, ff_dim, rate, activation, dropout1, **kwargs):
+        super(TransformerBlock, self).__init__(**kwargs)
         self.drop_chck = dropout1
         self.att = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)#, activation=activation)
         self.ffn = keras.Sequential(
