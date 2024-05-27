@@ -358,7 +358,6 @@ def sort_controller(dd, num_return_sorted: str, max_procs: int, nodelist: list, 
     check_time = perf_counter()
     #while continue_event.is_set():
     if True:
-        save_list = False
         with open("sort_controller.log", "a") as f:
             f.write(f"Starting iter {iter}\n")
         tic = perf_counter()
@@ -378,6 +377,7 @@ def sort_controller(dd, num_return_sorted: str, max_procs: int, nodelist: list, 
         iter += 1
     ckeys = candidate_dict.keys()
     print(f"final {ckeys=}")
+    save_top_candidates_list(candidate_dict)
     # ckeys = filter_candidate_keys(ckeys)
     # if len(ckeys) > 0:
     #     ckey_max = max(ckeys)

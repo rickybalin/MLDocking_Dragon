@@ -29,8 +29,9 @@ tf.config.run_functions_eagerly(True)
 
 driver_path = os.getenv("DRIVER_PATH")
 
+#def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=128, EPOCH=100, checkpoint_interval_min=10):
 def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=8, EPOCH=10, checkpoint_interval_min=10):
-    
+      
     switch_log = "train_switch.log"
     iter = 0
     
