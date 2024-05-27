@@ -72,40 +72,41 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                 smiles.append(smile)
 
     inf_results = [0.0 for i in range(len(smiles))]
+    key = f"{manager_index}_{file_index}"
 
     smiles_size = sum([sys.getsizeof(s) for s in smiles])
-    inf_size = sum([sys.getsizeof(infr) for infr in inf_results])
+    smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
+    smiles_size += sys.getsizeof(f_name)
+    smiles_size += sys.getsizeof(key)
 
     f_name_list = f_name.split('.gz')
     logname =  f_name_list[0].split(".")[0]+f_name_list[1]
-    outfiles_path = "smiles_sizes"
-    if not os.path.exists(outfiles_path):
-        os.mkdir(outfiles_path)
 
-    with open(f"{outfiles_path}/{logname}.out",'w') as f:
-        f.write(f"Worker located on {socket.gethostname()}\n")
-        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
+    # with open(f"{outfiles_path}/{logname}.out",'w') as f:
+    #     f.write(f"Worker located on {socket.gethostname()}\n")
+    #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
 
     try:
-        key = f"{manager_index}_{file_index}"
         data_dict[key] = {"f_name": f_name, 
                           "smiles": smiles,
                           "inf": inf_results}
         #data_dict[key] = smiles
-        with open(f"{outfiles_path}/{logname}.out",'a') as f:
-            f.write(f"Stored data in dragon dictionary\n")
-            f.write(f"key is {key}")
+        # with open(f"{outfiles_path}/{logname}.out",'a') as f:
+        #     f.write(f"Stored data in dragon dictionary\n")
+        #     f.write(f"key is {key}")
 
-        smiles_size += sys.getsizeof(f_name)
-        smiles_size += sys.getsizeof(key)
-        smiles_size += inf_size
         return smiles_size
     except Exception as e:
-        smiles_size = 0
+        outfiles_path = "smiles_sizes"
+        if not os.path.exists(outfiles_path):
+            os.mkdir(outfiles_path)
         with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"key is {key}")
+            f.write(f"Worker located on {socket.gethostname()}\n")
+            f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
             f.write(f"Exception!\n")
-        #raise Exception(e)
-        return 0
+            f.write(f"{e}\n")
+        raise Exception(e)
     
     
 def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):

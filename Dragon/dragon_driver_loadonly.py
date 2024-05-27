@@ -36,6 +36,8 @@ if __name__ == "__main__":
                         help='number of nodes the dictionary distributed across')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
+    parser.add_argument('--channels_per_manager', type=int, default=20,
+                        help='channels per manager for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
                         help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
@@ -69,9 +71,11 @@ if __name__ == "__main__":
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
+    print(f"Managers per node: {args.managers_per_node} Channels per manager {args.channels_per_manager}")
     inf_dd_policy = None
     inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
-                   timeout=args.dictionary_timeout, policy=inf_dd_policy, num_streams_per_manager=72)
+                   timeout=args.dictionary_timeout, policy=inf_dd_policy, 
+                   num_streams_per_manager=args.channels_per_manager)
     print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
     print(f"on {args.inf_dd_nodes} nodes", flush=True)
     print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)
