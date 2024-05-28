@@ -13,6 +13,7 @@ from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNUL
 from dragon.infrastructure.connection import Connection
 from dragon.native.machine import cpu_count, current, System, Node
 from .sort_mpi import mpi_sort
+import datetime
 
 global data_dict 
 data_dict = None
@@ -162,16 +163,18 @@ def parallel_dictionary_sort(_dict,
     
 def compare_candidate_results(candidate_dict, continue_event, num_return_sorted, ncompare = 3, max_iter = 100, purge=True):
     
+    print(f"Comparing Candidate Lists")
     end_workflow = False
     candidate_keys = candidate_dict.keys()
     sort_iter = 0
-    if "iter" in candidate_keys:
-        sort_iter = candidate_dict["iter"]
+    if "sort_iter" in candidate_keys:
+        sort_iter = candidate_dict["sort_iter"]
         #candidate_keys.remove('iter')
-        candidate_keys = filter_candidate_keys(candidate_keys)
-    print(f"{candidate_keys=}")
+    candidate_keys = filter_candidate_keys(candidate_keys)
+    #print(f"{candidate_keys=}")
     #ncompare = min(ncompare,len(candidate_keys))
     candidate_keys.sort(reverse=True)
+    #print(f"{candidate_keys=}")
     num_top_candidates = 0
     if len(candidate_keys) > 0:
         num_top_candidates = len(candidate_dict[candidate_keys[0]]["smiles"])
@@ -343,37 +346,51 @@ def save_top_candidates_list(candidate_dict):
     if len(ckeys) > 0:
         max_ckey = max(ckeys)
         top_candidates = candidate_dict[max_ckey]
+        top_smiles = top_candidates["smiles"]
+        lines = [sm+"\n" for sm in top_smiles]
 
         with open(f"top_candidates.out", 'w') as f:
-            f.writelines(top_candidates["smiles"])
+            f.writelines(lines)
 
 
-def sort_controller(dd, num_return_sorted: str, max_procs: int, nodelist: list, candidate_dict, continue_event, checkpoint_interval_min=10):
+def sort_controller(dd, 
+                    num_return_sorted: str, 
+                    max_procs: int, 
+                    nodelist: list, 
+                    candidate_dict, 
+                    continue_event, 
+                    checkpoint_interval_min=10):
 
     iter = 0
     with open("sort_controller.log", "w") as f:
-        f.write("Starting Sort Controller\n")
-        f.write(f"Sorting for {num_return_sorted} candidates\n")
+        f.write(f"{datetime.datetime.now()}: Starting Sort Controller\n")
+        f.write(f"{datetime.datetime.now()}: Sorting for {num_return_sorted} candidates\n")
 
+    candidate_dict["max_sort_iter"] = "-1"
     check_time = perf_counter()
-    #while continue_event.is_set():
-    if True:
+    while continue_event.is_set():
+    #if True:
         with open("sort_controller.log", "a") as f:
-            f.write(f"Starting iter {iter}\n")
+            f.write(f"{datetime.datetime.now()}: Starting iter {iter}\n")
         tic = perf_counter()
         print(f"Sort iter {iter}",flush=True)
         #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         sort_dictionary_pg(dd, num_return_sorted, max_procs, nodelist, candidate_dict)
-        compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=5)
-        dd["sort_iter"] = iter
+        #dd["sort_iter"] = iter
+        # max_ckey = candidate_dict["max_sort_iter"]
+        # inf_results = candidate_dict[max_ckey]["inf"]
+        # cutoff_check = [p for p in inf_results if p < 9 and p > 0]
+        # print(f"Cutoff check: {len(cutoff_check)} inf vals below cutoff")
+        compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=50)
+        
         
         if (check_time-perf_counter())/60. > checkpoint_interval_min:
             save_top_candidates_list(candidate_dict)
             check_time = perf_counter()
         toc = perf_counter()
         with open("sort_controller.log", "a") as f:
-            f.write(f"iter {iter}: sort time {toc-tic} s\n")
+            f.write(f"{datetime.datetime.now()}: iter {iter}: sort time {toc-tic} s\n")
         iter += 1
     ckeys = candidate_dict.keys()
     print(f"final {ckeys=}")

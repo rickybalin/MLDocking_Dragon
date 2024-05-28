@@ -43,6 +43,8 @@ if __name__ == "__main__":
                         help='number of nodes running sorting')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
+    parser.add_argument('--channels_per_manager', type=int, default=20,
+                        help='channels per manager for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
                         help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
@@ -55,6 +57,7 @@ if __name__ == "__main__":
                         help='Flag to only do the data loading')
     args = parser.parse_args()
 
+    start_time = perf_counter()
     print("Begun dragon driver", flush=True)
     print(f"Reading inference data from path: {args.data_path}", flush=True)
     # Get information about the allocation
@@ -101,7 +104,7 @@ if __name__ == "__main__":
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
     data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, 
-                   timeout=args.dictionary_timeout)
+                   timeout=args.dictionary_timeout, num_streams_per_manager=args.channels_per_manager)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_tot_nodes} nodes", flush=True)
     
@@ -133,9 +136,14 @@ if __name__ == "__main__":
         
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
+        inf_num_limit = 16
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
-        inf_proc = mp.Process(target=launch_inference, args=(data_dd, nodelists["inference"], num_procs, continue_event))
+        inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
+                                                            nodelists["inference"], 
+                                                            num_procs, 
+                                                            continue_event,
+                                                            inf_num_limit))
         inf_proc.start()
         inf_proc.join()
         toc = perf_counter()
@@ -145,11 +153,12 @@ if __name__ == "__main__":
         # Launch data sorter component and create candidate dictionary
         tic = perf_counter()
         cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, 
-                    timeout=args.dictionary_timeout, policy=None)
+                    timeout=args.dictionary_timeout, policy=None, 
+                    num_streams_per_manager=args.channels_per_manager)
         print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
         print(f"on {num_tot_nodes} nodes", flush=True)
     
-        top_candidate_number = 10000
+        top_candidate_number = 5000
         max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
         sorter_proc = mp.Process(target=sort_dictionary, 
                                 args=(data_dd, 
@@ -183,19 +192,40 @@ if __name__ == "__main__":
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
         tic = perf_counter()
+        BATCH = 128
+        EPOCH = 100
         train_proc = mp.Process(target=launch_training, 
                                 args=(data_dd, 
-                                      nodelists["training"], 
+                                      nodelists["training"][0], # training is always 1 node
                                       cand_dd, 
-                                      continue_event))
+                                      continue_event,
+                                      BATCH,
+                                      EPOCH,
+                                      top_candidate_number))
         train_proc.start()
         train_proc.join()
         toc = perf_counter()
         print(f"Performed training in {toc-tic} seconds \n", flush=True)
+
+        # Launch the data inference component
+        num_procs = 4*node_counts["inference"]
+        inf_num_limit=16
+        print(f"Launching inference with {num_procs} processes ...", flush=True)
+        tic = perf_counter()
+        inf_proc = mp.Process(target=launch_inference, args=(data_dd, nodelists["inference"], num_procs, continue_event, inf_num_limit))
+        inf_proc.start()
+        inf_proc.join()
+        toc = perf_counter()
+        infer_time = toc - tic
+        print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+
+
         # Close the dictionary
         print("Closing the Dragon Dictionary and exiting ...", flush=True)
         cand_dd.destroy()
     data_dd.destroy()
+    end_time = perf_counter()
+    print(f"Total time {end_time - start_time} s", flush=True)
    
 
 

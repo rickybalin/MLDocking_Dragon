@@ -6,6 +6,8 @@ import numpy as np
 import psutil
 import os
 from time import perf_counter
+import random
+import datetime
 
 from dragon.native.process import current as current_process
 
@@ -41,6 +43,7 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
         split_keys = keys[start_ind:end_ind]
     else:
         split_keys = keys[start_ind:-1]
+    #random.shuffle(split_keys)
     return split_keys
 
 def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str]):
@@ -59,43 +62,49 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     x_inference = np.array([list(pad(tokenizer(smi)['input_ids'], maxlen, 0)) for smi in smiles_raw])
     return x_inference
 
-def infer_switch(dd, num_procs, proc, continue_event):
+def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
     
     switch_log = "infer_switch.log"
     iter = 0
     if proc == 0:
         with open(switch_log,'w') as f:
-            f.write("Starting inference\n")
+            f.write(f"{datetime.datetime.now()}: Starting inference\n")
+            f.write(f"{datetime.datetime.now()}: Limiting number of keys per worker to {inf_num_limit}\n")
     last_model_iter = -1
-    #while continue_event.is_set():
-    if True:
+    while continue_event.is_set():
+    #if True:
         # Only run inference if there is a new model
         if "model_iter" in dd.keys():
             current_model_iter = dd["model_iter"]
         else:
             current_model_iter = 0
-        if proc == 0:
-            with open(switch_log,'w') as f:
-                f.write(f"{current_model_iter=} {last_model_iter=}\n")
         if current_model_iter > last_model_iter:
             tic = perf_counter()
             if proc == 0:
                 with open(switch_log,"a") as f:
-                    f.write(f"Inference on iter {iter} with model iter {current_model_iter}\n")
-            time_per_smiles = infer(dd, num_procs, proc)
+                    f.write(f"{datetime.datetime.now()}: Inference on iter {iter} with model iter {current_model_iter}\n")
+            time_per_smiles = infer(dd, num_procs, proc, limit=inf_num_limit)
             if proc == 0:
                 dd["inf_iter"] = iter
-            with open(switch_log,'a') as f:
-                f.write(f"iter {iter}: proc {proc}: time per smiles {time_per_smiles} s \n")
+            # with open(switch_log,'a') as f:
+            #     f.write(f"iter {iter}: proc {proc}: time per smiles {time_per_smiles} s \n")
             last_model_iter = current_model_iter
             toc = perf_counter()
             if proc == 0:
                 with open(switch_log,'a') as f:
-                    f.write(f"iter {iter}: run time {toc - tic} s\n")
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: run time {toc - tic} s\n")
             iter += 1
 
 
-def infer(dd, num_procs, proc):
+def check_model_iter(dd, model_iter):
+    test_match = True
+    if "model_iter" in dd.keys():
+        if model_iter != dd["model_iter"]:
+            test_match = False
+    return test_match
+
+
+def infer(dd, num_procs, proc, limit=None):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
     # !!! DEBUG !!!
@@ -148,6 +157,7 @@ def infer(dd, num_procs, proc):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"Running inference on {len(split_keys)} keys\n")
 
+
     # Set up tokenizer
     #if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
     vocab_file = driver_path+"inference/VocabFiles/vocab_spe.txt"
@@ -155,31 +165,41 @@ def infer(dd, num_procs, proc):
     tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
     tic = perf_counter()
     num_smiles = 0
+    num_run = len(split_keys)
+    if limit is not None:
+        num_run = limit
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params['general']['batch_size']
     cutoff = 9
     try:
         #for key in split_keys:
-        for ikey in range(2):
-            key = split_keys[ikey]
-            val = dd[key]
-            smiles_raw = val['smiles']
-            x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
-            output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
+        for ikey in range(num_run):
+            if check_model_iter(dd, model_iter):
+                key = split_keys[ikey]
+                val = dd[key]
+                smiles_raw = val['smiles']
+                x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+                output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
 
-            sort_index = np.flip(np.argsort(output)).tolist()
-            smiles_sorted = [smiles_raw[i] for i in sort_index]
-            pred_sorted = [output[sort_index[i]].item() if output[sort_index[i]]>cutoff else 0.0 \
-                           for i in range(len(sort_index))]
+                sort_index = np.flip(np.argsort(output)).tolist()
+                smiles_sorted = [smiles_raw[i] for i in sort_index]
+                pred_sorted = [output[sort_index[i]].item() if output[sort_index[i]]>cutoff else 0.0 for i in range(len(sort_index))]
 
-            val['smiles'] = smiles_sorted
-            val['inf'] = pred_sorted
-            val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
-            dd[key] = val
-            num_smiles += len(smiles_sorted)
-            if debug:
-                with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                    f.write(f"Performed inference on key {key}\n")
+                # cutoff_check = [p for p in pred_sorted if p < cutoff and p > 0.0]
+                # if debug:
+                #     with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                #         f.write(f"Cutoff check: {len(cutoff_check)} below cutoff \n")
+
+                val['smiles'] = smiles_sorted
+                val['inf'] = pred_sorted
+                val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
+                dd[key] = val
+                num_smiles += len(smiles_sorted)
+                if debug:
+                    with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                        f.write(f"Performed inference on key {key}\n")
+            else:
+                break
 
     except Exception as e:
         #eprint(e, flush=True)

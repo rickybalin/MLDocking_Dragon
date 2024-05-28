@@ -98,10 +98,10 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     
     grp.join()
     grp.stop()
-    print(f"candidate keys {cdd.keys()}")
+    #print(f"candidate keys {cdd.keys()}")
     total_sims = 0
     ckeys = cdd.keys()
-    print(f"docking sims complete {ckeys=}")
+    print(f"docking sims complete")
     for key in cdd.keys():
         if key[:9] == 'dock_iter':
             #print(f"{key=} {cdd[key]=}\n")

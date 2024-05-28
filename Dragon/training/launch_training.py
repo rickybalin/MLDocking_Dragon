@@ -52,7 +52,7 @@ def read_error(stderr_conn: Connection) -> str:
         stderr_conn.close()
     return output
 
-def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event):
+def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event, BATCH, EPOCH, num_top_candidates):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -72,11 +72,15 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event):
     local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, cpu_affinity=list(range(8)), device=Policy.Device.GPU, gpu_affinity=[3])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=training_switch,
-                                                args=(dd, candidate_dict, continue_event), 
+                                                args=(dd, 
+                                                    candidate_dict, 
+                                                    continue_event, 
+                                                    BATCH, EPOCH, 
+                                                    num_top_candidates), 
                                                 cwd=run_dir,
                                                 policy=local_policy, 
-                                                stdout=MSG_PIPE,
-                                                stderr=MSG_PIPE))
+                                                stdout=MSG_DEVNULL,
+                                                stderr=MSG_DEVNULL))
     
     # Launch the ProcessGroup 
     grp.init()

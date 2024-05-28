@@ -17,6 +17,7 @@ from tqdm import tqdm
 #from utils import exception_handler
 import os
 from time import perf_counter
+import datetime
 
 import dragon
 import multiprocessing as mp
@@ -297,28 +298,30 @@ def docking_switch(cdd, num_procs, proc, continue_event):
     iter = 0
     if proc ==0:
         with open("docking_switch.log",'w') as f:
-            f.write("Starting Docking\n")
+            f.write(f"{datetime.datetime.now()}: Starting Docking\n")
     last_top_candidate_list = "-1"
-    for testi in range(2):
-    #while continue_event.is_set():
+    #for testi in range(2):
+    while continue_event.is_set():
 
-        ckeys = cdd.keys()
-        ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
-        ckey_max = max(ckeys)
+        # ckeys = cdd.keys()
+        # ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
+        # ckey_max = max(ckeys)
+
+        ckey_max = cdd["max_sort_iter"]
 
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
             if proc == 0:
                 with open("docking_switch.log","a") as f:
-                    f.write(f"Docking on iter {iter} with candidate list {ckey_max}\n")
+                    f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
 
             # most recent sorted list
             top_candidates = cdd[ckey_max]["smiles"]
             num_candidates = len(top_candidates)
 
-            if proc == 0:
-                with open("docking_switch.log","a") as f:
-                    f.write(f"iter {iter}: found {num_candidates} candidates to filter \n")
+            #if proc == 0:
+            #    with open("docking_switch.log","a") as f:
+            #        f.write(f"iter {iter}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
             sims_per_proc = num_candidates//num_procs + 1
@@ -334,21 +337,21 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             # if there are new candidates to simulate, run sims
             if len(my_candidates) > 0:
                 tic = perf_counter()
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
+                # with open("docking_switch.log","a") as f:
+                #     f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
                 time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}")
                 if proc == 0:
                     cdd["docking_iter"] = iter
                 toc = perf_counter()
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
-                        f.write(f"iter {iter}: docking sim time {toc-tic} s \n")
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: docking sim time {toc-tic} s \n")
                 last_top_candidate_list = ckey_max
                 iter += 1
             else:
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
-                        f.write(f"iter {iter}: no sims run \n")
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: no sims run \n")
                 
             
 

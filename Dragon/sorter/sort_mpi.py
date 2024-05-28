@@ -83,7 +83,6 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
-        
 
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
@@ -108,18 +107,55 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
         top_candidates = my_results
         num_top_candidates = len(my_results)
         if num_top_candidates > 0:
-            candidate_keys = candidate_dict.keys()
-            if "iter" in candidate_keys:
-                candidate_keys.remove("iter")
-            print(f"candidate keys {candidate_keys}")
-            ckey = "0"
-            if len(candidate_keys) > 0:
-                ckey = str(int(max(candidate_keys))+1)
+            # candidate_keys = candidate_dict.keys()
+            # if "iter" in candidate_keys:
+            #     candidate_keys.remove("iter")
+            # print(f"candidate keys {candidate_keys}")
+            # ckey = "0"
+            # if len(candidate_keys) > 0:
+            #     ckey = str(int(max(candidate_keys))+1)
+            last_list_key = candidate_dict["max_sort_iter"]
+            ckey = str(int(last_list_key) + 1)
             candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
-            candidate_dict[ckey] = {"inf": candidate_inf, "smiles": candidate_smiles, "model_iter": candidate_model_iter}
-            candidate_dict["iter"] = int(ckey)
-            print(f"candidate dictionary on iter {int(ckey)}",flush=True)
-    MPI.Finalize()          
+            sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+            # check for new smiles
+            if last_list_key == "-1":
+                # save if this is the first iteration
+                save_list(candidate_dict, ckey, sort_val)
+            else:
+                last_list = candidate_dict[last_list_key]
+                if len(last_list["smiles"]) != len(candidate_smiles):
+                    # Save list if it is a different length than previous list
+                    save_list(candidate_dict, ckey, sort_val)
+                else:
+                    not_in_common = list(set(last_list["smiles"]) ^ list(set(candidate_smiles)))
+                    if len(not_in_common) > 0:
+                        # Save list if there are smiles not shared by both
+                        save_list(candidate_dict, ckey, sort_val)
+                    else:
+                        # if no new smiles, check if inference has been updated
+                        last_list_model_iters = list(set(candidate_dict[last_list_key["model_iter"]]))
+                        current_model_iters = list(set(candidate_model_iter))
+
+                        if len(last_list_model_iters) == 1 and len(current_model_iters) == 1 and last_list_model_iters[0] != current_model_iters[0]:
+                            # Save if every smiles in each list was inferred with a different model
+                            save_list(candidate_dict, ckey, sort_val)
+                        else:
+                            # Check smiles by smiles for differences in ordering or model_iter
+                            for i in range(len(candidate_smiles)):
+                                if candidate_smiles[i] != last_list["smiles"][i] or candidate_model_iter[i] != last_list["model_iter"]:
+                                    # Save list if there are some smiles done with different inference models
+                                    save_list(candidate_dict, ckey, sort_val)
+                                    break    
+                
+    MPI.Finalize()
+
+def save_list(candidate_dict, ckey, sort_val):
+    candidate_dict[ckey] = sort_val
+    candidate_dict["sort_iter"] = int(ckey)
+    candidate_dict["max_sort_iter"] = ckey
+    print(f"candidate dictionary on iter {int(ckey)}",flush=True)
+
 
 
     

@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib
 import pandas as pd
 import json
+import sys
 from functools import partial
 
 matplotlib.use("Agg")
@@ -179,7 +180,51 @@ def filter_candidate_keys(ckeys: list, key_string: str):
     ckeys = [key for key in ckeys if key[:str_len] == key_string]
     return ckeys
 
+def assemble_docking_data_top(candidate_dict):
+    try:
+        # Retrieve simulation results for all candidates in top list
+        ckeys = candidate_dict.keys()
+        #ckeys = [key for key in ckeys if "iter" not in key and key[0] != "d" and key[0] != "l"]
+        max_ckey = candidate_dict["max_sort_iter"]
+        top_val = candidate_dict[max_ckey]
+
+        docking_keys = [key for key in ckeys if key[:9] == "dock_iter"]
+        docking_keys.sort(reverse=True)
+        top_smiles = top_val["smiles"]
+
+        train_smiles = []
+        train_scores = []
+
+        for key in docking_keys:
+            dval = candidate_dict[key]
+            smiles = dval["smiles"]
+            scores = dval["docking_scores"]
+            if len(top_smiles) > 0:
+                for sm,sc in zip(smiles,scores):
+                    # only train with docking scores that are non-zero
+                    if sm in top_smiles and sc > 0:
+                        train_smiles.append(sm)
+                        train_scores.append([sc])
+                        top_smiles.remove(sm)
+            else:
+                # If all the top smiles have been found, don't continue
+                break
+        
+        with open("sample_train_data.out",'w') as f:
+            for sm,sc in zip(train_smiles,train_scores):
+                f.write(f"{sm},{sc[0]}\n")
+        return train_smiles, train_scores
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+
+        with open("train_switch.log", "a") as f:
+            f.write("Exception in assembling data\n")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}")
+            f.write(f"{e}\n")
+    
+
 def assemble_docking_data(candidate_dict):
+    # Retrieve simulation results for only most recently simulated candidates
 
     ckeys = candidate_dict.keys()
 
@@ -192,7 +237,6 @@ def assemble_docking_data(candidate_dict):
     train_smiles = []
     train_scores = []
 
-    print(f"assembling docking data {ckeys=}")
     if len(ckeys) > 0:
         for key in ckeys:
             cval = candidate_dict[key]
@@ -203,14 +247,14 @@ def assemble_docking_data(candidate_dict):
                 if sc > 0:
                     train_smiles.append(sm)
                     train_scores.append([sc])
-    # with open("sample_train_data.out",'w') as f:
-    #     for sm,sc in zip(train_smiles,train_scores):
-    #         f.write(f"{sm},{sc[0]}\n")
+    with open("sample_train_data.out",'w') as f:
+        for sm,sc in zip(train_smiles,train_scores):
+            f.write(f"{sm},{sc[0]}\n")
     return train_smiles, train_scores
 
 def train_val_data(candidate_dict):
     
-    train_smiles, train_scores = assemble_docking_data(candidate_dict)
+    train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
     #train_smiles = candidate_dict["smiles"]
     #train_scores = candidate_dict["docking_scores"]
 

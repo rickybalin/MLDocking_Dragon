@@ -20,6 +20,7 @@ from .ST_funcs.smiles_regress_transformer_funcs import *
 import sys
 import os
 from time import perf_counter
+import datetime
 
 import dragon
 from dragon.data.ddict.ddict import DDict
@@ -30,26 +31,32 @@ tf.config.run_functions_eagerly(True)
 driver_path = os.getenv("DRIVER_PATH")
 
 #def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=128, EPOCH=100, checkpoint_interval_min=10):
-def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=8, EPOCH=10, checkpoint_interval_min=10):
+def training_switch(dd: DDict, 
+                    candidate_dict: DDict, 
+                    continue_event, 
+                    BATCH, EPOCH, 
+                    num_top_candidates,
+                    checkpoint_interval_min=10):
       
     switch_log = "train_switch.log"
     iter = 0
     
     with open(switch_log,'w') as f:
-        f.write("Starting Training\n")
+        f.write(f"{datetime.datetime.now()}: Starting Training\n")
     
     check_time = perf_counter()
     
     last_training_docking_iter = -1
-    #while continue_event.is_set():
-    if True:
+    while continue_event.is_set():
+    #if True:
         save_model = False
-        # Only retrain if there are fresh simulation resulsts
+        # Only retrain if there are fresh simulation resulsts and there are the max number of top candidates
         docking_iter = candidate_dict["docking_iter"]
-        if docking_iter > last_training_docking_iter:
+        num_top_candidates_list = len(candidate_dict[candidate_dict["max_sort_iter"]]["inf"])
+        if docking_iter > last_training_docking_iter and num_top_candidates_list == num_top_candidates:
             tic = perf_counter()
             with open(switch_log,"a") as f:
-                f.write(f"Training on iter {iter}\n")
+                f.write(f"{datetime.datetime.now()}: Training on iter {iter}\n")
             if (check_time - tic)/60. > checkpoint_interval_min:
                 save_model = True
                 check_time = perf_counter() 
@@ -59,9 +66,10 @@ def training_switch(dd: DDict, candidate_dict: DDict, continue_event, BATCH=8, E
             
             toc = perf_counter()
             with open(switch_log,"a") as f:
-                f.write(f"iter {iter}: train time {toc-tic} s\n")
-                f.write(f"iter {iter}: loss={history['loss']}\n")
-                f.write(f"iter {iter}: r2={history['r2']}\n")
+                #f.write(f"did not train on iter {iter}")
+                f.write(f"{datetime.datetime.now()}: iter {iter}: train time {toc-tic} s\n")
+                f.write(f"{datetime.datetime.now()}: iter {iter}: loss={history['loss']}\n")
+                f.write(f"{datetime.datetime.now()}: iter {iter}: r2={history['r2']}\n")
             last_training_docking_iter = docking_iter
             iter += 1
 
@@ -125,7 +133,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
 
-        steps_per_epoch=min(max(int(len(y_train)/BATCH), 10), 20)
+        #steps_per_epoch=min(max(int(len(y_train)/BATCH), 10), 20)
         steps_per_epoch=int(len(y_train)/BATCH)
         with open("train_switch.log", 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {steps_per_epoch=}\n")
@@ -145,11 +153,10 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
         except Exception as e:
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
-            
 
-        with open("train_switch.log", 'a') as f:
-            f.write(f"Finished fitting model\n")
-            #f.write(f"history keys {history.history['loss']=}, {history.history['r2']=}\n")
+        # with open("train_switch.log", 'a') as f:
+        #     f.write(f"Finished fitting model\n")
+        #     f.write(f"history keys {history.history['loss']=}, {history.history['r2']=}\n")
 
         # model.save("model.keras")
     # Save to dictionary
@@ -170,5 +177,6 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
         print("writing model to dictionary failed!")
         raise(e)
     return history.history
+
 
 
