@@ -36,7 +36,7 @@ if __name__ == "__main__":
                         help='number of nodes the dictionary distributed across')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
-    parser.add_argument('--channels_per_manager', type=int, default=20,
+    parser.add_argument('--channels_per_manager', type=int, default=72,
                         help='channels per manager for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
                         help='managed memory size per node for dictionary in GB')
@@ -73,8 +73,17 @@ if __name__ == "__main__":
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
     print(f"Managers per node: {args.managers_per_node} Channels per manager {args.channels_per_manager}")
     inf_dd_policy = None
+    if "tiny" in args.data_path:
+        dict_timeout = 60
+    elif "small" in args.data_path:
+        dict_timeout = 200
+    elif "med" in args.data_path:
+        dict_timeout = 400
+    elif "avasan" in args.data_path:
+        dict_timeout = 800
+
     inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
-                   timeout=args.dictionary_timeout, policy=inf_dd_policy, 
+                   timeout=dict_timeout, policy=inf_dd_policy, 
                    num_streams_per_manager=args.channels_per_manager)
     print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
     print(f"on {args.inf_dd_nodes} nodes", flush=True)
