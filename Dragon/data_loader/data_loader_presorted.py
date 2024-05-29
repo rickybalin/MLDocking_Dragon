@@ -11,14 +11,8 @@ import gc
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
+from functools import partial
 
-global data_dict 
-data_dict = None
-
-def init_worker(q):
-    global data_dict
-    data_dict = q.get()
-    return
 
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """Return the file paths
@@ -46,13 +40,13 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(file_tuple: Tuple[int, str, int]):
+def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
-    global data_dict
+    
     gc.collect()
     
     file_index = file_tuple[0]
@@ -133,23 +127,16 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     try:
         for i in range(4):
 
-            num_pool_procs = num_procs//4
-            # Launch Pool
-            initq = mp.Queue(maxsize=num_pool_procs)
-            for _ in range(num_pool_procs):
-                initq.put(_dict)
-            
-            
-            pool = mp.Pool(num_pool_procs, initializer=init_worker, initargs=(initq,))
+            num_pool_procs = num_procs
+        
+            pool = mp.Pool(num_pool_procs)
             print(f"Pool initialized", flush=True)
 
             print(f"Reading smiles for {num_files}",flush=True)
     
-    
-
             num_files_per_pool = num_files//4 + 1
             print(f"{num_pool_procs=} {num_files_per_pool=}")
-            smiles_sizes = pool.imap(read_smiles,
+            smiles_sizes = pool.imap_unordered(partial(read_smiles,data_dict=_dict),
                                      file_tuples[i*num_files_per_pool:min((i+1)*num_files_per_pool,num_files)])
 
             print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
