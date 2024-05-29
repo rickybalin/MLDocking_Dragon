@@ -27,7 +27,7 @@ from ST_funcs.smiles_regress_transformer_funcs import *
 from tensorflow.python.client import device_lib
 import json
 
-tf.config.run_functions_eagerly(True)
+#tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
 #######HyperParamSetting#############
@@ -40,7 +40,17 @@ if hyper_params['general']['use_hvd']==True:
 
 ########Create training and validation data##### 
 x_train, y_train, x_val, y_val = train_val_data(hyper_params)
+#x_train = np.array(x_train).flatten()
+#y_train = np.array(y_train).flatten()
+print(x_train.shape)
 
+#x_train = tf.data.Dataset.from_tensor_slices(x_train)
+#y_train = tf.data.Dataset.from_tensor_slices(y_train)
+#print(x_train)
+#print(f"x_train shape is {x_train.shape}")
+#x_train_batched = np.array_split(x_train, 50)
+#y_train_batched = np.array_split(y_train, 50)
+#print(x_train_batched)
 ######## Build model #############
 
 model = ModelArchitecture(hyper_params).call()
@@ -56,14 +66,35 @@ for layer in model.layers:
 
 model.summary()
 ####### Set callbacks + train model ##############
+#train_dataset = tf.data.Dataset.zip((x_train, y_train)).repeat().batch(64)
+#train_dataset = train_dataset.repeat().batch(64)
+#for element in train_dataset:
+#  print(element)
 
-train_and_callbacks = TrainingAndCallbacks(hyper_params)
+#print(train_dataset)
 
-history = train_and_callbacks.training(
-    model,
+#train_and_callbacks = TrainingAndCallbacks(hyper_params)
+
+print(x_train)
+print(y_train)
+history = model.fit(
+    #train_dataset,
     x_train,
     y_train,
-    (x_val, y_val),
-    hyper_params
-    )
+    batch_size=64,
+    epochs=500,
+    verbose=1,
+    #steps_per_epoch=40,
+    validation_data=(x_val,y_val),#validation_data,
+    callbacks=callbacks,
+)
+
+
+#history = train_and_callbacks.training(
+#    model,
+#    x_train,
+#    y_train,
+#    (x_val, y_val),
+#    hyper_params
+#    )
 

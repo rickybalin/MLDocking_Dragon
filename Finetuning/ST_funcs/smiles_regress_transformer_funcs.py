@@ -192,8 +192,8 @@ def train_val_data(hyper_params):
     # reshaping: y formatted as [[y_1],[y_2],...] with floats
     x_smiles_train = data_train["smiles"]
     x_smiles_val = data_vali["smiles"]
-    y_train = data_train["type"].values.reshape(-1, 1) * 1.0 
-    y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
+    y_train = data_train["type"].values.reshape(-1, 1, 1) * 1.0 
+    y_val = data_vali["type"].values.reshape(-1, 1, 1) * 1.0
 
     if hvd_switch:
         x_smiles_train, y_train = split_data(x_smiles_train, y_train)
@@ -243,16 +243,20 @@ def get_available_gpus():
     return local_device_protos, [x.name for x in local_device_protos if x.device_type == "GPU"], n_gpus, is_gpu_available
 
 
-def _r2(y_true, y_pred):
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.cast(y_pred, tf.float32)
-    print(y_pred)
-    print(y_true)
+def r2(y_true, y_pred):
+    #y_true = tf.cast(y_true, tf.float32)
+    #y_pred = tf.cast(y_pred, tf.float32)
+    print(f"y_true is {y_true}")
+    print(f"y_pred is {y_pred}")
+    if y_true.shape!=y_pred.shape:
+        y_pred = tf.reshape(y_pred, shape=y_true.shape) 
+    print(y_pred.shape)
+    print(y_true.shape)
     SS_res = K.sum(K.square(y_true - y_pred))
     SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
     return 1 - SS_res / (SS_tot + K.epsilon())
 
-def r2(y_true, y_pred):
+def _r2(y_true, y_pred):
     """
     Calculate the R-squared (R2) value given true and predicted values.
 
@@ -266,8 +270,8 @@ def r2(y_true, y_pred):
     # Calculate the mean of y_true
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
-    #print(y_true)
-    #print(y_pred)
+    print(y_true)
+    print(y_pred)
     y_pred = tf.reshape(y_pred, shape=y_true.shape)
     mean_y_true = tf.reduce_mean(y_true)
 
@@ -395,9 +399,14 @@ class ModelArchitecture(layers.Layer):
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)
 
+        #model.compile(
+            #loss=self.loss_fn, optimizer=self.opt,# metrics=["mae"], #steps_per_execution=100
+        #)
         model.compile(
-            loss=self.loss_fn, optimizer=self.opt, metrics=["mae", r2], steps_per_execution=100
+            loss=self.loss_fn, optimizer=self.opt, metrics=["mse", r2]#, steps_per_execution=100
         )
+
+
         
         return model
 
@@ -461,7 +470,7 @@ class TrainingAndCallbacks:
     def training(self, model, x_train, y_train, validation_data, hyper_params):
         BATCH = hyper_params['general']['batch_size']
         EPOCH = hyper_params['general']['epochs']
-
+        BATCH = 64
         callbacks = self.callback_defining()
         #print(np.array(x_train).shape)
         #print(np.array(y_train).shape)
@@ -475,8 +484,8 @@ class TrainingAndCallbacks:
         #print(x_train)
         #print(y_train.shape)
         train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-        train_dataset = train_dataset.batch(BATCH) # Use your desired batch size
-        train_dataset = train_dataset.repeat()
+        #train_dataset = train_dataset.batch(BATCH) # Use your desired batch size
+        train_dataset = train_dataset.repeat().batch(BATCH)
         #print(validation_data)
         #valid_dataset = tf.data.Dataset.from_tensor_slices(validation_data)
         #valid_dataset.batch(BATCH)
@@ -490,12 +499,12 @@ class TrainingAndCallbacks:
             train_dataset,
             #x_train,
             #y_train,
-            batch_size=BATCH,
-            epochs=EPOCH,
+            #batch_size=BATCH,
+            epochs=100,
             verbose=1,
-            steps_per_epoch=20,
-            #validation_data=valid_dataset,
-            callbacks=callbacks,
+            steps_per_epoch=40,
+            #validation_data=validation_data,
+            #callbacks=callbacks,
         )
 
         return history
