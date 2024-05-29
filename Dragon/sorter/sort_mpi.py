@@ -128,7 +128,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                     # Save list if it is a different length than previous list
                     save_list(candidate_dict, ckey, sort_val)
                 else:
-                    not_in_common = list(set(last_list["smiles"]) ^ list(set(candidate_smiles)))
+                    not_in_common = list(set(last_list["smiles"]) ^ set(candidate_smiles))
                     if len(not_in_common) > 0:
                         # Save list if there are smiles not shared by both
                         save_list(candidate_dict, ckey, sort_val)
