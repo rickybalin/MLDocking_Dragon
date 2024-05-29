@@ -197,7 +197,7 @@ def compare_candidate_results(candidate_dict, continue_event, num_return_sorted,
                 if i < j:
                     ckey_i = candidate_keys[i]
                     ckey_j = candidate_keys[j]
-                    not_in_common+=list(set(candidate_dict[ckey_i]["smiles"]) ^ set(candidate_dict[ckey_j]["smiles"]))
+                    not_in_common+=list(set(candidate_dict[ckey_i]["smiles"]) ^ list(set(candidate_dict[ckey_j]["smiles"]))
                     model_iter_i = list(set(candidate_dict[ckey_i]["model_iter"]))
                     model_iter_j = list(set(candidate_dict[ckey_j]["model_iter"]))
                     model_iters+=model_iter_i
