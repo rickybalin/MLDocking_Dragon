@@ -113,13 +113,13 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event, inf_nu
                                                      args=(dd,num_procs,proc_id, continue_event, inf_num_limit), 
                                                      cwd=run_dir,
                                                      policy=local_policy, 
-                                                     stdout=MSG_DEVNULL,
-                                                     stderr=MSG_DEVNULL))
+                                                     stdout=MSG_PIPE,
+                                                     stderr=MSG_PIPE))
     
     # Launch the ProcessGroup 
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Inference")
+    print(f"Starting Process Group for Inference, puids={grp.puids}",flush=True)
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
     for proc in group_procs:
         if proc.stdout_conn:

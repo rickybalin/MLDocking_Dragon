@@ -349,7 +349,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
                         f.write(f"{datetime.datetime.now()}: iter {iter}: docking sim time {toc-tic} s \n")
-                    print(f"{cdd.keys()=})
+                    print(f"{cdd.keys()=}")
                 last_top_candidate_list = ckey_max
                 
                 iter += 1
@@ -404,7 +404,7 @@ def run_docking(cdd, candidates, batch_key, proc):
         The docking score of the best conformer.
     """
 
-    debug == True
+    debug = True
     
     num_candidates = len(candidates)
 
@@ -459,7 +459,13 @@ def run_docking(cdd, candidates, batch_key, proc):
     time_per_cand = (toc-tic)/num_candidates
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"Simulated {num_candidates} in {toc-tic} s, {time_per_cand=}\n")
+            f.write(f"Storing data in candidate dictionary\n")
+    dtic = perf_counter()
     cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
+    dtoc = perf_counter()
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulated {num_candidates} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
+
     return time_per_cand
 

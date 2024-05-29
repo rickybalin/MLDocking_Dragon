@@ -160,7 +160,7 @@ if __name__ == "__main__":
         print(f"on {num_tot_nodes} nodes", flush=True)
 
         top_candidate_number = 5000
-        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]//2
+        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
         print(f"Launching sorting with {max_sorter_procs} processes ...", flush=True)
         sorter_proc = mp.Process(target=sort_dictionary, 
                                 args=(data_dd, 

@@ -14,6 +14,7 @@ from dragon.infrastructure.connection import Connection
 from dragon.native.machine import cpu_count, current, System, Node
 from .sort_mpi import mpi_sort
 import datetime
+import time
 
 global data_dict 
 data_dict = None
@@ -370,14 +371,16 @@ def sort_controller(dd,
     check_time = perf_counter()
     while continue_event.is_set():
     #if True:
-        gc.collect()
+        #gc.collect()
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: Starting iter {iter}\n")
         tic = perf_counter()
         print(f"Sort iter {iter}",flush=True)
         #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
+        print(f"Starting pg sort",flush=True)
         sort_dictionary_pg(dd, num_return_sorted, max_procs, nodelist, candidate_dict)
+        print(f"Finished pg sort",flush=True)
         #dd["sort_iter"] = iter
         # max_ckey = candidate_dict["max_sort_iter"]
         # inf_results = candidate_dict[max_ckey]["inf"]
@@ -392,6 +395,7 @@ def sort_controller(dd,
         toc = perf_counter()
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: iter {iter}: sort time {toc-tic} s\n")
+        #time.sleep(30)
         iter += 1
     ckeys = candidate_dict.keys()
     print(f"final {ckeys=}")
