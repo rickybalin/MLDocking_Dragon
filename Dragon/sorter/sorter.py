@@ -3,7 +3,7 @@ from typing import Tuple
 import argparse
 import os
 import random
-
+import gc
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
@@ -370,6 +370,7 @@ def sort_controller(dd,
     check_time = perf_counter()
     while continue_event.is_set():
     #if True:
+        gc.collect()
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: Starting iter {iter}\n")
         tic = perf_counter()

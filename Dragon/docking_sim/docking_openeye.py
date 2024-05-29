@@ -341,7 +341,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 tic = perf_counter()
                 # with open("docking_switch.log","a") as f:
                 #     f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
-                time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}")
+                time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
                 #time_per_cand =999
                 if proc == 0:
                     cdd["docking_iter"] = iter
@@ -349,7 +349,9 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
                         f.write(f"{datetime.datetime.now()}: iter {iter}: docking sim time {toc-tic} s \n")
+                    print(f"{cdd.keys()=})
                 last_top_candidate_list = ckey_max
+                
                 iter += 1
             else:
                 if proc == 0:
@@ -381,7 +383,7 @@ def filter_candidates(cdd, candidates: list):
     return candidates
 
 
-def run_docking(cdd, candidates, batch_key):
+def run_docking(cdd, candidates, batch_key, proc):
     """Run OpenEye docking on a single ligand.
     
     Parameters
@@ -401,6 +403,9 @@ def run_docking(cdd, candidates, batch_key):
     float
         The docking score of the best conformer.
     """
+
+    debug == True
+    
     num_candidates = len(candidates)
 
     tic = perf_counter()
@@ -415,6 +420,10 @@ def run_docking(cdd, candidates, batch_key):
     simulated_smiles = []
     dock_scores = []
 
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulating on proc {proc}\n")
+    
     for smiles in candidates:
         try:
             try:
@@ -448,6 +457,9 @@ def run_docking(cdd, candidates, batch_key):
             dock_scores.append(0)
     toc = perf_counter()
     time_per_cand = (toc-tic)/num_candidates
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulated {num_candidates} in {toc-tic} s, {time_per_cand=}\n")
     cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
     return time_per_cand
 

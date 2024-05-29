@@ -8,7 +8,7 @@ import os
 from time import perf_counter
 import random
 import datetime
-
+import gc
 from dragon.native.process import current as current_process
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
@@ -73,6 +73,7 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
     last_model_iter = -1
     while continue_event.is_set():
     #if True:
+        gc.collect()
         # Only run inference if there is a new model
         if "model_iter" in dd.keys():
             current_model_iter = dd["model_iter"]

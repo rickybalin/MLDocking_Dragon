@@ -50,6 +50,8 @@ def training_switch(dd: DDict,
     while continue_event.is_set():
     #if True:
         ckeys = candidate_dict.keys()
+        with open(switch_log,"a") as f:
+            f.write(f"{ckeys=}\n")
         save_model = False
         # Only retrain if there are fresh simulation resulsts and there are the max number of top candidates
         if "docking_iter" in ckeys:
@@ -61,7 +63,8 @@ def training_switch(dd: DDict,
         if "max_sort_iter" in ckeys:
             if candidate_dict["max_sort_iter"] >= "0":
                 num_top_candidates_list = len(candidate_dict[candidate_dict["max_sort_iter"]]["inf"])
-        
+        with open(switch_log,"a") as f:
+            f.write(f"{docking_iter=} {last_training_docking_iter=} {num_top_candidates_list=} {num_top_candidates=}\n")
         if docking_iter > last_training_docking_iter and num_top_candidates_list == num_top_candidates:
             tic = perf_counter()
             with open(switch_log,"a") as f:
