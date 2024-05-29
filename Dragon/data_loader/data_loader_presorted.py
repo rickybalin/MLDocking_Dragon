@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import socket
+import gc
 
 import dragon
 import multiprocessing as mp
@@ -52,7 +53,8 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     :type file_path: pathlib.PosixPath
     """
     global data_dict
-
+    gc.collect()
+    
     file_index = file_tuple[0]
     manager_index = file_tuple[2]
     file_path = file_tuple[1]
@@ -128,25 +130,34 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
     
-    # Launch Pool
-    initq = mp.Queue(maxsize=num_procs)
-    for _ in range(num_procs):
-        initq.put(_dict)
-        
-    pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
-    print(f"Pool initialized", flush=True)
-
-    print(f"Reading smiles for {num_files}",flush=True)
-    
     try:
-        smiles_sizes = pool.imap(read_smiles, file_tuples)
+        for i in range(4):
 
-        print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
-        print(f"Mapped function complete", flush=True)
-        pool.close()
-        print(f"Pool closed",flush=True)
-        pool.join()
-        print(f"Pool joined",flush=True)
+            num_pool_procs = num_procs//4
+            # Launch Pool
+            initq = mp.Queue(maxsize=num_pool_procs)
+            for _ in range(num_pool_procs):
+                initq.put(_dict)
+            
+            
+            pool = mp.Pool(num_pool_procs, initializer=init_worker, initargs=(initq,))
+            print(f"Pool initialized", flush=True)
+
+            print(f"Reading smiles for {num_files}",flush=True)
+    
+    
+
+            num_files_per_pool = num_files//4 + 1
+            print(f"{num_pool_procs=} {num_files_per_pool=}")
+            smiles_sizes = pool.imap(read_smiles,
+                                     file_tuples[i*num_files_per_pool:min((i+1)*num_files_per_pool,num_files)])
+
+            print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+            print(f"Mapped function complete", flush=True)
+            pool.close()
+            print(f"Pool closed",flush=True)
+            pool.join()
+            print(f"Pool joined",flush=True)
         
     except Exception as e:
         print(f"reading smiles failed")

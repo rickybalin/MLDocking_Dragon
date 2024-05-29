@@ -36,7 +36,7 @@ if __name__ == "__main__":
                         help='number of nodes the dictionary distributed across')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
-    parser.add_argument('--channels_per_manager', type=int, default=72,
+    parser.add_argument('--channels_per_manager', type=int, default=32,
                         help='channels per manager for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
                         help='managed memory size per node for dictionary in GB')
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
                    timeout=dict_timeout, policy=inf_dd_policy, 
-                   num_streams_per_manager=args.channels_per_manager)
+                   num_streams_per_manager=32)
     print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
     print(f"on {args.inf_dd_nodes} nodes", flush=True)
     print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)
