@@ -171,7 +171,7 @@ def compare_candidate_results(candidate_dict, continue_event, num_return_sorted,
         sort_iter = candidate_dict["sort_iter"]
         #candidate_keys.remove('iter')
     candidate_keys = filter_candidate_keys(candidate_keys)
-    #print(f"{candidate_keys=}")
+    print(f"{candidate_keys=}")
     #ncompare = min(ncompare,len(candidate_keys))
     candidate_keys.sort(reverse=True)
     #print(f"{candidate_keys=}")
@@ -415,9 +415,10 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(restart=False, policy=global_policy, pmi_enabled=True, ignore_error_on_exit=True)
 
-    print(f"Launching sorting process group", flush=True)
+    print(f"Launching sorting process group {nodelist}", flush=True)
     for node in nodelist:
         node_name = Node(node).hostname
+        print(f"{node_name=}", flush=True)
         local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                             host_name=node_name, 
                             cpu_affinity=list(range(num_procs_pn)))
@@ -426,10 +427,10 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
                                                     args=(dd, num_return_sorted,cdd), 
                                                     policy=local_policy,
                                                     cwd=run_dir))
-
+    print(f"Added processes to sorting group",flush=True)
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Sorting")
+    print(f"Starting Process Group for Sorting {grp.puids=}",flush=True)
 
     
     grp.join()

@@ -16,6 +16,7 @@ from tqdm import tqdm
 #from docking_utils import smi_to_structure
 #from utils import exception_handler
 import os
+import time
 from time import perf_counter
 import datetime
 
@@ -309,14 +310,13 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         if "max_sort_iter" in ckeys:
             ckey_max = cdd["max_sort_iter"]
         else:
-            ckey_max = -1
+            ckey_max = '-1'
             
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
-
             # most recent sorted list
             top_candidates = cdd[ckey_max]["smiles"]
             num_candidates = len(top_candidates)
@@ -342,6 +342,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 # with open("docking_switch.log","a") as f:
                 #     f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
                 time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}")
+                #time_per_cand =999
                 if proc == 0:
                     cdd["docking_iter"] = iter
                 toc = perf_counter()
@@ -354,7 +355,11 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
                         f.write(f"{datetime.datetime.now()}: iter {iter}: no sims run \n")
-                
+        else:
+            if proc == 0:
+                with open("docking_switch.log","a") as f:
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: no valid list {ckey_max} \n")
+            time.sleep(10)    
             
 
 
@@ -400,7 +405,11 @@ def run_docking(cdd, candidates, batch_key):
 
     tic = perf_counter()
     temp_storage = "./docking_tmp/"
+    hostname = os.popen("hostname -f").read()
+
     receptor_oedu_file = "/lus/grand/projects/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
+    if "sirius" in hostname:
+        receptor_oedu_file = "/home/csimpson/openeye/3clpro_7bqy.oedu"
     max_confs = 1
 
     simulated_smiles = []

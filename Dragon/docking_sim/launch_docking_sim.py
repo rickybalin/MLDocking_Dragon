@@ -87,7 +87,7 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     grp.start()
     print(f"Starting Process Group for Docking Sims", flush=True)
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
-    print(f"Number of processes in group {len(group_procs)}",flush=True)
+    print(f"Docking processes:{grp.puids}",flush=True)
     for proc in group_procs:
         if proc.stdout_conn:
             std_out = read_output(proc.stdout_conn)

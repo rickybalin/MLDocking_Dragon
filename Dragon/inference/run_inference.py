@@ -83,13 +83,20 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
             if proc == 0:
                 with open(switch_log,"a") as f:
                     f.write(f"{datetime.datetime.now()}: Inference on iter {iter} with model iter {current_model_iter}\n")
-            time_per_smiles = infer(dd, num_procs, proc, limit=inf_num_limit)
+            metrics = infer(dd, num_procs, proc, limit=inf_num_limit)
             if proc == 0:
                 dd["inf_iter"] = iter
             # with open(switch_log,'a') as f:
             #     f.write(f"iter {iter}: proc {proc}: time per smiles {time_per_smiles} s \n")
             last_model_iter = current_model_iter
             toc = perf_counter()
+            with open(switch_log, 'a') as f:
+                line = f"{datetime.datetime.now()}: proc {proc}: "
+                for mkey in metrics.keys():
+                    line += f"{mkey}={metrics[mkey]} "
+                line += "\n"
+                f.write(line)
+                
             if proc == 0:
                 with open(switch_log,'a') as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: run time {toc - tic} s\n")
@@ -183,6 +190,11 @@ def infer(dd, num_procs, proc, limit=None):
                 dict_toc = perf_counter()
                 
                 dictionary_time += dict_toc - dict_tic
+
+                for kkey in val.keys():
+                    data_moved_size += sys.getsizeof(kkey)
+                    data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
+                
                 smiles_raw = val['smiles']
                 x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
                 output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
@@ -203,6 +215,9 @@ def infer(dd, num_procs, proc, limit=None):
                 dd[key] = val
                 dict_toc = perf_counter()
                 dictionary_time += dict_toc -dict_tic
+                for kkey in val.keys():
+                    data_moved_size += sys.getsizeof(kkey)
+                    data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
                 num_smiles += len(smiles_sorted)
                 if debug:
                     with open(f"ws_worker_{myp.ident}.log",'a') as f:
@@ -216,7 +231,10 @@ def infer(dd, num_procs, proc, limit=None):
             f.write(f"{e}")
     toc = perf_counter()
     time_per_smiles = (toc-tic)/num_smiles
-    return time_per_smiles
+    data_move_time_per_smiles = dictionary_time/num_smiles
+    data_move_size_per_sec = data_moved_size/dictionary_time
+    metrics = {"num_smiles": num_smiles, "time_per_smiles": time_per_smiles, "data_move_time_per_smiles":data_move_time_per_smiles, "data_move_size_per_sec":data_move_size_per_sec}
+    return metrics
 ## Run main
 if __name__ == "__main__":
     print('Cannot be run as a script at this time', flush=True)

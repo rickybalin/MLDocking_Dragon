@@ -64,8 +64,11 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     rank = comm.Get_rank()
 
     key_list = _dict.keys()
-    if "inf_iter" in key_list:
-        key_list.remove("inf_iter")
+    #if rank == 0:
+    #    print(f"{key_list=}")
+    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+    #if "inf_iter" in key_list:
+    #    key_list.remove("inf_iter")
     num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//size+1,1)
     if rank == 0:
@@ -74,38 +77,51 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     my_key_list = []
     if rank*direct_sort_num < num_keys:
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
-
+    #if rank == 0:
+    #    print(f"Rank 0 sorting {my_key_list}")
     # Direct sort keys assigned to this rank
     my_results = []
     for key in my_key_list:
         val = _dict[key]
+        #if rank == 0:
+        #    print(f"pulled key {key} from dictionary", flush=True)
         if any(val["inf"]):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
 
+    if rank == 0:
+        print(f"sort mpi: found {len(my_results)} on rank 0")
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
     max_j = size//2
 
-    for k in range(max_k):
-        offset = 2**k
-        for j in range(max_j):
-            #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
-            if rank == (2**(k+1))*j:         
-                neighbor_result = comm.recv(source = rank + offset)
-                merge(my_results,neighbor_result,num_return_sorted)
-                #print(f"{rank=}: {k=} {offset=} {neighbor_result=}")
-            if rank == (2**(k+1))*j + 2**k:
-                comm.send(my_results,rank - offset)
-        max_j = max(max_j//2,1)
-
-
+    try:
+        for k in range(max_k):
+            offset = 2**k
+            for j in range(max_j):
+                #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
+                if rank == (2**(k+1))*j:         
+                    neighbor_result = comm.recv(source = rank + offset)
+                    merge(my_results,neighbor_result,num_return_sorted)
+                    print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
+                if rank == (2**(k+1))*j + offset:
+                    comm.send(my_results,rank - offset)
+            max_j = max(max_j//2,1)
+    except Exception as e:
+        print(f"Merge failed on rank {rank}",flush=True)
+        print(f"{e}",flush=True)
+        with open("sort_controller.log","a") as f:
+            f.write(f"Merge failed on rank {rank}: {e}\n")
     # rank 0 collects the final sorted list
     if rank == 0:
+        print(f"Collected sorted results on rank 0",flush=True)
         # put data in candidate_dict
         top_candidates = my_results
         num_top_candidates = len(my_results)
+        with open("sort_controller.log", "a") as f:
+            f.write(f"Collected {num_top_candidates=}\n")
+        print(f"Collected {num_top_candidates=}",flush=True)
         if num_top_candidates > 0:
             # candidate_keys = candidate_dict.keys()
             # if "iter" in candidate_keys:
@@ -118,9 +134,11 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             ckey = str(int(last_list_key) + 1)
             candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+            print(f"sort mpi: {last_list_key=}",flush=True)
             # check for new smiles
             if last_list_key == "-1":
                 # save if this is the first iteration
+                print(f"Saving the first sorted list",flush=True)
                 save_list(candidate_dict, ckey, sort_val)
             else:
                 last_list = candidate_dict[last_list_key]
@@ -134,7 +152,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                         save_list(candidate_dict, ckey, sort_val)
                     else:
                         # if no new smiles, check if inference has been updated
-                        last_list_model_iters = list(set(candidate_dict[last_list_key["model_iter"]]))
+                        last_list_model_iters = list(set(last_list["model_iter"]))
                         current_model_iters = list(set(candidate_model_iter))
 
                         if len(last_list_model_iters) == 1 and len(current_model_iters) == 1 and last_list_model_iters[0] != current_model_iters[0]:
@@ -147,7 +165,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                                     # Save list if there are some smiles done with different inference models
                                     save_list(candidate_dict, ckey, sort_val)
                                     break    
-                
+            print(f"Not saving list",flush=True)
     MPI.Finalize()
 
 def save_list(candidate_dict, ckey, sort_val):

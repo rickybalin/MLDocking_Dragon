@@ -160,7 +160,7 @@ if __name__ == "__main__":
         print(f"on {num_tot_nodes} nodes", flush=True)
 
         top_candidate_number = 5000
-        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]//2
         print(f"Launching sorting with {max_sorter_procs} processes ...", flush=True)
         sorter_proc = mp.Process(target=sort_dictionary, 
                                 args=(data_dd, 
@@ -179,40 +179,40 @@ if __name__ == "__main__":
         # Launch Docking Simulations
         tic = perf_counter()
         num_procs = 32*node_counts["docking"]
-        #print(f"Launching Docking Simulations with {num_procs} procs", flush=True)
-        #dock_proc = mp.Process(target=launch_docking_sim, 
-        #                       args=(cand_dd, 
-        #                             nodelists["docking"], 
-        #                             num_procs, 
-        #                             continue_event))
-        #dock_proc.start()
+        print(f"Launching Docking Simulations with {num_procs} procs", flush=True)
+        dock_proc = mp.Process(target=launch_docking_sim, 
+                               args=(cand_dd, 
+                                     nodelists["docking"], 
+                                     num_procs, 
+                                     continue_event))
+        dock_proc.start()
         
-        #toc = perf_counter()
-        #infer_time = toc - tic
+        toc = perf_counter()
+        infer_time = toc - tic
         #print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
         
         # Launch Training
-        #print(f"Launched Fine Tune Training", flush=True)
-        #tic = perf_counter()
-        #BATCH = 64
-        #EPOCH = 100
-        #train_proc = mp.Process(target=launch_training, 
-        #                        args=(data_dd, 
-        #                              nodelists["training"][0], 
-        #                              cand_dd, 
-        #                              continue_event,
-        #                              BATCH,
-        #                              EPOCH,
-        #                              top_candidate_number))
-        #train_proc.start()
-       # 
-        #toc = perf_counter()
+        print(f"Launched Fine Tune Training", flush=True)
+        tic = perf_counter()
+        BATCH = 64
+        EPOCH = 100
+        train_proc = mp.Process(target=launch_training, 
+                                args=(data_dd, 
+                                      nodelists["training"][0], 
+                                      cand_dd, 
+                                      continue_event,
+                                      BATCH,
+                                      EPOCH,
+                                      top_candidate_number))
+        train_proc.start()
+        
+        toc = perf_counter()
         ##print(f"Performed training in {toc-tic} seconds \n", flush=True)
 
         sorter_proc.join()
         inf_proc.join()
-        #dock_proc.join()
-        #train_proc.join()
+        dock_proc.join()
+        train_proc.join()
 
 
         # Close the dictionary
