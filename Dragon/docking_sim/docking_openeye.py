@@ -303,12 +303,14 @@ def docking_switch(cdd, num_procs, proc, continue_event):
     #for testi in range(2):
     while continue_event.is_set():
 
-        # ckeys = cdd.keys()
+        ckeys = cdd.keys()
         # ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
         # ckey_max = max(ckeys)
-
-        ckey_max = cdd["max_sort_iter"]
-
+        if "max_sort_iter" in ckeys:
+            ckey_max = cdd["max_sort_iter"]
+        else:
+            ckey_max = -1
+            
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
             if proc == 0:

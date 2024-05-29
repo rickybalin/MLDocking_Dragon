@@ -165,6 +165,8 @@ def infer(dd, num_procs, proc, limit=None):
     tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
     tic = perf_counter()
     num_smiles = 0
+    dictionary_time = 0
+    data_moved_size = 0
     num_run = len(split_keys)
     if limit is not None:
         num_run = limit
@@ -176,7 +178,11 @@ def infer(dd, num_procs, proc, limit=None):
         for ikey in range(num_run):
             if check_model_iter(dd, model_iter):
                 key = split_keys[ikey]
+                dict_tic = perf_counter()
                 val = dd[key]
+                dict_toc = perf_counter()
+                
+                dictionary_time += dict_toc - dict_tic
                 smiles_raw = val['smiles']
                 x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
                 output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
@@ -193,7 +199,10 @@ def infer(dd, num_procs, proc, limit=None):
                 val['smiles'] = smiles_sorted
                 val['inf'] = pred_sorted
                 val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
+                dict_tic = perf_counter()
                 dd[key] = val
+                dict_toc = perf_counter()
+                dictionary_time += dict_toc -dict_tic
                 num_smiles += len(smiles_sorted)
                 if debug:
                     with open(f"ws_worker_{myp.ident}.log",'a') as f:

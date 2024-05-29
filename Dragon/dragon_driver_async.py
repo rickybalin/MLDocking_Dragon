@@ -158,9 +158,10 @@ if __name__ == "__main__":
                     num_streams_per_manager=args.channels_per_manager)
         print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
         print(f"on {num_tot_nodes} nodes", flush=True)
-    
+
         top_candidate_number = 5000
         max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+        print(f"Launching sorting with {max_sorter_procs} processes ...", flush=True)
         sorter_proc = mp.Process(target=sort_dictionary, 
                                 args=(data_dd, 
                                     top_candidate_number, 
@@ -176,9 +177,9 @@ if __name__ == "__main__":
         #inf_proc.join()
         
         # Launch Docking Simulations
-        print(f"Launched Docking Simulations", flush=True)
         tic = perf_counter()
         num_procs = 32*node_counts["docking"]
+        print(f"Launching Docking Simulations with {num_procs} procs", flush=True)
         dock_proc = mp.Process(target=launch_docking_sim, 
                                args=(cand_dd, 
                                      nodelists["docking"], 
@@ -193,7 +194,7 @@ if __name__ == "__main__":
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
         tic = perf_counter()
-        BATCH = 128
+        BATCH = 64
         EPOCH = 100
         train_proc = mp.Process(target=launch_training, 
                                 args=(data_dd, 

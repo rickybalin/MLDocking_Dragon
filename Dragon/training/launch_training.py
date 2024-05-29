@@ -79,8 +79,8 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event, BATC
                                                     num_top_candidates), 
                                                 cwd=run_dir,
                                                 policy=local_policy, 
-                                                stdout=MSG_DEVNULL,
-                                                stderr=MSG_DEVNULL))
+                                                stdout=MSG_PIPE,
+                                                stderr=MSG_PIPE))
     
     # Launch the ProcessGroup 
     grp.init()
