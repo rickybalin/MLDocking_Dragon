@@ -104,7 +104,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                 if rank == (2**(k+1))*j:         
                     neighbor_result = comm.recv(source = rank + offset)
                     merge(my_results,neighbor_result,num_return_sorted)
-                    print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
+                    #print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
                 if rank == (2**(k+1))*j + offset:
                     comm.send(my_results,rank - offset)
             max_j = max(max_j//2,1)
