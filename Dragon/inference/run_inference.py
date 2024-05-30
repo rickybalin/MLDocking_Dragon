@@ -151,6 +151,9 @@ def infer(dd, num_procs, proc, limit=None):
             #eprint(e, flush=True)
             with open(f"ws_worker_{myp.ident}.log",'a') as f:
                 f.write(f"{e}\n")
+        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            f.write("Loaded pretrained model\n")
+        
     else:
         try:
             with open(f"ws_worker_{myp.ident}.log",'a') as f:
