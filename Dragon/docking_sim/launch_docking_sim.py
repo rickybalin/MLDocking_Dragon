@@ -96,7 +96,11 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
             std_err = read_error(proc.stderr_conn)
             print(std_err, flush=True)
     
-    grp.join()
+    #grp.join()
+    try:
+        grp.join(timeout=10)
+    except TimeoutError:
+        pass
     grp.stop()
     #print(f"candidate keys {cdd.keys()}")
     total_sims = 0

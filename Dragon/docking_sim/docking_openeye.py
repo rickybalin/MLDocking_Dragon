@@ -395,13 +395,14 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: no valid list {ckey_max} \n")
-        with open("docking_switch.log","a") as f:
-            f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished switch loop \n")
         iter += 1
         if continue_event is None:
             continue_flag = False
         else:
             continue_flag = continue_event.is_set()
+    with open("docking_switch.log","a") as f:
+        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished switch loop \n")
+
     return
             
 
@@ -539,9 +540,9 @@ def run_docking(cdd, candidates, batch_key, proc):
     metrics['data_store_time'] = dtoc-dtic
     metrics['data_store_size'] =  data_store_size
     
-    #if debug:
-    #    with open(f"dock_worker_{proc}.log","a") as f:
-    #        f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
 
     return metrics
 
