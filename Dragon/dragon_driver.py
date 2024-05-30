@@ -214,11 +214,12 @@ if __name__ == "__main__":
     inf_num_limit=16
     print(f"Launching inference with {num_procs} processes ...", flush=True)
     tic = perf_counter()
-    inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
-                                                        nodelists["inference"], 
-                                                        num_procs, 
-                                                        continue_event, 
-                                                        inf_num_limit))
+    inf_proc = mp.Process(target=launch_inference, 
+                            args=(data_dd, 
+                                nodelists["inference"], 
+                                num_procs, 
+                                continue_event, 
+                                inf_num_limit))
     inf_proc.start()
     inf_proc.join()
     toc = perf_counter()
