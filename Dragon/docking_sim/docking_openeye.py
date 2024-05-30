@@ -316,6 +316,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
             ckeys.sort()
+            
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
@@ -323,16 +324,16 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             top_candidates = cdd[ckey_max]["smiles"]
             num_candidates = len(top_candidates)
 
-            #if proc == 0:
-            #    with open("docking_switch.log","a") as f:
-            #        f.write(f"iter {iter}: found {num_candidates} candidates to filter \n")
+            if proc == 0:
+                with open("docking_switch.log","a") as f:
+                    f.write(f"iter {iter}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
             sims_per_proc = num_candidates//num_procs + 1
             my_candidates = top_candidates[proc*sims_per_proc:min((proc+1)*sims_per_proc,num_candidates)]
 
-            # with open("docking_switch.log","a") as f:
-            #     f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
+            with open("docking_switch.log","a") as f:
+                f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
 
             # check to see if we already have a sim result for this process' candidates
             if len(my_candidates) > 0:
@@ -341,8 +342,8 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             # if there are new candidates to simulate, run sims
             if len(my_candidates) > 0:
                 tic = perf_counter()
-                # with open("docking_switch.log","a") as f:
-                #     f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
+                with open("docking_switch.log","a") as f:
+                    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
                 time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
                 #time_per_cand =999
                 if proc == 0:
