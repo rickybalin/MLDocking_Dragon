@@ -96,11 +96,10 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
             last_model_iter = current_model_iter
             toc = perf_counter()
             with open(switch_log, 'a') as f:
-                line = f"{datetime.datetime.now()}: proc {proc}: "
+                preamble = f"{datetime.datetime.now()}: iter {iter}: proc {proc}: "
                 for mkey in metrics.keys():
-                    line += f"{mkey}={metrics[mkey]} "
-                line += "\n"
-                f.write(line)
+                    line = preamble+f"{mkey}={metrics[mkey]} \n"
+                    f.write(line)
                 
             if proc == 0:
                 with open(switch_log,'a') as f:
@@ -239,10 +238,13 @@ def infer(dd, num_procs, proc, limit=None):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"{e}")
     toc = perf_counter()
-    time_per_smiles = (toc-tic)/num_smiles
-    data_move_time_per_smiles = dictionary_time/num_smiles
-    data_move_size_per_sec = data_moved_size/dictionary_time
-    metrics = {"num_smiles": num_smiles, "time_per_smiles": time_per_smiles, "data_move_time_per_smiles":data_move_time_per_smiles, "data_move_size_per_sec":data_move_size_per_sec}
+    #time_per_smiles = (toc-tic)/num_smiles
+    #data_move_time_per_smiles = dictionary_time/num_smiles
+    #data_move_size_per_sec = data_moved_size/dictionary_time
+    metrics = {"num_smiles": num_smiles, 
+                "total_time": toc-tic, 
+                "data_move_time":dictionary_time, 
+                "data_move_size":data_moved_size}
     return metrics
 ## Run main
 if __name__ == "__main__":

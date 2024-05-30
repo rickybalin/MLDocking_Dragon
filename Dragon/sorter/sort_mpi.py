@@ -72,21 +72,16 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     #    key_list.remove("inf_iter")
     num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//size+1,1)
-    if rank == 0:
-        print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
 
     my_key_list = []
     if rank*direct_sort_num < num_keys:
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
-    if rank == 0:
-        print(f"Rank 0 sorting {my_key_list}")
+    
     # Direct sort keys assigned to this rank
     my_results = []
     for key in my_key_list:
         try:
             val = _dict[key]
-            if rank == 0:
-                print(f"pulled key {key} from dictionary", flush=True)
         except Exception as e:
             print(f"Failed to pull {key} from dict", flush=True)
             print(f"Exception {e}",flush=True)
@@ -96,8 +91,6 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
 
-    if rank == 0:
-        print(f"sort mpi: found {len(my_results)} on rank 0")
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
     max_j = size//2

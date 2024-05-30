@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
     parser.add_argument('--data_dictionary_mem_fraction', type=float, default=0.7,
-                        help='number of nodes the dictionary distributed across')
+                        help='fraction of memory dedicated to data dictionary')
     parser.add_argument('--inference_node_num', type=int, default=1,
                         help='number of nodes running inference')
     parser.add_argument('--sorting_node_num', type=int, default=1,
@@ -135,13 +135,16 @@ if __name__ == "__main__":
     # Set the continue event to None for each component to run one iter
     continue_event = None  
     
-    max_iter = 100
+    # Number of top candidates to produce
+    top_candidate_number = 5000
+
+    max_iter = 3
     iter = 0
     while iter < max_iter:
-
+        iter_start = perf_counter()
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
-        inf_num_limit = 16
+        #inf_num_limit = 16
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
@@ -155,9 +158,6 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-
-        # Number of top candidates to produce
-        top_candidate_number = 5000
 
         # Launch data sorter component and create candidate dictionary
         tic = perf_counter()
@@ -193,8 +193,8 @@ if __name__ == "__main__":
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
         tic = perf_counter()
-        BATCH = 128
-        EPOCH = 100
+        BATCH = 64
+        EPOCH = 500
         train_proc = mp.Process(target=launch_training, 
                                 args=(data_dd, 
                                         nodelists["training"][0], # training is always 1 node
@@ -207,7 +207,8 @@ if __name__ == "__main__":
         train_proc.join()
         toc = perf_counter()
         print(f"Performed training in {toc-tic} seconds \n", flush=True)
-
+        iter_end = perf_counter()
+        print(f"Performed iter {iter} in {iter_end - iter_start} seconds \n", flush=True)
 
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)

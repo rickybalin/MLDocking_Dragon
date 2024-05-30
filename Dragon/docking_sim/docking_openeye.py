@@ -321,38 +321,53 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
             # most recent sorted list
+            rtic = perf_counter()
             top_candidates = cdd[ckey_max]["smiles"]
+            rtoc = perf_counter()
             num_candidates = len(top_candidates)
 
             if proc == 0:
                 with open("docking_switch.log","a") as f:
-                    f.write(f"iter {iter}: found {num_candidates} candidates to filter \n")
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
             sims_per_proc = num_candidates//num_procs + 1
             my_candidates = top_candidates[proc*sims_per_proc:min((proc+1)*sims_per_proc,num_candidates)]
 
-            with open("docking_switch.log","a") as f:
-                f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
+            #with open("docking_switch.log","a") as f:
+            #    f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
 
             # check to see if we already have a sim result for this process' candidates
+            ret_time = 0
+            ret_size = 0
             if len(my_candidates) > 0:
-                my_candidates = filter_candidates(cdd, my_candidates)
+                my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates)
+
+            ret_metrics = {}
+            ret_metrics["data_retrieval_time"] = rtoc - rtic + ret_time
+            ret_metrics["data_retrieval_size"] = sum([sys.getsizeof(sm) for sm in top_candidates]) + ret_size
+
+            with open("docking_switch.log","a") as f:
+                for kkey in ret_metrics.keys():
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}")
+
 
             # if there are new candidates to simulate, run sims
             if len(my_candidates) > 0:
                 tic = perf_counter()
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
-                time_per_cand = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
-                #time_per_cand =999
+                #with open("docking_switch.log","a") as f:
+                #    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
+                sim_metrics = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
+                
                 if proc == 0:
                     cdd["docking_iter"] = iter
                 toc = perf_counter()
-                if proc == 0:
-                    with open("docking_switch.log","a") as f:
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: docking sim time {toc-tic} s \n")
-                    print(f"{cdd.keys()=}")
+                with open("docking_switch.log","a") as f:
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
+                    for kkey in sim_metrics.keys():
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}")
+
+                #print(f"{cdd.keys()=}")
                 last_top_candidate_list = ckey_max
                 
                 iter += 1
@@ -377,8 +392,15 @@ def filter_candidates(cdd, candidates: list):
     ckeys = cdd.keys()
     cbkeys = [ckey for ckey in ckeys if ckey[0] == "d"]
 
+    ret_time = 0
+    ret_size = 0
+
     for cbk in cbkeys:
+        tic = perf_counter()
         check_smiles = cdd[cbk]["smiles"]
+        toc = perf_counter()
+        ret_time += toc - tic
+        ret_size = sys.getsizeof(check_smiles)
         if len(candidates) > 0:
             for c in candidates:
                 if c in check_smiles:
@@ -386,7 +408,7 @@ def filter_candidates(cdd, candidates: list):
         else:
             # Don't continue to query keys if there are no candidates left
             break
-    return candidates
+    return candidates, ret_time, ret_size
 
 
 def run_docking(cdd, candidates, batch_key, proc):
@@ -425,15 +447,16 @@ def run_docking(cdd, candidates, batch_key, proc):
     receptor_oedu_file = "/lus/grand/projects/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
     if "sirius" in hostname:
         receptor_oedu_file = "/home/csimpson/openeye/3clpro_7bqy.oedu"
-    if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"{receptor_oedu_file=}\n")
+    #if debug:
+    #    with open(f"dock_worker_{proc}.log","a") as f:
+    #        f.write(f"{receptor_oedu_file=}\n")
 
     max_confs = 1
 
     simulated_smiles = []
     dock_scores = []
     
+    smiter = 0
     for smiles in candidates:
         try:
             try:
@@ -465,6 +488,10 @@ def run_docking(cdd, candidates, batch_key, proc):
         except:
             simulated_smiles.append(smiles)
             dock_scores.append(0)
+        smiter += 1
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"Simulated {smiter}/{num_candidates} candidates")
     toc = perf_counter()
     time_per_cand = (toc-tic)/num_candidates
     if debug:
@@ -473,9 +500,20 @@ def run_docking(cdd, candidates, batch_key, proc):
     dtic = perf_counter()
     cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
     dtoc = perf_counter()
-    if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"Simulated {num_candidates} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
 
-    return time_per_cand
+    data_store_size = 0
+    data_store_size += sum([sys.getsizeof(sm) for sm in simulated_smiles])
+    data_store_size += sum([sys.getsizeof(sc) for sc in dock_scores])
+    data_store_size += sys.getsizeof("smiles") + sys.getsizeof("docking_scores")
+
+    metrics = {"num_candidates": num_candidates,
+                "total_run_time": toc-tic,
+                "data_store_time": dtoc-dtic,
+                "data_store_size": data_store_size}
+    
+    #if debug:
+    #    with open(f"dock_worker_{proc}.log","a") as f:
+    #        f.write(f"Simulated {num_candidates} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
+
+    return metrics
 
