@@ -257,14 +257,15 @@ def train_val_data(candidate_dict):
     train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
     #train_smiles = candidate_dict["smiles"]
     #train_scores = candidate_dict["docking_scores"]
-
+    train_scores = pd.DataFrame(train_scores)
     if len(train_smiles) > 0:
         # data_train.head()
         # # Dataset has type and smiles as the two fields
         # # reshaping: y formatted as [[y_1],[y_2],...] with floats
         x_smiles_train = train_smiles
         #x_smiles_val = data_vali["smiles"]
-        y_train = np.array(train_scores) #data_train["type"].values.reshape(-1, 1) * 1.0 
+        #y_train = np.array(train_scores) #
+        y_train = train_scores.values.reshape(-1, 1, 1) * 1.0 
         #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
 
         # Set up tokenizer
