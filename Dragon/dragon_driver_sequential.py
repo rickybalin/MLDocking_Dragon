@@ -2,7 +2,7 @@ import os
 from time import perf_counter
 import argparse
 from typing import List
-
+import shutil
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         iter_start = perf_counter()
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
-        inf_num_limit = 8 #None
+        inf_num_limit = None
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
@@ -190,6 +190,7 @@ if __name__ == "__main__":
         dock_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
+        os.rename("docking_switch.log",f"docking_switch_{iter}.log")
         print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
         
         # Launch Training

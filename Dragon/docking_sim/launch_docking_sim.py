@@ -11,6 +11,21 @@ from dragon.native.machine import Node
 
 from .docking_openeye import docking_switch
 
+def work_finished(nproc):
+
+    nfinished = 0
+    if os.path.isfile("docking_switch.log"):
+        with open("docking_switch.log","r") as f:
+            lines = f.readlines()
+
+            for line in lines:
+                if "Finished switch loop" in line:
+                    nfinished += 1
+    if nfinished < nproc:
+        return False
+    else:
+        return True
+
 def read_output(stdout_conn: Connection) -> str:
     """Read stdout from the Dragon connection.
 
@@ -79,8 +94,8 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
                                                         args=(cdd, num_procs, proc_id, continue_event), 
                                                         cwd=run_dir,
                                                         policy=local_policy, 
-                                                        stdout=MSG_PIPE,
-                                                        stderr=MSG_PIPE))
+                                                        stdout=MSG_DEVNULL,
+                                                        stderr=MSG_DEVNULL))
     
     # Launch the ProcessGroup 
     grp.init()
@@ -88,19 +103,22 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     print(f"Starting Process Group for Docking Sims", flush=True)
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
     print(f"Docking processes:{grp.puids}",flush=True)
-    for proc in group_procs:
-        if proc.stdout_conn:
-            std_out = read_output(proc.stdout_conn)
-            print(std_out, flush=True)
-        if proc.stderr_conn:
-            std_err = read_error(proc.stderr_conn)
-            print(std_err, flush=True)
+    #for proc in group_procs:
+    #    if proc.stdout_conn:
+    #        std_out = read_output(proc.stdout_conn)
+    #        print(std_out, flush=True)
+    #    if proc.stderr_conn:
+    #        std_err = read_error(proc.stderr_conn)
+    #        print(std_err, flush=True)
     
     #grp.join()
-    try:
-        grp.join(timeout=10)
-    except TimeoutError:
-        pass
+    while not work_finished(num_procs):
+        print(f"waiting to join dock group: {work_finished(num_procs)}", flush=True)
+        try:
+            grp.join(timeout=10)
+        except TimeoutError:
+            print(f"join timed out, continuing",flush=True)
+            continue
     grp.stop()
     #print(f"candidate keys {cdd.keys()}")
     total_sims = 0

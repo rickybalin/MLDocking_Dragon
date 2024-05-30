@@ -298,7 +298,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
     #for i in range(1):
     iter = 0
     #if proc ==0:
-    with open("docking_switch.log",'a') as f:
+    with open("docking_switch.log",'w') as f:
         f.write(f"{datetime.datetime.now()}: Starting Docking on proc {proc}\n")
     last_top_candidate_list = "-1"
     
