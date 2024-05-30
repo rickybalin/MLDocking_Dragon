@@ -132,6 +132,7 @@ def infer(dd, num_procs, proc, limit=None):
             f.write(f"Hello from process {proc} on core {core_list}\n")
     
     keys = dd.keys()
+    keys.sort()
 
     # Read HyperParameters 
     json_file = driver_path+'inference/config.json'

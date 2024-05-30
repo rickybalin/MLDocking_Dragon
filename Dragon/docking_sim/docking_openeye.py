@@ -315,6 +315,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
+            ckeys.sort()
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
