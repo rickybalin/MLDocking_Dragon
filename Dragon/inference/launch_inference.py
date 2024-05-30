@@ -110,7 +110,12 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, continue_event, inf_nu
                                   device=Policy.Device.GPU, gpu_affinity=[inf_gpu_bind[proc]])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer_switch, 
-                                                     args=(dd,num_procs,proc_id, continue_event, inf_num_limit), 
+                                                     args=(dd,
+                                                        num_procs,
+                                                        proc_id, 
+                                                        continue_event, 
+                                                        inf_num_limit,
+                                                        ), 
                                                      cwd=run_dir,
                                                      policy=local_policy, 
                                                      stdout=MSG_PIPE,

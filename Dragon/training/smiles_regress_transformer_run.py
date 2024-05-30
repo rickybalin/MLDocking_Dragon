@@ -25,7 +25,7 @@ import datetime
 import dragon
 from dragon.data.ddict.ddict import DDict
 
-tf.config.run_functions_eagerly(True)
+#tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
 driver_path = os.getenv("DRIVER_PATH")
@@ -47,8 +47,9 @@ def training_switch(dd: DDict,
     check_time = perf_counter()
     
     last_training_docking_iter = -1
+
+    continue_flag = True
     while continue_event.is_set():
-    #if True:
         ckeys = candidate_dict.keys()
         with open(switch_log,"a") as f:
             f.write(f"{ckeys=}\n")
@@ -84,6 +85,10 @@ def training_switch(dd: DDict,
                 f.write(f"{datetime.datetime.now()}: iter {iter}: r2={history['r2']}\n")
             last_training_docking_iter = docking_iter
             iter += 1
+        if continue_event == None:
+            continue_flag = False
+        else:
+            continue_flag = continue_event.is_set()
 
 
 def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):
@@ -136,19 +141,19 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
     
     # Only train if there is new data
     if len(x_train) > 0:
-        try:
-            train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-            train_dataset = train_dataset.batch(BATCH) # Use your desired batch size
-            train_dataset = train_dataset.repeat()
+        # try:
+        #     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        #     train_dataset = train_dataset.batch(BATCH) # Use your desired batch size
+        #     train_dataset = train_dataset.repeat()
 
-        except Exception as e:
-            with open("train_switch.log","a") as f:
-                f.write(f"{e}")
+        # except Exception as e:
+        #     with open("train_switch.log","a") as f:
+        #         f.write(f"{e}")
 
         #steps_per_epoch=min(max(int(len(y_train)/BATCH), 10), 20)
-        steps_per_epoch=int(len(y_train)/BATCH)
+        #steps_per_epoch=int(len(y_train)/BATCH)
         with open("train_switch.log", 'a') as f:
-            f.write(f"{BATCH=} {EPOCH=} {steps_per_epoch=}\n")
+            f.write(f"{BATCH=} {EPOCH=}\n")
 
 
         try:
@@ -158,7 +163,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
                             batch_size=BATCH,
                             epochs=EPOCH,
                             verbose=2,
-                            steps_per_epoch=steps_per_epoch,
+                            #steps_per_epoch=steps_per_epoch,
                             #validation_data=valid_dataset,
                             #callbacks=callbacks,
                         )

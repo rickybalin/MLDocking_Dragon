@@ -204,7 +204,7 @@ def assemble_docking_data_top(candidate_dict):
                     # only train with docking scores that are non-zero
                     if sm in top_smiles and sc > 0:
                         train_smiles.append(sm)
-                        train_scores.append([sc])
+                        train_scores.append([[sc]])
                         top_smiles.remove(sm)
             else:
                 # If all the top smiles have been found, don't continue
@@ -246,7 +246,7 @@ def assemble_docking_data(candidate_dict):
                 # only train with docking scores that are non-zero
                 if sc > 0:
                     train_smiles.append(sm)
-                    train_scores.append([sc])
+                    train_scores.append([[sc]])
     with open("sample_train_data.out",'w') as f:
         for sm,sc in zip(train_smiles,train_scores):
             f.write(f"{sm},{sc[0]}\n")
@@ -257,14 +257,15 @@ def train_val_data(candidate_dict):
     train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
     #train_smiles = candidate_dict["smiles"]
     #train_scores = candidate_dict["docking_scores"]
-
+    train_scores = pd.DataFrame(train_scores)
     if len(train_smiles) > 0:
         # data_train.head()
         # # Dataset has type and smiles as the two fields
         # # reshaping: y formatted as [[y_1],[y_2],...] with floats
         x_smiles_train = train_smiles
         #x_smiles_val = data_vali["smiles"]
-        y_train = np.array(train_scores) #data_train["type"].values.reshape(-1, 1) * 1.0 
+        #y_train = np.array(train_scores) #
+        y_train = train_scores.values.reshape(-1, 1, 1) * 1.0 
         #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
 
         # Set up tokenizer
@@ -325,17 +326,21 @@ def get_available_gpus():
     return local_device_protos, [x.name for x in local_device_protos if x.device_type == "GPU"], n_gpus, is_gpu_available
 
 
-def _r2(y_true, y_pred):
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.cast(y_pred, tf.float32)
-    print(y_pred)
-    print(y_true)
+def r2(y_true, y_pred):
+    #y_true = tf.cast(y_true, tf.float32)
+    #y_pred = tf.cast(y_pred, tf.float32)
+    print(f"y_true is {y_true}")
+    print(f"y_pred is {y_pred}")
+    if y_true.shape!=y_pred.shape:
+        y_pred = tf.reshape(y_pred, shape=y_true.shape) 
+    print(y_pred.shape)
+    print(y_true.shape)
     SS_res = K.sum(K.square(y_true - y_pred))
     SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
     return 1 - SS_res / (SS_tot + K.epsilon())
 
 @kr.saving.register_keras_serializable()
-def r2(y_true, y_pred):
+def _r2(y_true, y_pred):
     """
     Calculate the R-squared (R2) value given true and predicted values.
 
@@ -479,7 +484,7 @@ class ModelArchitecture(layers.Layer):
         model = keras.Model(inputs=self.inputs, outputs=outputs)
 
         model.compile(
-            loss=self.loss_fn, optimizer=self.opt, metrics=["mae", r2], steps_per_execution=100
+            loss=self.loss_fn, optimizer=self.opt, metrics=["mse", r2] #, steps_per_execution=100
         )
         
         return model
