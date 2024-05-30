@@ -87,7 +87,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             val = _dict[key]
             if rank == 0:
                 print(f"pulled key {key} from dictionary", flush=True)
-        except Excecption as e:
+        except Exception as e:
             print(f"Failed to pull {key} from dict", flush=True)
             print(f"Exception {e}",flush=True)
             raise(e)

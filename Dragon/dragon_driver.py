@@ -139,8 +139,9 @@ if __name__ == "__main__":
         inf_num_limit = 16
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
-        inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
-                                                            nodelists["inference"], 
+        inf_proc = mp.Process(target=launch_inference, args=(data_dd,
+                                                             tot_nodelist,
+                                                            #nodelists["inference"], 
                                                             num_procs, 
                                                             continue_event,
                                                             inf_num_limit))
@@ -164,7 +165,7 @@ if __name__ == "__main__":
                                 args=(data_dd, 
                                     top_candidate_number, 
                                     max_sorter_procs, 
-                                    nodelists["sorting"],
+                                    tot_nodelist[0],
                                     cand_dd, 
                                     continue_event))
         sorter_proc.start()
@@ -179,8 +180,9 @@ if __name__ == "__main__":
         tic = perf_counter()
         num_procs = 32*node_counts["docking"]
         dock_proc = mp.Process(target=launch_docking_sim, 
-                               args=(cand_dd, 
-                                     nodelists["docking"], 
+                               args=(cand_dd,
+                                     tot_nodelist,
+                                     #nodelists["docking"], 
                                      num_procs, 
                                      continue_event))
         dock_proc.start()
@@ -212,7 +214,7 @@ if __name__ == "__main__":
         inf_num_limit=16
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
-        inf_proc = mp.Process(target=launch_inference, args=(data_dd, nodelists["inference"], num_procs, continue_event, inf_num_limit))
+        inf_proc = mp.Process(target=launch_inference, args=(data_dd, tot_nodelist, num_procs, continue_event, inf_num_limit))
         inf_proc.start()
         inf_proc.join()
         toc = perf_counter()
