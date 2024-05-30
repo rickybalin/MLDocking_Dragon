@@ -368,8 +368,10 @@ def sort_controller(dd,
 
     candidate_dict["max_sort_iter"] = "-1"
     check_time = perf_counter()
-    while continue_event.is_set():
-    #if True:
+    
+    continue_flag = True
+
+    while continue_flag:
         gc.collect()
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: Starting iter {iter}\n")
@@ -385,7 +387,6 @@ def sort_controller(dd,
         # print(f"Cutoff check: {len(cutoff_check)} inf vals below cutoff")
         compare_candidate_results(candidate_dict, continue_event, num_return_sorted, max_iter=50)
         
-        
         if (check_time-perf_counter())/60. > checkpoint_interval_min:
             save_top_candidates_list(candidate_dict)
             check_time = perf_counter()
@@ -393,6 +394,11 @@ def sort_controller(dd,
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: iter {iter}: sort time {toc-tic} s\n")
         iter += 1
+
+        if continue_event is None:
+            continue_flag = False
+        else:
+            continue_flag = continue_event.is_set()
     ckeys = candidate_dict.keys()
     print(f"final {ckeys=}")
     save_top_candidates_list(candidate_dict)

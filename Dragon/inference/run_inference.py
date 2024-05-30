@@ -71,8 +71,10 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
             f.write(f"{datetime.datetime.now()}: Starting inference\n")
             f.write(f"{datetime.datetime.now()}: Limiting number of keys per worker to {inf_num_limit}\n")
     last_model_iter = -1
-    while continue_event.is_set():
-    #if True:
+    
+    continue_flag = True
+
+    while continue_flag:
         gc.collect()
         # Only run inference if there is a new model
         if "model_iter" in dd.keys():
@@ -80,6 +82,7 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
         else:
             current_model_iter = 0
         if current_model_iter > last_model_iter:
+
             tic = perf_counter()
             if proc == 0:
                 with open(switch_log,"a") as f:
@@ -102,7 +105,10 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
                 with open(switch_log,'a') as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: run time {toc - tic} s\n")
             iter += 1
-
+        if continue_event == None:
+            continue_flag = False
+        else:
+            continue_flag = continue_event.is_set()
 
 def check_model_iter(dd, model_iter):
     test_match = True

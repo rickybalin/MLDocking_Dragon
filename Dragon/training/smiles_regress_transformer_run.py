@@ -47,8 +47,9 @@ def training_switch(dd: DDict,
     check_time = perf_counter()
     
     last_training_docking_iter = -1
+
+    continue_flag = True
     while continue_event.is_set():
-    #if True:
         ckeys = candidate_dict.keys()
         with open(switch_log,"a") as f:
             f.write(f"{ckeys=}\n")
@@ -84,6 +85,10 @@ def training_switch(dd: DDict,
                 f.write(f"{datetime.datetime.now()}: iter {iter}: r2={history['r2']}\n")
             last_training_docking_iter = docking_iter
             iter += 1
+        if continue_event == None:
+            continue_flag = False
+        else:
+            continue_flag = continue_event.is_set()
 
 
 def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):

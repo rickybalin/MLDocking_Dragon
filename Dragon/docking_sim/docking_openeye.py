@@ -301,8 +301,9 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         with open("docking_switch.log",'w') as f:
             f.write(f"{datetime.datetime.now()}: Starting Docking\n")
     last_top_candidate_list = "-1"
-    #for testi in range(2):
-    while continue_event.is_set():
+    
+    continue_flag = True
+    while continue_flag:
 
         ckeys = cdd.keys()
         # ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
@@ -361,7 +362,10 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: no valid list {ckey_max} \n")
-            time.sleep(10)    
+        if continue_event is None:
+            continue_flag = False
+        else:
+            continue_flag = continue_event.is_set()   
             
 
 
