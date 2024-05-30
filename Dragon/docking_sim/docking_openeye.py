@@ -350,7 +350,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 if proc == 0:
                     with open("docking_switch.log","a") as f:
                         f.write(f"{datetime.datetime.now()}: iter {iter}: docking sim time {toc-tic} s \n")
-                    print(f"{cdd.keys()=})
+                    print(f"{cdd.keys()=}")
                 last_top_candidate_list = ckey_max
                 
                 iter += 1

@@ -82,8 +82,8 @@ if __name__ == "__main__":
     nodelists = {}
     offset = 0
     for key in node_counts.keys():
-        nodelists[key] = tot_nodelist[offset:offset+node_counts[key]]
-        offset += node_counts[key]
+        nodelists[key] = tot_nodelist[:node_counts[key]]
+        
     
     print(f"{nodelists=}")    
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
-        #inf_num_limit = 16
+        inf_num_limit = 16
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         # Launch Docking Simulations
         print(f"Launched Docking Simulations", flush=True)
         tic = perf_counter()
-        num_procs = np.max_procs_per_node*node_counts["docking"]
+        num_procs = args.max_procs_per_node*node_counts["docking"]
         dock_proc = mp.Process(target=launch_docking_sim, 
                                 args=(cand_dd, 
                                         nodelists["docking"], 
