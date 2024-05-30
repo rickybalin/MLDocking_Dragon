@@ -36,14 +36,17 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     :rtype: List[str]
     """
     num_keys = len(keys)
-    num_keys_per_proc = num_keys//size
-    start_ind = proc*num_keys_per_proc
-    end_ind = (proc+1)*num_keys_per_proc
-    if proc!=(size-1):
-        split_keys = keys[start_ind:end_ind]
-    else:
-        split_keys = keys[start_ind:-1]
-    #random.shuffle(split_keys)
+    num_keys_per_proc = num_keys//size + 1
+
+    split_keys = keys[proc*num_keys_per_proc:min((1+proc)*num_keys_per_proc,num_keys)]
+    
+    #start_ind = proc*num_keys_per_proc
+    #end_ind = (proc+1)*num_keys_per_proc
+    #if proc!=(size-1):
+    #    split_keys = keys[start_ind:end_ind]
+    #else:
+    #    split_keys = keys[start_ind:-1]
+    random.shuffle(split_keys)
     return split_keys
 
 def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str]):
@@ -121,6 +124,7 @@ def check_model_iter(dd, model_iter):
 def infer(dd, num_procs, proc, limit=None):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
+    gc.collect()
     # !!! DEBUG !!!
     debug = True
     if debug:
@@ -192,16 +196,17 @@ def infer(dd, num_procs, proc, limit=None):
         #for key in split_keys:
         for ikey in range(num_run):
             if check_model_iter(dd, model_iter):
+                ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
                 val = dd[key]
                 dict_toc = perf_counter()
                 
-                dictionary_time += dict_toc - dict_tic
+                key_dictionary_time = dict_toc - dict_tic
 
                 for kkey in val.keys():
-                    data_moved_size += sys.getsizeof(kkey)
-                    data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
+                    key_data_moved_size = sys.getsizeof(kkey)
+                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
                 
                 smiles_raw = val['smiles']
                 x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
@@ -222,14 +227,18 @@ def infer(dd, num_procs, proc, limit=None):
                 dict_tic = perf_counter()
                 dd[key] = val
                 dict_toc = perf_counter()
-                dictionary_time += dict_toc -dict_tic
+                key_dictionary_time += dict_toc -dict_tic
                 for kkey in val.keys():
-                    data_moved_size += sys.getsizeof(kkey)
-                    data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
+                    key_data_moved_size += sys.getsizeof(kkey)
+                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
                 num_smiles += len(smiles_sorted)
+                ktoc = perf_counter()
+                key_time = ktoc - ktic
+                dictionary_time += key_dictionary_time
+                data_moved_size += key_data_moved_size
                 if debug:
                     with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                        f.write(f"Performed inference on key {key}\n")
+                        f.write(f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n")
             else:
                 break
 

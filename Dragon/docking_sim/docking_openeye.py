@@ -297,9 +297,9 @@ def create_trajectory(protein_universe, ligand_dir, output_pdb_name, output_dcd_
 def docking_switch(cdd, num_procs, proc, continue_event):
     #for i in range(1):
     iter = 0
-    if proc ==0:
-        with open("docking_switch.log",'a') as f:
-            f.write(f"{datetime.datetime.now()}: Starting Docking\n")
+    #if proc ==0:
+    with open("docking_switch.log",'a') as f:
+        f.write(f"{datetime.datetime.now()}: Starting Docking on proc {proc}\n")
     last_top_candidate_list = "-1"
     
     continue_flag = True
@@ -315,27 +315,40 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
-            ckeys.sort()
+            #ckeys.sort()
             
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
             # most recent sorted list
-            rtic = perf_counter()
-            top_candidates = cdd[ckey_max]["smiles"]
-            rtoc = perf_counter()
-            num_candidates = len(top_candidates)
+            try:
+                rtic = perf_counter()
+                top_candidates = cdd[ckey_max]["smiles"]
+                rtoc = perf_counter()
+                
+            except Exception as e:
+                print(f"dock worker {proc} failed to get candidates from dict",flush=True)
+                print(f"{e}",flush=True)
+                raise(e)
 
-            if proc == 0:
+            top_candidates.sort()
+            try:
+                num_candidates = len(top_candidates)
+            except Exception as e:
                 with open("docking_switch.log","a") as f:
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: found {num_candidates} candidates to filter \n")
+                    f.write(f"proc {proc}: {e}\n")
+                    raise(e)
+                    
+            #if proc == 0:
+            with open("docking_switch.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
             sims_per_proc = num_candidates//num_procs + 1
             my_candidates = top_candidates[proc*sims_per_proc:min((proc+1)*sims_per_proc,num_candidates)]
 
-            #with open("docking_switch.log","a") as f:
-            #    f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
+            with open("docking_switch.log","a") as f:
+                f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
 
             # check to see if we already have a sim result for this process' candidates
             ret_time = 0
@@ -344,19 +357,18 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates)
 
             ret_metrics = {}
-            ret_metrics["data_retrieval_time"] = rtoc - rtic + ret_time
-            ret_metrics["data_retrieval_size"] = sum([sys.getsizeof(sm) for sm in top_candidates]) + ret_size
+            ret_metrics['data_retrieval_time'] = rtoc - rtic + ret_time
+            ret_metrics['data_retrieval_size'] = sum([sys.getsizeof(sm) for sm in top_candidates]) + ret_size
 
             with open("docking_switch.log","a") as f:
                 for kkey in ret_metrics.keys():
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}")
-
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}\n")
 
             # if there are new candidates to simulate, run sims
             if len(my_candidates) > 0:
                 tic = perf_counter()
-                #with open("docking_switch.log","a") as f:
-                #    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
+                with open("docking_switch.log","a") as f:
+                    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
                 sim_metrics = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
                 
                 if proc == 0:
@@ -365,24 +377,32 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
                     for kkey in sim_metrics.keys():
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}")
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={sim_metrics[kkey]}\n")
 
                 #print(f"{cdd.keys()=}")
                 last_top_candidate_list = ckey_max
                 
-                iter += 1
+                
             else:
-                if proc == 0:
-                    with open("docking_switch.log","a") as f:
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: no sims run \n")
+                
+                with open("docking_switch.log","a") as f:
+                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
+                if continue_event is None:
+                    continue_flag = False
+                else:
+                    continue_flag = continue_event.is_set()
         else:
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: no valid list {ckey_max} \n")
+        with open("docking_switch.log","a") as f:
+            f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished switch loop \n")
+        iter += 1
         if continue_event is None:
             continue_flag = False
         else:
-            continue_flag = continue_event.is_set()   
+            continue_flag = continue_event.is_set()
+    return
             
 
 
@@ -438,7 +458,7 @@ def run_docking(cdd, candidates, batch_key, proc):
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"Simulating on proc {proc}\n")
 
-    num_candidates = len(candidates)
+    num_cand = len(candidates)
 
     tic = perf_counter()
     temp_storage = "./docking_tmp/"
@@ -491,29 +511,37 @@ def run_docking(cdd, candidates, batch_key, proc):
         smiter += 1
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"Simulated {smiter}/{num_candidates} candidates")
+                f.write(f"Simulated {smiter}/{num_cand} candidates\n")
     toc = perf_counter()
-    time_per_cand = (toc-tic)/num_candidates
+    time_per_cand = (toc-tic)
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"Storing data in candidate dictionary\n")
-    dtic = perf_counter()
-    cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
-    dtoc = perf_counter()
-
+    try:
+        dtic = perf_counter()
+        cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
+        dtoc = perf_counter()
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"Docing data stored in candidate dictionary\n")
+    except Exception as e:
+        print(f"failed to return results to dict on proc {proc}",flush=True)
+        print(f"{e}",flush=True)
+        raise(e)
     data_store_size = 0
     data_store_size += sum([sys.getsizeof(sm) for sm in simulated_smiles])
     data_store_size += sum([sys.getsizeof(sc) for sc in dock_scores])
     data_store_size += sys.getsizeof("smiles") + sys.getsizeof("docking_scores")
 
-    metrics = {"num_candidates": num_candidates,
-                "total_run_time": toc-tic,
-                "data_store_time": dtoc-dtic,
-                "data_store_size": data_store_size}
+    metrics = {}
+    metrics['total_run_time'] = toc-tic
+    metrics['num_cand'] = num_cand
+    metrics['data_store_time'] = dtoc-dtic
+    metrics['data_store_size'] =  data_store_size
     
     #if debug:
     #    with open(f"dock_worker_{proc}.log","a") as f:
-    #        f.write(f"Simulated {num_candidates} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
+    #        f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
 
     return metrics
 

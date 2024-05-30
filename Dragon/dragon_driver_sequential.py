@@ -49,6 +49,8 @@ if __name__ == "__main__":
                         help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
+    parser.add_argument('--max_iter', type=int, default=3,
+                        help='Maximum number of iterations')
     parser.add_argument('--dictionary_timeout', type=int, default=10,
                         help='Timeout for Dictionary in seconds')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
@@ -138,13 +140,13 @@ if __name__ == "__main__":
     # Number of top candidates to produce
     top_candidate_number = 5000
 
-    max_iter = 3
+    max_iter = args.max_iter
     iter = 0
     while iter < max_iter:
         iter_start = perf_counter()
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
-        #inf_num_limit = 16
+        inf_num_limit = None
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
@@ -178,7 +180,7 @@ if __name__ == "__main__":
         # Launch Docking Simulations
         print(f"Launched Docking Simulations", flush=True)
         tic = perf_counter()
-        num_procs = args.max_procs_per_node*node_counts["docking"]
+        num_procs = 32*node_counts["docking"]
         dock_proc = mp.Process(target=launch_docking_sim, 
                                 args=(cand_dd, 
                                         nodelists["docking"], 
