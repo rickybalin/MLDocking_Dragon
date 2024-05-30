@@ -126,7 +126,6 @@ if __name__ == "__main__":
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
     # Set Event and Launch other Components
-  
 
     # Set the continue event to None for each component to run one iter
     continue_event = None  

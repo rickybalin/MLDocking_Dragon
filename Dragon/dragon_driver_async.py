@@ -105,7 +105,7 @@ if __name__ == "__main__":
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
     dict_timeout = 200
     data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, 
-                   timeout=dict_timeout, num_streams_per_manager=args.channels_per_manager)
+                   timeout=args.dictionary_timeout, num_streams_per_manager=args.channels_per_manager)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_tot_nodes} nodes", flush=True)
     
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         print(f"on {num_tot_nodes} nodes", flush=True)
 
         top_candidate_number = 5000
-        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]//2
+        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
         print(f"Launching sorting with {max_sorter_procs} processes ...", flush=True)
         sorter_proc = mp.Process(target=sort_dictionary, 
                                 args=(data_dd, 

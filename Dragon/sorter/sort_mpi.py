@@ -67,6 +67,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     #if rank == 0:
     #    print(f"{key_list=}")
     key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+    key_list.sort()
     #if "inf_iter" in key_list:
     #    key_list.remove("inf_iter")
     num_keys = len(key_list)
@@ -77,14 +78,19 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     my_key_list = []
     if rank*direct_sort_num < num_keys:
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
-    #if rank == 0:
-    #    print(f"Rank 0 sorting {my_key_list}")
+    if rank == 0:
+        print(f"Rank 0 sorting {my_key_list}")
     # Direct sort keys assigned to this rank
     my_results = []
     for key in my_key_list:
-        val = _dict[key]
-        #if rank == 0:
-        #    print(f"pulled key {key} from dictionary", flush=True)
+        try:
+            val = _dict[key]
+            if rank == 0:
+                print(f"pulled key {key} from dictionary", flush=True)
+        except Exception as e:
+            print(f"Failed to pull {key} from dict", flush=True)
+            print(f"Exception {e}",flush=True)
+            raise(e)
         if any(val["inf"]):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
@@ -134,38 +140,8 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             ckey = str(int(last_list_key) + 1)
             candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
-            print(f"sort mpi: {last_list_key=}",flush=True)
-            # check for new smiles
-            if last_list_key == "-1":
-                # save if this is the first iteration
-                print(f"Saving the first sorted list",flush=True)
-                save_list(candidate_dict, ckey, sort_val)
-            else:
-                last_list = candidate_dict[last_list_key]
-                if len(last_list["smiles"]) != len(candidate_smiles):
-                    # Save list if it is a different length than previous list
-                    save_list(candidate_dict, ckey, sort_val)
-                else:
-                    not_in_common = list(set(last_list["smiles"]) ^ set(candidate_smiles))
-                    if len(not_in_common) > 0:
-                        # Save list if there are smiles not shared by both
-                        save_list(candidate_dict, ckey, sort_val)
-                    else:
-                        # if no new smiles, check if inference has been updated
-                        last_list_model_iters = list(set(last_list["model_iter"]))
-                        current_model_iters = list(set(candidate_model_iter))
-
-                        if len(last_list_model_iters) == 1 and len(current_model_iters) == 1 and last_list_model_iters[0] != current_model_iters[0]:
-                            # Save if every smiles in each list was inferred with a different model
-                            save_list(candidate_dict, ckey, sort_val)
-                        else:
-                            # Check smiles by smiles for differences in ordering or model_iter
-                            for i in range(len(candidate_smiles)):
-                                if candidate_smiles[i] != last_list["smiles"][i] or candidate_model_iter[i] != last_list["model_iter"]:
-                                    # Save list if there are some smiles done with different inference models
-                                    save_list(candidate_dict, ckey, sort_val)
-                                    break    
-            print(f"Not saving list",flush=True)
+            save_list(candidate_dict, ckey, sort_val)
+            
     MPI.Finalize()
 
 def save_list(candidate_dict, ckey, sort_val):
