@@ -67,7 +67,7 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
     switch_log = "infer_switch.log"
     iter = 0
     if proc == 0:
-        with open(switch_log,'w') as f:
+        with open(switch_log,'a') as f:
             f.write(f"{datetime.datetime.now()}: Starting inference\n")
             f.write(f"{datetime.datetime.now()}: Limiting number of keys per worker to {inf_num_limit}\n")
     last_model_iter = -1

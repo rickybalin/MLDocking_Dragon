@@ -362,7 +362,7 @@ def sort_controller(dd,
                     checkpoint_interval_min=10):
 
     iter = 0
-    with open("sort_controller.log", "w") as f:
+    with open("sort_controller.log", "a") as f:
         f.write(f"{datetime.datetime.now()}: Starting Sort Controller\n")
         f.write(f"{datetime.datetime.now()}: Sorting for {num_return_sorted} candidates\n")
 

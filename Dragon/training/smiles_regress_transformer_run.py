@@ -41,7 +41,7 @@ def training_switch(dd: DDict,
     switch_log = "train_switch.log"
     iter = 0
     
-    with open(switch_log,'w') as f:
+    with open(switch_log,'a') as f:
         f.write(f"{datetime.datetime.now()}: Starting Training\n")
     
     check_time = perf_counter()
@@ -49,7 +49,7 @@ def training_switch(dd: DDict,
     last_training_docking_iter = -1
 
     continue_flag = True
-    while continue_event.is_set():
+    while continue_flag:
         ckeys = candidate_dict.keys()
         with open(switch_log,"a") as f:
             f.write(f"{ckeys=}\n")
