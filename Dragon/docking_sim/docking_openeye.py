@@ -410,8 +410,12 @@ def run_docking(cdd, candidates, batch_key, proc):
         The docking score of the best conformer.
     """
 
-    debug == True
+    debug = True
     
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulating on proc {proc}\n")
+
     num_candidates = len(candidates)
 
     tic = perf_counter()
@@ -421,14 +425,14 @@ def run_docking(cdd, candidates, batch_key, proc):
     receptor_oedu_file = "/lus/grand/projects/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
     if "sirius" in hostname:
         receptor_oedu_file = "/home/csimpson/openeye/3clpro_7bqy.oedu"
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"{receptor_oedu_file=}\n")
+
     max_confs = 1
 
     simulated_smiles = []
     dock_scores = []
-
-    if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"Simulating on proc {proc}\n")
     
     for smiles in candidates:
         try:

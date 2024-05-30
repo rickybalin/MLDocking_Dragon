@@ -79,8 +79,8 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
                                                         args=(cdd, num_procs, proc_id, continue_event), 
                                                         cwd=run_dir,
                                                         policy=local_policy, 
-                                                        stdout=MSG_DEVNULL,
-                                                        stderr=MSG_DEVNULL))
+                                                        stdout=MSG_PIPE,
+                                                        stderr=MSG_PIPE))
     
     # Launch the ProcessGroup 
     grp.init()
