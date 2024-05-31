@@ -253,61 +253,59 @@ def assemble_docking_data(candidate_dict):
     return train_smiles, train_scores
 
 def train_val_data(candidate_dict):
-    
-    train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
-    #train_smiles = candidate_dict["smiles"]
-    #train_scores = candidate_dict["docking_scores"]
-    train_scores = pd.DataFrame(train_scores)
-    if len(train_smiles) > 0:
-        # data_train.head()
-        # # Dataset has type and smiles as the two fields
-        # # reshaping: y formatted as [[y_1],[y_2],...] with floats
-        x_smiles_train = train_smiles
-        #x_smiles_val = data_vali["smiles"]
-        #y_train = np.array(train_scores) #
-        y_train = train_scores.values.reshape(-1, 1, 1) * 1.0 
-        #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
+    try:
+        train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
+        #train_smiles = candidate_dict["smiles"]
+        #train_scores = candidate_dict["docking_scores"]
+        train_scores = pd.DataFrame(train_scores)
+        if len(train_smiles) > 0:
+            # data_train.head()
+            # # Dataset has type and smiles as the two fields
+            # # reshaping: y formatted as [[y_1],[y_2],...] with floats
+            x_smiles_train = train_smiles
+            #x_smiles_val = data_vali["smiles"]
+            #y_train = np.array(train_scores) #
+            y_train = train_scores.values.reshape(-1, 1, 1) * 1.0 
+            #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
 
-        # Set up tokenizer
-        #if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
+        
+            vocab_size = 3132
+            maxlen = 45
 
-        vocab_size = 3132
-        maxlen = 45
-
-        tokenizer_params = {
+            tokenizer_params = {
                 "category": "smilespair",
                 "spe_file": driver_path+"inference/VocabFiles/SPE_ChEMBL.txt",
                 "vocab_file": driver_path+"inference/VocabFiles/vocab_spe.txt"
             }
-        vocab_file = tokenizer_params['vocab_file']
-        spe_file = tokenizer_params['spe_file']
-        #tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file= spe_file)
+            vocab_file = tokenizer_params['vocab_file']
+            spe_file = tokenizer_params['spe_file']
+        
 
 
-        # Replace this section to be like the inference routine
-        spe_file = tokenizer_params['spe_file']
-        vocab_file = tokenizer_params['vocab_file']
-        x_train = preprocess_smiles_pair_encoding(x_smiles_train,
+            # Replace this section to be like the inference routine
+            spe_file = tokenizer_params['spe_file']
+            vocab_file = tokenizer_params['vocab_file']
+            x_train = preprocess_smiles_pair_encoding(x_smiles_train,
                                                     maxlen,
                                                     vocab_file,
                                                     spe_file)
 
-        # x_val = preprocess_smiles_pair_encoding(x_smiles_val,
-        #                                             maxlen,
-        #                                             vocab_file,
-        #                                             spe_file)
-        #print(f"xtrain: {x_train}",flush=True)
-
-        
-        
-        ######## Implement horovod if necessary ########
-        #if hvd_switch:
-        #    x_train, y_train = initialize_hvd(x_train, y_train)
-        #    x_train, y_train = implement_hvd(x_train, y_train)
-
-        return x_train, y_train
-    else:
-        return [],[]
+            # x_val = preprocess_smiles_pair_encoding(x_smiles_val,
+            #                                             maxlen,
+            #                                             vocab_file,
+            #                                             spe_file)
+            #print(f"xtrain: {x_train}",flush=True)
+            
+            return x_train, y_train
+        else:
+            return [],[]
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+	with open("train_switch.log", "a") as f:
+            f.write("Exception in creating training data\n")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}")
+            f.write(f"{e}\n")
+            raise(e)
 
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
