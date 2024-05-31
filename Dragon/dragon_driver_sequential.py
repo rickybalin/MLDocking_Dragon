@@ -49,7 +49,7 @@ if __name__ == "__main__":
                         help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
-    parser.add_argument('--max_iter', type=int, default=3,
+    parser.add_argument('--max_iter', type=int, default=10,
                         help='Maximum number of iterations')
     parser.add_argument('--dictionary_timeout', type=int, default=10,
                         help='Timeout for Dictionary in seconds')
