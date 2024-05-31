@@ -22,6 +22,7 @@ driver_path = os.getenv("DRIVER_PATH")
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+
 def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     """Read the keys containing inference data from the Dragon Dictionary 
     and split equally among the procs
@@ -36,16 +37,18 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     :rtype: List[str]
     """
     num_keys = len(keys)
-    num_keys_per_proc = num_keys//size + 1
-
-    split_keys = keys[proc*num_keys_per_proc:min((1+proc)*num_keys_per_proc,num_keys)]
     
-    #start_ind = proc*num_keys_per_proc
-    #end_ind = (proc+1)*num_keys_per_proc
-    #if proc!=(size-1):
-    #    split_keys = keys[start_ind:end_ind]
-    #else:
-    #    split_keys = keys[start_ind:-1]
+    if num_keys/size - num_keys//size > 0:
+        num_keys_per_proc = num_keys//size + 1
+    else:
+        num_keys_per_proc = num_keys//size
+    start_ind = proc*num_keys_per_proc
+    end_ind = (proc+1)*num_keys_per_proc
+    if proc!=(size-1):
+        split_keys = keys[start_ind:end_ind]
+    else:
+        split_keys = keys[start_ind:]
+    
     random.shuffle(split_keys)
     return split_keys
 
@@ -157,7 +160,7 @@ def infer(dd, num_procs, proc, limit=None):
     else:
         try:
             with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                f.write(f"Loading retrained model\n")
+                f.write(f"Loading fine tuned model\n")
             #model_path = dd["model"]
             #model = keras.saving.load_model(model_path)
             model_iter = dd["model_iter"]

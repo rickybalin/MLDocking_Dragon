@@ -51,8 +51,8 @@ def training_switch(dd: DDict,
     continue_flag = True
     while continue_flag:
         ckeys = candidate_dict.keys()
-        with open(switch_log,"a") as f:
-            f.write(f"{ckeys=}\n")
+        #with open(switch_log,"a") as f:
+        #    f.write(f"{ckeys=}\n")
         save_model = False
         # Only retrain if there are fresh simulation resulsts and there are the max number of top candidates
         if "docking_iter" in ckeys:
@@ -89,7 +89,8 @@ def training_switch(dd: DDict,
             continue_flag = False
         else:
             continue_flag = continue_event.is_set()
-
+            
+        
 
 def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):
 
@@ -136,30 +137,20 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
     print(f"Create training data",flush=True)
     ########Create training and validation data##### 
     x_train, y_train = train_val_data(candidate_dict)
+    
     with open("train_switch.log", 'a') as f:
         f.write(f"Finished creating training data\n")
     
     # Only train if there is new data
     if len(x_train) > 0:
-        # try:
-        #     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-        #     train_dataset = train_dataset.batch(BATCH) # Use your desired batch size
-        #     train_dataset = train_dataset.repeat()
-
-        # except Exception as e:
-        #     with open("train_switch.log","a") as f:
-        #         f.write(f"{e}")
-
-        #steps_per_epoch=min(max(int(len(y_train)/BATCH), 10), 20)
-        #steps_per_epoch=int(len(y_train)/BATCH)
         with open("train_switch.log", 'a') as f:
             f.write(f"{BATCH=} {EPOCH=}\n")
-
-
+        
         try:
             with open("train_switch.log", 'a') as sys.stdout:
                 history = model.fit(
-                            train_dataset,
+                            x_train,
+                            y_train,
                             batch_size=BATCH,
                             epochs=EPOCH,
                             verbose=2,

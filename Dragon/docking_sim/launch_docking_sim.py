@@ -77,7 +77,7 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     num_nodes = len(nodelist)
     num_procs_pn = num_procs//num_nodes
     run_dir = os.getcwd()
-    print(f"Nodes for docking {nodelist} {num_procs_pn=}",flush=True)
+    
 
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
@@ -100,9 +100,9 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     # Launch the ProcessGroup 
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Docking Sims", flush=True)
+    print(f"Starting Process Group for Docking Sims on {num_procs} procs", flush=True)
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
-    print(f"Docking processes:{grp.puids}",flush=True)
+    
     #for proc in group_procs:
     #    if proc.stdout_conn:
     #        std_out = read_output(proc.stdout_conn)
@@ -113,12 +113,11 @@ def launch_docking_sim(cdd: DDict, nodelist, num_procs: int, continue_event):
     
     #grp.join()
     while not work_finished(num_procs):
-        print(f"waiting to join dock group: {work_finished(num_procs)}", flush=True)
         try:
             grp.join(timeout=10)
         except TimeoutError:
-            print(f"join timed out, continuing",flush=True)
             continue
+    print(f"Docking workers finished")
     grp.stop()
     #print(f"candidate keys {cdd.keys()}")
     total_sims = 0

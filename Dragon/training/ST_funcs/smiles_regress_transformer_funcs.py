@@ -3,13 +3,10 @@
 import argparse
 import os
 import numpy as np
-import matplotlib
 import pandas as pd
 import json
 import sys
 from functools import partial
-
-matplotlib.use("Agg")
 
 import keras as kr
 import tensorflow as tf
@@ -204,15 +201,15 @@ def assemble_docking_data_top(candidate_dict):
                     # only train with docking scores that are non-zero
                     if sm in top_smiles and sc > 0:
                         train_smiles.append(sm)
-                        train_scores.append([[sc]])
+                        train_scores.append(sc)
                         top_smiles.remove(sm)
             else:
                 # If all the top smiles have been found, don't continue
                 break
         
-        with open("sample_train_data.out",'w') as f:
-            for sm,sc in zip(train_smiles,train_scores):
-                f.write(f"{sm},{sc[0]}\n")
+        #with open("sample_train_data.out",'w') as f:
+        #    for sm,sc in zip(train_smiles,train_scores):
+        #        f.write(f"{sm},{sc[[0]]}\n")
         return train_smiles, train_scores
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -265,10 +262,9 @@ def train_val_data(candidate_dict):
             x_smiles_train = train_smiles
             #x_smiles_val = data_vali["smiles"]
             #y_train = np.array(train_scores) #
-            y_train = train_scores.values.reshape(-1, 1, 1) * 1.0 
+            y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
             #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
-
-        
+            
             vocab_size = 3132
             maxlen = 45
 
@@ -288,7 +284,7 @@ def train_val_data(candidate_dict):
                                                         spe_file)
 
             # x_val = preprocess_smiles_pair_encoding(x_smiles_val,
-            #                                             maxlen,
+            #                                           maxlen,
             #                                             vocab_file,
             #                                             spe_file)
             #print(f"xtrain: {x_train}",flush=True)
@@ -298,9 +294,9 @@ def train_val_data(candidate_dict):
             return [],[]
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-	    with open("train_switch.log", "a") as f:
+        with open("train_switch.log","a") as f:
             f.write("Exception in creating training data\n")
-            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
             raise(e)
 

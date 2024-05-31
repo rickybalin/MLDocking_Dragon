@@ -44,6 +44,25 @@ _T = TypeVar("_T")
 
 PathLike = Union[Path, str]
 
+def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
+
+    num_keys = len(keys)
+
+    if num_keys/size - num_keys//size > 0:
+        num_keys_per_proc = num_keys//size + 1
+    else:
+        num_keys_per_proc = int(num_keys/size)
+    start_ind = proc*num_keys_per_proc
+    end_ind = (proc+1)*num_keys_per_proc
+    if proc!=(size-1):
+        split_keys = keys[start_ind:end_ind]
+    else:
+        split_keys = keys[start_ind:]
+
+    return split_keys
+
+
+
 def exception_handler(default_return: Any = None):
     """Handle exceptions in a function by returning a `default_return` value."""
 
@@ -344,11 +363,7 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
-            sims_per_proc = num_candidates//num_procs + 1
-            my_candidates = top_candidates[proc*sims_per_proc:min((proc+1)*sims_per_proc,num_candidates)]
-
-            with open("docking_switch.log","a") as f:
-                f.write(f"iter {iter}: proc {proc}: found {len(my_candidates)} candidates to filter on proc \n")
+            my_candidates = split_dict_keys(top_candidates, num_procs, proc)
 
             # check to see if we already have a sim result for this process' candidates
             ret_time = 0
@@ -408,29 +423,37 @@ def docking_switch(cdd, num_procs, proc, continue_event):
 
 
 def filter_candidates(cdd, candidates: list):
+    try:
+        # Get keys that store previous docking results
+        ckeys = cdd.keys()
+        cbkeys = [ckey for ckey in ckeys if ckey[:9] == "dock_iter"]
 
-    # Get keys that store previous docking results
-    ckeys = cdd.keys()
-    cbkeys = [ckey for ckey in ckeys if ckey[0] == "d"]
+        ret_time = 0
+        ret_size = 0
 
-    ret_time = 0
-    ret_size = 0
-
-    for cbk in cbkeys:
-        tic = perf_counter()
-        check_smiles = cdd[cbk]["smiles"]
-        toc = perf_counter()
-        ret_time += toc - tic
-        ret_size = sys.getsizeof(check_smiles)
-        if len(candidates) > 0:
-            for c in candidates:
-                if c in check_smiles:
-                    candidates.remove(c)
-        else:
-            # Don't continue to query keys if there are no candidates left
-            break
-    return candidates, ret_time, ret_size
-
+    
+    
+        for cbk in cbkeys:
+            tic = perf_counter()
+            check_smiles = cdd[cbk]["smiles"]
+            toc = perf_counter()
+            ret_time += toc - tic
+            ret_size = sys.getsizeof(check_smiles)
+            if len(candidates) > 0:
+                for c in candidates:
+                    if c in check_smiles:
+                        candidates.remove(c)
+            else:
+                # Don't continue to query keys if there are no candidates left
+                break
+        return candidates, ret_time, ret_size
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        with open("docking_switch.log","a") as f:
+            f.write("Filtering failed!\n")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
+            f.write(f"{e}\n")
+        raise(e)
 
 def run_docking(cdd, candidates, batch_key, proc):
     """Run OpenEye docking on a single ligand.
