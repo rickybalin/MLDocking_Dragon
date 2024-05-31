@@ -366,8 +366,12 @@ def sort_controller(dd,
     with open("sort_controller.log", "a") as f:
         f.write(f"{datetime.datetime.now()}: Starting Sort Controller\n")
         f.write(f"{datetime.datetime.now()}: Sorting for {num_return_sorted} candidates\n")
+    
 
-    candidate_dict["max_sort_iter"] = "-1"
+    ckeys = candidate_dict.keys()
+    if "max_sort_iter" not in ckeys:
+        candidate_dict["max_sort_iter"] = "-1"
+
     check_time = perf_counter()
     
     continue_flag = True
@@ -381,7 +385,6 @@ def sort_controller(dd,
         print(f"Sort iter {iter}",flush=True)
         #sort_dictionary_queue(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
         #sort_dictionary_pool(_dict, num_return_sorted, max_procs, key_list, candidate_dict)
-        print(f"Starting pg sort",flush=True)
         sort_dictionary_pg(dd, num_return_sorted, max_procs, nodelist, candidate_dict)
         print(f"Finished pg sort",flush=True)
         #dd["sort_iter"] = iter
@@ -397,16 +400,16 @@ def sort_controller(dd,
         toc = perf_counter()
         with open("sort_controller.log", "a") as f:
             f.write(f"{datetime.datetime.now()}: iter {iter}: sort time {toc-tic} s\n")
-        #time.sleep(30)
         iter += 1
 
         if continue_event is None:
             continue_flag = False
         else:
             continue_flag = continue_event.is_set()
-    ckeys = candidate_dict.keys()
-    print(f"final {ckeys=}")
-    save_top_candidates_list(candidate_dict)
+    if continue_event is not None:
+        ckeys = candidate_dict.keys()
+        print(f"final {ckeys=}")
+        save_top_candidates_list(candidate_dict)
     # ckeys = filter_candidate_keys(ckeys)
     # if len(ckeys) > 0:
     #     ckey_max = max(ckeys)
@@ -430,7 +433,6 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
     print(f"Launching sorting process group {nodelist}", flush=True)
     for node in nodelist:
         node_name = Node(node).hostname
-        print(f"{node_name=}", flush=True)
         local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                             host_name=node_name, 
                             cpu_affinity=list(range(num_procs_pn)))
@@ -442,9 +444,8 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
     print(f"Added processes to sorting group",flush=True)
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Sorting {grp.puids=}",flush=True)
+    print(f"Starting Process Group for Sorting",flush=True)
 
-    
     grp.join()
     grp.stop()
 

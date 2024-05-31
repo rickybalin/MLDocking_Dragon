@@ -212,6 +212,7 @@ if __name__ == "__main__":
         print(f"Performed training in {toc-tic} seconds \n", flush=True)
         iter_end = perf_counter()
         print(f"Performed iter {iter} in {iter_end - iter_start} seconds \n", flush=True)
+        iter += 1
 
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
