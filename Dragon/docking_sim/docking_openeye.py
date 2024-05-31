@@ -387,7 +387,10 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 sim_metrics = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
                 
                 if proc == 0:
-                    cdd["docking_iter"] = iter
+                    if "docking_iter" in ckeys:
+                        cdd["docking_iter"] = cdd["docking_iter"] + 1
+                    else:
+                        cdd["docking_iter"] = iter
                 toc = perf_counter()
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: docking_sim_time {toc-tic} s \n")

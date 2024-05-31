@@ -45,9 +45,12 @@ def training_switch(dd: DDict,
         f.write(f"{datetime.datetime.now()}: Starting Training\n")
     
     check_time = perf_counter()
-    
-    last_training_docking_iter = -1
 
+    if continue_event is None:
+        # if continue_event is None, we are in sequential workflow and don't need to initialize
+        last_training_docking_iter = candidate_dict["docking_iter"] - 1
+    else:
+        last_training_docking_iter = -1
     continue_flag = True
     while continue_flag:
         ckeys = candidate_dict.keys()
