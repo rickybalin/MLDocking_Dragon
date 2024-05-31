@@ -273,22 +273,19 @@ def train_val_data(candidate_dict):
             maxlen = 45
 
             tokenizer_params = {
-                "category": "smilespair",
-                "spe_file": driver_path+"inference/VocabFiles/SPE_ChEMBL.txt",
-                "vocab_file": driver_path+"inference/VocabFiles/vocab_spe.txt"
-            }
-            vocab_file = tokenizer_params['vocab_file']
-            spe_file = tokenizer_params['spe_file']
+                    "category": "smilespair",
+                    "spe_file": os.path.join(driver_path,"inference/VocabFiles/SPE_ChEMBL.txt"),
+                    "vocab_file": os.path.join(driver_path, "inference/VocabFiles/vocab_spe.txt")}
+            vocab_file = tokenizer_params['vocab_file'] 
+            spe_file = tokenizer_params['spe_file'] 
         
-
-
             # Replace this section to be like the inference routine
             spe_file = tokenizer_params['spe_file']
             vocab_file = tokenizer_params['vocab_file']
             x_train = preprocess_smiles_pair_encoding(x_smiles_train,
-                                                    maxlen,
-                                                    vocab_file,
-                                                    spe_file)
+                                                        maxlen,
+                                                        vocab_file,
+                                                        spe_file)
 
             # x_val = preprocess_smiles_pair_encoding(x_smiles_val,
             #                                             maxlen,
@@ -301,7 +298,7 @@ def train_val_data(candidate_dict):
             return [],[]
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-	with open("train_switch.log", "a") as f:
+	    with open("train_switch.log", "a") as f:
             f.write("Exception in creating training data\n")
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}")
             f.write(f"{e}\n")
