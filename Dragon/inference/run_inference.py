@@ -210,6 +210,7 @@ def infer(dd, num_procs, proc, limit=None):
                 
                 key_dictionary_time = dict_toc - dict_tic
 
+                # fix this
                 for kkey in val.keys():
                     key_data_moved_size = sys.getsizeof(kkey)
                     key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])

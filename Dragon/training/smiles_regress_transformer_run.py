@@ -119,9 +119,9 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
             f.write("\n")
     else:
         try:
-            model_path = dd["model"]
+            model = dd["model"]
             model_iter = dd["model_iter"] + 1
-            model = keras.saving.load_model(model_path)
+            #model = keras.saving.load_model(model_path)
             #model = dd["model"]
             #model_iter = dd["model_iter"] + 1
         except Exception as e:
