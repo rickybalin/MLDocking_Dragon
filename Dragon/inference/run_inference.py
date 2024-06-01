@@ -250,8 +250,10 @@ def infer(dd, num_procs, proc, limit=None):
 
     except Exception as e:
         #eprint(e, flush=True)
+        exc_type, exc_obj, exc_tb = sys.exc_info()
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
-            f.write(f"{e}")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
+            f.write(f"{e}\n")
     toc = perf_counter()
     #time_per_smiles = (toc-tic)/num_smiles
     #data_move_time_per_smiles = dictionary_time/num_smiles

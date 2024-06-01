@@ -118,22 +118,37 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
             f.write(f"Finished loading pretrained model\n")
             f.write("\n")
     else:
-        model_path = dd["model"]
-        model_iter = dd["model_iter"] + 1
-        model = keras.saving.load_model(model_path)
-        #model = dd["model"]
-        #model_iter = dd["model_iter"] + 1
+        try:
+            model_path = dd["model"]
+            model_iter = dd["model_iter"] + 1
+            model = keras.saving.load_model(model_path)
+            #model = dd["model"]
+            #model_iter = dd["model_iter"] + 1
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            with open(f"train_switch.log",'a') as f:
+                f.write(f"Failed to load fine tuned model from dictionary\n")
+                f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
+                f.write(f"{e}\n")
 
 
     # Not sure if this is needed, experiment with the print statements in this block
-    for layer in model.layers:
-        if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
-            layer.trainable = False
-        #print(f"Layer Name: {layer.name}")
-        #print(f"Layer Type: {layer.__class__.__name__}")
-        #print(f"Layer Trainable: {layer.trainable}") # check here
-        #print(f"Layer Input Shape: {layer.input_shape}")
-        #print(f"Layer Output Shape: {layer.output_shape}\n")
+    try:
+        for layer in model.layers:
+            if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
+                layer.trainable = False
+            #print(f"Layer Name: {layer.name}")
+            #print(f"Layer Type: {layer.__class__.__name__}")
+            #print(f"Layer Trainable: {layer.trainable}") # check here
+            #print(f"Layer Input Shape: {layer.input_shape}")
+            #print(f"Layer Output Shape: {layer.output_shape}\n")
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        with open(f"train_switch.log",'a') as f:
+            f.write(f"Failed to set layers to train\n")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
+            f.write(f"{e}\n")
+
 
     with open("train_switch.log", 'a') as f:
         f.write(f"Create training data\n")
@@ -162,7 +177,9 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
                             #callbacks=callbacks,
                         )
         except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
             with open("train_switch.log","a") as f:
+                f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}")
 
         # with open("train_switch.log", 'a') as f:
