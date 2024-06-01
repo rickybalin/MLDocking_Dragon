@@ -146,7 +146,11 @@ if __name__ == "__main__":
         iter_start = perf_counter()
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
-        inf_num_limit = None
+
+        if num_tot_nodes == 1:
+            inf_num_limit = 16
+        else:
+            inf_num_limit = None
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
