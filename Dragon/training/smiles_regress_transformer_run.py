@@ -112,7 +112,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
             with open("train_switch.log","a") as f:
                 f.write(f"{e}")
         model_iter = 1
-        print(f"Finshed loading pretrained model",flush=True)
+        print(f"Finished loading pretrained model",flush=True)
         
         with open("train_switch.log","a") as f:
             f.write(f"Finished loading pretrained model\n")
@@ -179,6 +179,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             with open("train_switch.log","a") as f:
+                f.write(f"model fit failed\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}")
 
