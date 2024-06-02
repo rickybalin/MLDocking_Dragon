@@ -139,6 +139,7 @@ def infer(dd, num_procs, proc, limit=None):
             f.write(f"Hello from process {proc} on core {core_list}\n")
     
     keys = dd.keys()
+    keys = [k for k in keys if "iter" not in k and "model" not in k]
     keys.sort()
 
     # Read HyperParameters 
@@ -210,7 +211,6 @@ def infer(dd, num_procs, proc, limit=None):
                 
                 key_dictionary_time = dict_toc - dict_tic
 
-                # fix this
                 for kkey in val.keys():
                     key_data_moved_size = sys.getsizeof(kkey)
                     key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
@@ -255,6 +255,7 @@ def infer(dd, num_procs, proc, limit=None):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
+
     toc = perf_counter()
     #time_per_smiles = (toc-tic)/num_smiles
     #data_move_time_per_smiles = dictionary_time/num_smiles
