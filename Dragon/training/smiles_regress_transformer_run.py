@@ -99,7 +99,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
 
     ######## Build model #############
     keys = dd.keys()
-
+    fine_tuned = False
     if "model" not in keys:
         # On first iteration load pre-trained model
         print(f"Loading pretrained model",flush=True)
@@ -121,6 +121,11 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
         try:
             model = dd["model"]
             model_iter = dd["model_iter"] + 1
+
+            with open("train_switch.log","a") as f:
+                f.write(f"Finished loading fine tuned model\n")
+                f.write("\n")
+            fine_tuned = True
             #model = keras.saving.load_model(model_path)
             #model = dd["model"]
             #model_iter = dd["model_iter"] + 1
@@ -154,7 +159,8 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
         f.write(f"Create training data\n")
     print(f"Create training data",flush=True)
     ########Create training and validation data##### 
-    x_train, y_train = train_val_data(candidate_dict)
+    x_train, y_train = train_val_data(candidate_dict, fine_tuned=fine_tuned)
+    
     
     with open("train_switch.log", 'a') as f:
         f.write(f"Finished creating training data\n")
@@ -162,7 +168,9 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
     # Only train if there is new data
     if len(x_train) > 0:
         with open("train_switch.log", 'a') as f:
-            f.write(f"{BATCH=} {EPOCH=}\n")
+            f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
+            f.write(f"{x_train=}\n\n")
+            f.write(f"{y_train=}\n\n")
         
         try:
             with open("train_switch.log", 'a') as sys.stdout:

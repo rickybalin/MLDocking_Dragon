@@ -249,7 +249,7 @@ def assemble_docking_data(candidate_dict):
             f.write(f"{sm},{sc[0]}\n")
     return train_smiles, train_scores
 
-def train_val_data(candidate_dict):
+def train_val_data(candidate_dict,fine_tuned=False):
     try:
         train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
         #train_smiles = candidate_dict["smiles"]
@@ -262,6 +262,10 @@ def train_val_data(candidate_dict):
             x_smiles_train = train_smiles
             #x_smiles_val = data_vali["smiles"]
             #y_train = np.array(train_scores) #
+
+            #if fine_tuned:
+            #    y_train = train_scores.values.reshape(-1, 1) #* 1.0 
+            #else:
             y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
             #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
             

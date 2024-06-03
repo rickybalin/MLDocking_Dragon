@@ -138,7 +138,10 @@ if __name__ == "__main__":
     continue_event = None  
     
     # Number of top candidates to produce
-    top_candidate_number = 5000
+    if num_tot_nodes < 3:
+        top_candidate_number = 1000
+    else:
+        top_candidate_number = 5000
 
     max_iter = args.max_iter
     iter = 0
@@ -147,8 +150,8 @@ if __name__ == "__main__":
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]
 
-        if num_tot_nodes == 1:
-            inf_num_limit = 16
+        if num_tot_nodes < 3:
+            inf_num_limit = 8
         else:
             inf_num_limit = None
         print(f"Launching inference with {num_procs} processes ...", flush=True)

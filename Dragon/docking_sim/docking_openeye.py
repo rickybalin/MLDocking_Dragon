@@ -48,16 +48,24 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
 
     num_keys = len(keys)
 
-    if num_keys/size - num_keys//size > 0:
-        num_keys_per_proc = num_keys//size + 1
-    else:
-        num_keys_per_proc = int(num_keys/size)
+    # if num_keys/size - num_keys//size > 0:
+    #     num_keys_per_proc = num_keys//size + 1
+    # else:
+    #     num_keys_per_proc = int(num_keys/size)
+
+    num_keys_per_proc = num_keys//size
     start_ind = proc*num_keys_per_proc
     end_ind = (proc+1)*num_keys_per_proc
-    if proc!=(size-1):
-        split_keys = keys[start_ind:end_ind]
-    else:
-        split_keys = keys[start_ind:]
+    # if proc!=(size-1):
+    #     split_keys = keys[start_ind:end_ind]
+    # else:
+    #     split_keys = keys[start_ind:]
+
+    split_keys = keys[start_ind:end_ind]
+    if num_keys/size - num_keys//size > 0:
+        remaining_keys = keys[num_keys_per_proc*size:]
+        if proc < len(remaining_keys):
+            split_keys.append(remaining_keys[proc])
 
     return split_keys
 
@@ -336,6 +344,14 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         if ckey_max > last_top_candidate_list:
             #ckeys.sort()
             
+            if "docking_iter" in ckeys:
+                docking_iter = cdd["docking_iter"] + 1
+            else:
+                docking_iter = iter
+
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: Docking worker looking for simulations on {proc} proc\n")
+
             if proc == 0:
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
@@ -363,13 +379,23 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: found {num_candidates} candidates to filter \n")
 
             # Partition top candidate list to get candidates for this process to simulate
-            my_candidates = split_dict_keys(top_candidates, num_procs, proc)
+            if num_procs < len(top_candidates):
+                my_candidates = split_dict_keys(top_candidates, num_procs, proc)
+            else:
+                if proc < len(top_candidates):
+                    my_candiates = top_candidates[proc]
+                else:
+                    my_candiates = []
 
             # check to see if we already have a sim result for this process' candidates
             ret_time = 0
             ret_size = 0
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: Docking worker filtering {len(my_candidates)} candidates\n")
+            
+
             if len(my_candidates) > 0:
-                my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates)
+                my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates, docking_iter)
 
             ret_metrics = {}
             ret_metrics['data_retrieval_time'] = rtoc - rtic + ret_time
@@ -379,6 +405,9 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 for kkey in ret_metrics.keys():
                     f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}\n")
 
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
+            
             # if there are new candidates to simulate, run sims
             if len(my_candidates) > 0:
                 tic = perf_counter()
@@ -387,10 +416,8 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 sim_metrics = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
                 
                 if proc == 0:
-                    if "docking_iter" in ckeys:
-                        cdd["docking_iter"] = cdd["docking_iter"] + 1
-                    else:
-                        cdd["docking_iter"] = iter
+                    cdd["docking_iter"] = docking_iter
+                    
                 toc = perf_counter()
                 with open("docking_switch.log","a") as f:
                     f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
@@ -402,13 +429,19 @@ def docking_switch(cdd, num_procs, proc, continue_event):
                 
                 
             else:
-                
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
-                if continue_event is None:
-                    continue_flag = False
-                else:
-                    continue_flag = continue_event.is_set()
+                try:
+                    with open("docking_switch.log","a") as f:
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
+                    with open(f"dock_worker_{proc}.log","a") as f:
+                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
+                    if continue_event is None:
+                        continue_flag = False
+                    else:
+                        continue_flag = continue_event.is_set()
+                except Exception as e:
+                    with open("docking_switch.log","a") as f:
+                        f.write(f"Exception in reporting no sim worker {proc=} {len(my_candidates)=}\n")
+                        f.write(f"{e}\n")
         else:
             if proc == 0:
                 with open("docking_switch.log","a") as f:
@@ -425,17 +458,16 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             
 
 
-def filter_candidates(cdd, candidates: list):
+def filter_candidates(cdd, candidates: list,current_iter):
     try:
         # Get keys that store previous docking results
         ckeys = cdd.keys()
         cbkeys = [ckey for ckey in ckeys if ckey[:9] == "dock_iter"]
-
+        cbkeys = [ckey for ckey in cbkeys if int(ckey.split("_")[1].split("iter")[1]) < current_iter]
+        
         ret_time = 0
         ret_size = 0
 
-    
-    
         for cbk in cbkeys:
             tic = perf_counter()
             check_smiles = cdd[cbk]["smiles"]
@@ -453,7 +485,7 @@ def filter_candidates(cdd, candidates: list):
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         with open("docking_switch.log","a") as f:
-            f.write("Filtering failed!\n")
+            f.write(f"Filtering failed! {ckeys=}\n")
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
         raise(e)

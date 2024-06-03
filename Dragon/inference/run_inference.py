@@ -94,7 +94,7 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
             if proc == 0:
                 with open(switch_log,"a") as f:
                     f.write(f"{datetime.datetime.now()}: Inference on iter {iter} with model iter {current_model_iter}\n")
-            metrics = infer(dd, num_procs, proc, limit=inf_num_limit)
+            metrics = infer(dd, num_procs, proc, continue_event, limit=inf_num_limit)
             if proc == 0:
                 dd["inf_iter"] = iter
             # with open(switch_log,'a') as f:
@@ -116,15 +116,16 @@ def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
         else:
             continue_flag = continue_event.is_set()
 
-def check_model_iter(dd, model_iter):
+def check_model_iter(dd, model_iter, continue_event):
     test_match = True
-    if "model_iter" in dd.keys():
-        if model_iter != dd["model_iter"]:
-            test_match = False
+    if continue_event is not None:
+        if "model_iter" in dd.keys():
+            if model_iter != dd["model_iter"]:
+                test_match = False
     return test_match
 
 
-def infer(dd, num_procs, proc, limit=None):
+def infer(dd, num_procs, proc, continue_event, limit=None):
     """Run inference reading from and writing data to the Dragon Dictionary
     """
     gc.collect()
@@ -202,7 +203,7 @@ def infer(dd, num_procs, proc, limit=None):
     try:
         #for key in split_keys:
         for ikey in range(num_run):
-            if check_model_iter(dd, model_iter):
+            if check_model_iter(dd, model_iter, continue_event):
                 ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
