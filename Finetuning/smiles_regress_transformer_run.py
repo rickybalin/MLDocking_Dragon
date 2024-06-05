@@ -82,13 +82,48 @@ history = model.fit(
     x_train,
     y_train,
     batch_size=64,
-    epochs=500,
+    epochs=10,
     verbose=1,
     #steps_per_epoch=40,
     validation_data=(x_val,y_val),#validation_data,
-    callbacks=callbacks,
+    #callbacks=callbacks,
 )
 
+# Get the model's weights
+weights = model.get_weights()
+
+# Create a dictionary to store the weights
+weights_dict = {}
+
+# Iterate over the layers and their respective weights
+for layer_idx, layer in enumerate(model.layers):
+    for weight_idx, weight in enumerate(layer.get_weights()):
+        # Create a key for each weight
+        key = f'layer_{layer_idx}_weight_{weight_idx}'
+        # Save the weight in the dictionary
+        weights_dict[key] = weight
+
+# Print or save the weights dictionary as needed
+print(weights_dict)
+
+model = ModelArchitecture(hyper_params).call()
+# Assign the weights back to the model
+for layer_idx, layer in enumerate(model.layers):
+    weights = [weights_dict[f'layer_{layer_idx}_weight_{weight_idx}'] for weight_idx in range(len(layer.get_weights()))]
+    layer.set_weights(weights)
+
+#model.load_weights(weights_dict)#'smile_regress.autosave.model.h5')
+history = model.fit(
+    #train_dataset,
+    x_train,
+    y_train,
+    batch_size=64,
+    epochs=10,
+    verbose=1,
+    #steps_per_epoch=40,
+    validation_data=(x_val,y_val),#validation_data,
+    #callbacks=callbacks,
+)
 
 #history = train_and_callbacks.training(
 #    model,
