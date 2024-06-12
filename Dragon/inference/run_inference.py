@@ -140,14 +140,15 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             f.write(f"Hello from process {proc} on core {core_list}\n")
     
     keys = dd.keys()
-    keys = [k for k in keys if "iter" not in k and "model" not in k]
-    keys.sort()
 
-    # Read HyperParameters 
-    json_file = driver_path+'inference/config.json'
-    hyper_params = ParamsJson(json_file)
+    # If there is no fine-tuned model, load pre-trained model
     if "model" not in keys:
         model_iter = 0
+
+        # Read HyperParameters 
+        json_file = driver_path+'inference/config.json'
+        hyper_params = ParamsJson(json_file)
+
         # Load model and weights
         try:
             model = ModelArchitecture(hyper_params).call()
@@ -159,14 +160,22 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write("Loaded pretrained model\n")
         
+    # If there is a fine-tuned model, load weights 
     else:
         try:
             with open(f"ws_worker_{myp.ident}.log",'a') as f:
                 f.write(f"Loading fine tuned model\n")
-            #model_path = dd["model"]
-            #model = keras.saving.load_model(model_path)
+            
             model_iter = dd["model_iter"]
-            model = dd["model"]
+            weights_dict = dd["model"]
+            hyper_params = dd["model_hyper_params"]
+            model = ModelArchitecture(hyper_params).call()
+            # Assign the weights back to the model
+            for layer_idx, layer in enumerate(model.layers):
+                weights = [weights_dict[f'layer_{layer_idx}_weight_{weight_idx}'] 
+                            for weight_idx in range(len(layer.get_weights()))]
+                layer.set_weights(weights)
+
             if debug:
                 with open(f"ws_worker_{myp.ident}.log",'a') as f:
                     f.write(f"Loaded model {model_iter}\n")
@@ -175,7 +184,8 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 f.write(f"{e}\n")
 
     # Split keys in Dragon Dict
-    
+    keys = [k for k in keys if "iter" not in k and "model" not in k]
+    keys.sort()
     if num_procs>1:
         split_keys = split_dict_keys(keys, num_procs, proc)
     else:
@@ -224,14 +234,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 smiles_sorted = [smiles_raw[i] for i in sort_index]
                 pred_sorted = [output[sort_index[i]].item() if output[sort_index[i]]>cutoff else 0.0 for i in range(len(sort_index))]
 
-                # cutoff_check = [p for p in pred_sorted if p < cutoff and p > 0.0]
-                # if debug:
-                #     with open(f"ws_worker_{myp.ident}.log",'a') as f:
-                #         f.write(f"Cutoff check: {len(cutoff_check)} below cutoff \n")
-
                 val['smiles'] = smiles_sorted
                 val['inf'] = pred_sorted
                 val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
+
                 dict_tic = perf_counter()
                 dd[key] = val
                 dict_toc = perf_counter()
@@ -239,11 +245,14 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 for kkey in val.keys():
                     key_data_moved_size += sys.getsizeof(kkey)
                     key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
+                
                 num_smiles += len(smiles_sorted)
+
                 ktoc = perf_counter()
                 key_time = ktoc - ktic
                 dictionary_time += key_dictionary_time
                 data_moved_size += key_data_moved_size
+
                 if debug:
                     with open(f"ws_worker_{myp.ident}.log",'a') as f:
                         f.write(f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n")
@@ -251,16 +260,13 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 break
 
     except Exception as e:
-        #eprint(e, flush=True)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         with open(f"ws_worker_{myp.ident}.log",'a') as f:
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
 
     toc = perf_counter()
-    #time_per_smiles = (toc-tic)/num_smiles
-    #data_move_time_per_smiles = dictionary_time/num_smiles
-    #data_move_size_per_sec = data_moved_size/dictionary_time
+   
     metrics = {"num_smiles": num_smiles, 
                 "total_time": toc-tic, 
                 "data_move_time":dictionary_time, 

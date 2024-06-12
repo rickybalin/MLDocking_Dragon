@@ -97,56 +97,54 @@ def training_switch(dd: DDict,
 
 def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):
 
+    fine_tune_log = "train_switch.log"
+
     ######## Build model #############
     keys = dd.keys()
-    fine_tuned = False
+
     if "model" not in keys:
         # On first iteration load pre-trained model
-        print(f"Loading pretrained model",flush=True)
         json_file = driver_path+'training/config.json'
         hyper_params = ParamsJson(json_file)
+        dd["model_hyper_params"] = hyper_params
         try:
             model = ModelArchitecture(hyper_params).call()
-            model.load_weights(driver_path+f'training/smile_regress.autosave.model.h5')
+            model_path = os.path.join(driver_path,'training/smile_regress.autosave.model.h5')
+            model.load_weights(model_path)
         except Exception as e:
             with open("train_switch.log","a") as f:
+                f.write(f"Failed to load pretrained model from fileystem: {model_path}")
                 f.write(f"{e}")
         model_iter = 1
-        print(f"Finished loading pretrained model",flush=True)
         
         with open("train_switch.log","a") as f:
             f.write(f"Finished loading pretrained model\n")
             f.write("\n")
     else:
         try:
-            model = dd["model"]
+            weights_dict = dd["model"]
             model_iter = dd["model_iter"] + 1
+            hyper_params = dd["model_hyper_params"]
+            model = ModelArchitecture(hyper_params).call()
+            # Assign the weights back to the model
+            for layer_idx, layer in enumerate(model.layers):
+                weights = [weights_dict[f'layer_{layer_idx}_weight_{weight_idx}'] 
+                            for weight_idx in range(len(layer.get_weights()))]
+                layer.set_weights(weights)
 
             with open("train_switch.log","a") as f:
                 f.write(f"Finished loading fine tuned model\n")
                 f.write("\n")
-            fine_tuned = True
-            #model = keras.saving.load_model(model_path)
-            #model = dd["model"]
-            #model_iter = dd["model_iter"] + 1
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             with open(f"train_switch.log",'a') as f:
                 f.write(f"Failed to load fine tuned model from dictionary\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}\n")
-
-
-    # Not sure if this is needed, experiment with the print statements in this block
     try:
         for layer in model.layers:
             if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
                 layer.trainable = False
-            #print(f"Layer Name: {layer.name}")
-            #print(f"Layer Type: {layer.__class__.__name__}")
-            #print(f"Layer Trainable: {layer.trainable}") # check here
-            #print(f"Layer Input Shape: {layer.input_shape}")
-            #print(f"Layer Output Shape: {layer.output_shape}\n")
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         with open(f"train_switch.log",'a') as f:
@@ -157,11 +155,8 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
 
     with open("train_switch.log", 'a') as f:
         f.write(f"Create training data\n")
-    print(f"Create training data",flush=True)
     ########Create training and validation data##### 
-    x_train, y_train = train_val_data(candidate_dict, fine_tuned=fine_tuned)
-    
-    
+    x_train, y_train = train_val_data(candidate_dict)
     with open("train_switch.log", 'a') as f:
         f.write(f"Finished creating training data\n")
     
@@ -169,8 +164,6 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
     if len(x_train) > 0:
         with open("train_switch.log", 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
-            f.write(f"{x_train=}\n\n")
-            f.write(f"{y_train=}\n\n")
         
         try:
             with open("train_switch.log", 'a') as sys.stdout:
@@ -180,22 +173,27 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
                             batch_size=BATCH,
                             epochs=EPOCH,
                             verbose=2,
-                            #steps_per_epoch=steps_per_epoch,
                             #validation_data=valid_dataset,
                             #callbacks=callbacks,
                         )
+            weights = model.get_weights()
+            weights_dict = {}
+
+            # Iterate over the layers and their respective weights
+            for layer_idx, layer in enumerate(model.layers):
+                for weight_idx, weight in enumerate(layer.get_weights()):
+                    # Create a key for each weight
+                    wkey = f'layer_{layer_idx}_weight_{weight_idx}'
+                    # Save the weight in the dictionary
+                    weights_dict[wkey] = weight
+
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             with open("train_switch.log","a") as f:
                 f.write(f"model fit failed\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}")
-
-        # with open("train_switch.log", 'a') as f:
-        #     f.write(f"Finished fitting model\n")
-        #     f.write(f"history keys {history.history['loss']=}, {history.history['r2']=}\n")
-
-        # model.save("model.keras")
+       
     # Save to dictionary
     try:
         if save_model:
@@ -203,13 +201,10 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=Tr
             model.save(model_path)
             with open("model_iter",'w') as f:
                 f.write(f"{model_iter=} {model_path=}")
-        #dd["model"] = model_path
-        dd["model"] = model
+       
+        dd["model"] = weights_dict
         dd["model_iter"] = model_iter
-        # if "last_training_docking_iter" in candidate_dict.keys():
-        #     candidate_dict["last_training_docking_iter"] = candidate_dict["last_training_docking_iter"] + 1
-        # else:
-        #     candidate_dict["last_training_docking_iter"] = 0
+
     except Exception as e:
         print("writing model to dictionary failed!")
         raise(e)
