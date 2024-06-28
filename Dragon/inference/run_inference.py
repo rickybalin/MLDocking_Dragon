@@ -135,9 +135,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         myp = current_process()
         p = psutil.Process()
         core_list = p.cpu_affinity()
-        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+        log_file_name = f"infer_worker_{proc}.log"
+        with open(log_file_name,'a') as f:
             f.write(f"\n\n\n\nNew run\n")
-            f.write(f"Hello from process {proc} on core {core_list}\n")
+            f.write(f"Hello from process {myp.ident} on core {core_list}\n")
     
     keys = dd.keys()
 
@@ -155,15 +156,15 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             model.load_weights(driver_path+f'inference/smile_regress.autosave.model.h5')
         except Exception as e:
             #eprint(e, flush=True)
-            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            with open(log_file_name,'a') as f:
                 f.write(f"{e}\n")
-        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+        with open(log_file_name,'a') as f:
             f.write("Loaded pretrained model\n")
         
     # If there is a fine-tuned model, load weights 
     else:
         try:
-            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            with open(log_file_name,'a') as f:
                 f.write(f"Loading fine tuned model\n")
             
             model_iter = dd["model_iter"]
@@ -177,10 +178,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 layer.set_weights(weights)
 
             if debug:
-                with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                with open(log_file_name,'a') as f:
                     f.write(f"Loaded model {model_iter}\n")
         except Exception as e:
-            with open(f"ws_worker_{myp.ident}.log",'a') as f:
+            with open(log_file_name,'a') as f:
                 f.write(f"{e}\n")
 
     # Split keys in Dragon Dict
@@ -191,7 +192,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     else:
         split_keys = keys
     if debug:
-        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+        with open(log_file_name,'a') as f:
             f.write(f"Running inference on {len(split_keys)} keys\n")
 
 
@@ -213,7 +214,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     try:
         #for key in split_keys:
         for ikey in range(num_run):
-            if check_model_iter(dd, model_iter, continue_event):
+            if check_model_iter(dd, model_iter, continue_event): # this check is to stop inference in async wf when model is retrained
                 ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
@@ -254,14 +255,14 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 data_moved_size += key_data_moved_size
 
                 if debug:
-                    with open(f"ws_worker_{myp.ident}.log",'a') as f:
+                    with open(log_file_name,'a') as f:
                         f.write(f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n")
             else:
                 break
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-        with open(f"ws_worker_{myp.ident}.log",'a') as f:
+        with open(log_file_name,'a') as f:
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
 

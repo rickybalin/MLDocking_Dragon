@@ -12,6 +12,7 @@ from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
+from sorter.sorter import sort_dictionary_pg
 from sorter.sorter import sort_controller as sort_dictionary
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
@@ -133,7 +134,7 @@ if __name__ == "__main__":
 
     # Set Event and Launch other Components
     # Set the continue event to None for each component to run one iter
-    continue_event = None  
+    # continue_event = None  
     
     # Number of top candidates to produce
     if num_tot_nodes < 3:
@@ -156,8 +157,7 @@ if __name__ == "__main__":
         tic = perf_counter()
         inf_proc = mp.Process(target=launch_inference, args=(data_dd, 
                                                             nodelists["inference"], 
-                                                            num_procs, 
-                                                            continue_event,
+                                                            num_procs,
                                                             inf_num_limit,)
                                                             )
         inf_proc.start()
@@ -168,14 +168,15 @@ if __name__ == "__main__":
 
         # Launch data sorter component and create candidate dictionary
         tic = perf_counter()
+        if iter == 0:
+            cand_dd["max_sort_iter"] = "-1"
         max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
-        sorter_proc = mp.Process(target=sort_dictionary, 
+        sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                 args=(data_dd, 
                                     top_candidate_number, 
                                     max_sorter_procs, 
                                     nodelists["sorting"],
-                                    cand_dd, 
-                                    continue_event))
+                                    cand_dd))
         sorter_proc.start()
         sorter_proc.join()
         toc = perf_counter()
