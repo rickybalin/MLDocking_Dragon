@@ -342,106 +342,23 @@ def docking_switch(cdd, num_procs, proc, continue_event):
             
         # Only run new simulations if there is a fresh candidate list
         if ckey_max > last_top_candidate_list:
-            #ckeys.sort()
+            # #ckeys.sort()
             
             if "docking_iter" in ckeys:
                 docking_iter = cdd["docking_iter"] + 1
             else:
                 docking_iter = iter
 
-            with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: Docking worker looking for simulations on {proc} proc\n")
+            simulated_list = run_docking(cdd, docking_iter, proc, num_procs)
+
+            if simulated_list is not None:
+                with open("docking_switch.log", "a") as f:
+                    f.write(f"iter {iter}: ran new sims for list {simulated_list}\n")
+                last_top_candidate_list = simulated_list
 
             if proc == 0:
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{datetime.datetime.now()}: Docking on iter {iter} with candidate list {ckey_max}\n")
-            # most recent sorted list
-            try:
-                rtic = perf_counter()
-                top_candidates = cdd[ckey_max]["smiles"]
-                rtoc = perf_counter()
-                
-            except Exception as e:
-                print(f"dock worker {proc} failed to get candidates from dict",flush=True)
-                print(f"{e}",flush=True)
-                raise(e)
+                cdd["docking_iter"] = docking_iter
 
-            top_candidates.sort()
-            try:
-                num_candidates = len(top_candidates)
-            except Exception as e:
-                with open("docking_switch.log","a") as f:
-                    f.write(f"proc {proc}: {e}\n")
-                    raise(e)
-                    
-            #if proc == 0:
-            with open("docking_switch.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: found {num_candidates} candidates to filter \n")
-
-            # Partition top candidate list to get candidates for this process to simulate
-            if num_procs < len(top_candidates):
-                my_candidates = split_dict_keys(top_candidates, num_procs, proc)
-            else:
-                if proc < len(top_candidates):
-                    my_candiates = top_candidates[proc]
-                else:
-                    my_candiates = []
-
-            # check to see if we already have a sim result for this process' candidates
-            ret_time = 0
-            ret_size = 0
-            with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: Docking worker filtering {len(my_candidates)} candidates\n")
-            
-
-            if len(my_candidates) > 0:
-                my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates, docking_iter)
-
-            ret_metrics = {}
-            ret_metrics['data_retrieval_time'] = rtoc - rtic + ret_time
-            ret_metrics['data_retrieval_size'] = sum([sys.getsizeof(sm) for sm in top_candidates]) + ret_size
-
-            with open("docking_switch.log","a") as f:
-                for kkey in ret_metrics.keys():
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={ret_metrics[kkey]}\n")
-
-            with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
-            
-            # if there are new candidates to simulate, run sims
-            if len(my_candidates) > 0:
-                tic = perf_counter()
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{iter} iter: simulating {len(my_candidates)} on proc {proc}\n")
-                sim_metrics = run_docking(cdd, my_candidates, f"dock_iter{iter}_proc{proc}", proc)
-                
-                if proc == 0:
-                    cdd["docking_iter"] = docking_iter
-                    
-                toc = perf_counter()
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
-                    for kkey in sim_metrics.keys():
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: {kkey}={sim_metrics[kkey]}\n")
-
-                #print(f"{cdd.keys()=}")
-                last_top_candidate_list = ckey_max
-                
-                
-            else:
-                try:
-                    with open("docking_switch.log","a") as f:
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
-                    with open(f"dock_worker_{proc}.log","a") as f:
-                        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: no sims run \n")
-                    if continue_event is None:
-                        continue_flag = False
-                    else:
-                        continue_flag = continue_event.is_set()
-                except Exception as e:
-                    with open("docking_switch.log","a") as f:
-                        f.write(f"Exception in reporting no sim worker {proc=} {len(my_candidates)=}\n")
-                        f.write(f"{e}\n")
         else:
             if proc == 0:
                 with open("docking_switch.log","a") as f:
@@ -452,13 +369,13 @@ def docking_switch(cdd, num_procs, proc, continue_event):
         else:
             continue_flag = continue_event.is_set()
     with open("docking_switch.log","a") as f:
-        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished switch loop \n")
+        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished docking sims \n")
 
     return
             
 
 
-def filter_candidates(cdd, candidates: list,current_iter):
+def filter_candidates(cdd, candidates: list, current_iter):
     try:
         # Get keys that store previous docking results
         ckeys = cdd.keys()
@@ -490,7 +407,93 @@ def filter_candidates(cdd, candidates: list,current_iter):
             f.write(f"{e}\n")
         raise(e)
 
-def run_docking(cdd, candidates, batch_key, proc):
+
+def run_docking(cdd, docking_iter, proc: int, num_procs: int):
+
+    debug = True
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulating on proc {proc}\n")
+
+    ckeys = cdd.keys()
+
+    if "max_sort_iter" in ckeys:
+        ckey_max = cdd["max_sort_iter"]
+    else:
+        ckey_max = '-1'
+    last_top_candidate_list = None
+
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
+
+    # most recent sorted list
+    rtic = perf_counter()
+    top_candidates = cdd[ckey_max]["smiles"]
+    rtoc = perf_counter()
+        
+    top_candidates.sort()
+    num_candidates = len(top_candidates)
+            
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"{datetime.datetime.now()}: iter {docking_iter}: found {num_candidates} candidates to filter \n")
+
+    # Partition top candidate list to get candidates for this process to simulate
+    if num_procs < len(top_candidates):
+        my_candidates = split_dict_keys(top_candidates, num_procs, proc)
+    else:
+        if proc < len(top_candidates):
+            my_candidates = top_candidates[proc]
+        else:
+            my_candidates = []
+
+    # check to see if we already have a sim result for this process' candidates
+    ret_time = 0
+    ret_size = 0
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"{datetime.datetime.now()}: Docking worker filtering {len(my_candidates)} candidates\n")
+    
+
+    if len(my_candidates) > 0:
+        my_candidates, ret_time, ret_size = filter_candidates(cdd, my_candidates, docking_iter)
+
+    ret_metrics = {}
+    ret_metrics['data_retrieval_time'] = rtoc - rtic + ret_time
+    ret_metrics['data_retrieval_size'] = sum([sys.getsizeof(sm) for sm in top_candidates]) + ret_size
+
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            for kkey in ret_metrics.keys():
+                f.write(f"{datetime.datetime.now()}: iter {docking_iter}: {kkey}={ret_metrics[kkey]}\n")
+            f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
+        
+    # if there are new candidates to simulate, run sims
+    if len(my_candidates) > 0:
+        tic = perf_counter()
+        sim_metrics = dock(cdd, my_candidates, f"dock_iter{docking_iter}_proc{proc}", proc, debug=debug) 
+        toc = perf_counter()
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
+                for kkey in sim_metrics.keys():
+                    f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: {kkey}={sim_metrics[kkey]}\n")
+
+        last_top_candidate_list = ckey_max
+        
+        
+    else:
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
+
+    with open(f"finished_run_docking.log", "a") as f:
+        f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
+    return last_top_candidate_list
+
+
+def dock(cdd, candidates, batch_key, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
     
     Parameters
@@ -511,19 +514,12 @@ def run_docking(cdd, candidates, batch_key, proc):
         The docking score of the best conformer.
     """
 
-    debug = True
-    
-    if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"Simulating on proc {proc}\n")
-
     num_cand = len(candidates)
 
     tic = perf_counter()
-    temp_storage = "./docking_tmp/"
     hostname = os.popen("hostname -f").read()
 
-    receptor_oedu_file = "/lus/grand/projects/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
+    receptor_oedu_file = "/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
     if "sirius" in hostname:
         receptor_oedu_file = "/home/csimpson/openeye/3clpro_7bqy.oedu"
     #if debug:
@@ -544,26 +540,25 @@ def run_docking(cdd, candidates, batch_key, proc):
                 print(f"Conformers failed in batch {batch_key}, returning 0 docking score", flush=True)
                 simulated_smiles.append(smiles)
                 dock_scores.append(0)
-                continue
-
+            
                 # Not implementing this alternate way of getting conformers for now
                 # with tempfile.NamedTemporaryFile(suffix=".pdb", dir=temp_storage) as fd:
                 #     # Read input SMILES and generate conformer
                 #     smi_to_structure(smiles, Path(fd.name))
                 #     conformers = from_structure(Path(fd.name))
+            else:
+                # Read the receptor to dock to
+                receptor = read_receptor(receptor_oedu_file)
+                print(receptor)
+                # Dock the ligand conformers to the receptor
+                dock, lig = dock_conf(receptor, conformers, max_poses=max_confs)
 
-            # Read the receptor to dock to
-            receptor = read_receptor(receptor_oedu_file)
-            print(receptor)
-            # Dock the ligand conformers to the receptor
-            dock, lig = dock_conf(receptor, conformers, max_poses=max_confs)
+                # Get the docking scores
+                best_score = best_dock_score(dock, lig)
 
-            # Get the docking scores
-            best_score = best_dock_score(dock, lig)
-
-            simulated_smiles.append(smiles)
-            dock_score = max(-1*np.mean(best_score),0.)
-            dock_scores.append(dock_score)
+                simulated_smiles.append(smiles)
+                dock_score = max(-1*np.mean(best_score),0.)
+                dock_scores.append(dock_score)
         except:
             simulated_smiles.append(smiles)
             dock_scores.append(0)
@@ -576,6 +571,8 @@ def run_docking(cdd, candidates, batch_key, proc):
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"Storing data in candidate dictionary\n")
+            f.write(f"{dock_scores=}\n")
+
     try:
         dtic = perf_counter()
         cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}

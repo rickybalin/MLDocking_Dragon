@@ -10,7 +10,7 @@ from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 
 #from .run_inference import infer_switch as infer
-from .smiles_regress_transformer_run import training_switch
+from .smiles_regress_transformer_run import training_switch, fine_tune
 
 def read_output(stdout_conn: Connection) -> str:
     """Read stdout from the Dragon connection.
@@ -52,7 +52,7 @@ def read_error(stderr_conn: Connection) -> str:
         stderr_conn.close()
     return output
 
-def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event, BATCH, EPOCH, num_top_candidates):
+def launch_training_switch(dd: DDict, node, candidate_dict: DDict, continue_event, BATCH, EPOCH, num_top_candidates):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -77,6 +77,54 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, continue_event, BATC
                                                     continue_event, 
                                                     BATCH, EPOCH, 
                                                     num_top_candidates), 
+                                                cwd=run_dir,
+                                                policy=local_policy, 
+                                                stdout=MSG_DEVNULL,
+                                                stderr=MSG_DEVNULL))
+    
+    # Launch the ProcessGroup 
+    grp.init()
+    grp.start()
+    print(f"Starting Process Group for Training")
+    group_procs = [Process(None, ident=puid) for puid in grp.puids]
+    for proc in group_procs:
+        if proc.stdout_conn:
+            std_out = read_output(proc.stdout_conn)
+            print(std_out, flush=True)
+        if proc.stderr_conn:
+            std_err = read_error(proc.stderr_conn)
+            print(std_err, flush=True)
+    grp.join()
+    grp.stop()
+    print(f"Training process group stopped",flush=True)
+    #print(dd["model_iter"])
+    #print(dd["model"])
+
+
+def launch_training(dd: DDict, node, candidate_dict: DDict, BATCH, EPOCH):
+    """Launch the inference ruotine
+
+    :param dd: Dragon distributed dictionary
+    :type dd: DDict
+    :param num_procs: number of processes to use for inference
+    :type num_procs: int
+    """
+    run_dir = os.getcwd()
+
+    # Create the process group
+    global_policy = Policy(distribution=Policy.Distribution.BLOCK)
+
+    grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
+
+    node_name = Node(node).hostname
+
+    local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, cpu_affinity=list(range(8)), device=Policy.Device.GPU, gpu_affinity=[3])
+    grp.add_process(nproc=1, 
+                    template=ProcessTemplate(target=fine_tune,
+                                                args=(dd, 
+                                                    candidate_dict, 
+                                                    BATCH, EPOCH, 
+                                                    ), 
                                                 cwd=run_dir,
                                                 policy=local_policy, 
                                                 stdout=MSG_DEVNULL,

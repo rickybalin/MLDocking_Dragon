@@ -76,7 +76,7 @@ def training_switch(dd: DDict,
             if (check_time - tic)/60. > checkpoint_interval_min:
                 save_model = True
                 check_time = perf_counter() 
-            history = fine_tune(dd, candidate_dict, BATCH=BATCH, EPOCH=EPOCH, save_model=save_model)
+            history = fine_tune(dd, candidate_dict, BATCH, EPOCH, save_model=save_model)
             
             dd["train_iter"] = iter
             
@@ -95,7 +95,7 @@ def training_switch(dd: DDict,
             
         
 
-def fine_tune(dd: DDict, candidate_dict: DDict, BATCH=8, EPOCH=10, save_model=True):
+def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
 
     fine_tune_log = "train_switch.log"
 

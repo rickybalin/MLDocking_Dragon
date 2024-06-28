@@ -85,9 +85,7 @@ if __name__ == "__main__":
     offset = 0
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[:node_counts[key]]
-        
-    
-    print(f"{nodelists=}")    
+          
 
     # Set up and launch the inference DDict
     # inf_dd_nodelist = tot_nodelist[:args.inf_dd_nodes]
@@ -190,14 +188,14 @@ if __name__ == "__main__":
         num_procs = args.max_procs_per_node*node_counts["docking"]
         dock_proc = mp.Process(target=launch_docking_sim, 
                                 args=(cand_dd, 
-                                        nodelists["docking"], 
-                                        num_procs, 
-                                        continue_event))
+                                        iter,
+                                        num_procs,
+                                        nodelists["docking"]))
         dock_proc.start()
         dock_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
-        os.rename("docking_switch.log",f"docking_switch_{iter}.log")
+        os.rename("finished_run_docking.log",f"finished_run_docking_{iter}.log")
         print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
         
         # Launch Training
@@ -209,10 +207,8 @@ if __name__ == "__main__":
                                 args=(data_dd, 
                                         nodelists["training"][0], # training is always 1 node
                                         cand_dd, 
-                                        continue_event,
                                         BATCH,
-                                        EPOCH,
-                                        top_candidate_number))
+                                        EPOCH,))
         train_proc.start()
         train_proc.join()
         toc = perf_counter()
