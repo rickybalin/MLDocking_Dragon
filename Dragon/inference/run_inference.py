@@ -9,6 +9,7 @@ from time import perf_counter
 import random
 import datetime
 import gc
+import socket
 from dragon.native.process import current as current_process
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
@@ -16,6 +17,9 @@ from inference.utils_encoder import SMILES_SPE_Tokenizer
 from training.ST_funcs.clr_callback import *
 from training.ST_funcs.smiles_regress_transformer_funcs import *
 import keras
+import tensorflow as tf
+
+#tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 driver_path = os.getenv("DRIVER_PATH")
 
@@ -136,11 +140,18 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         p = psutil.Process()
         core_list = p.cpu_affinity()
         log_file_name = f"infer_worker_{proc}.log"
+        print(f"Opening inference worker log {log_file_name}", flush=True)
         with open(log_file_name,'a') as f:
             f.write(f"\n\n\n\nNew run\n")
             f.write(f"Hello from process {myp.ident} on core {core_list}\n")
-    
-    keys = dd.keys()
+        cuda_device = os.getenv("CUDA_VISIBLE_DEVICES")
+        hostname = socket.gethostname()
+        print(f"Launching infer for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}:{cuda_device}", flush=True)
+    try:
+        keys = dd.keys()
+    except Exception as e:
+        print(f"could not get keys in inference worker")
+        raise(e)
 
     # If there is no fine-tuned model, load pre-trained model
     if "model" not in keys:
@@ -160,7 +171,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 f.write(f"{e}\n")
         with open(log_file_name,'a') as f:
             f.write("Loaded pretrained model\n")
-        
+            print("Loaded pretrained model", flush=True)
     # If there is a fine-tuned model, load weights 
     else:
         try:
@@ -180,6 +191,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             if debug:
                 with open(log_file_name,'a') as f:
                     f.write(f"Loaded model {model_iter}\n")
+                    print("Loaded model")
         except Exception as e:
             with open(log_file_name,'a') as f:
                 f.write(f"{e}\n")
@@ -214,14 +226,17 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     try:
         #for key in split_keys:
         for ikey in range(num_run):
+            if debug:
+                print(f"worker {proc} on key iter {ikey}", flush=True)
             if check_model_iter(dd, model_iter, continue_event): # this check is to stop inference in async wf when model is retrained
                 ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
                 val = dd[key]
                 dict_toc = perf_counter()
-                
                 key_dictionary_time = dict_toc - dict_tic
+                if debug:
+                    print(f"worker {proc} pulled key {key} in {key_dictionary_time}s", flush=True)
 
                 for kkey in val.keys():
                     key_data_moved_size = sys.getsizeof(kkey)
@@ -230,6 +245,8 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 smiles_raw = val['smiles']
                 x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
                 output = model.predict(x_inference, batch_size = BATCH, verbose=0).flatten()
+                if debug:
+                    print(f"worker {proc} inference on key {key}", flush=True)
 
                 sort_index = np.flip(np.argsort(output)).tolist()
                 smiles_sorted = [smiles_raw[i] for i in sort_index]
@@ -243,6 +260,9 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 dd[key] = val
                 dict_toc = perf_counter()
                 key_dictionary_time += dict_toc -dict_tic
+                if debug:
+                    print(f"worker {proc} put key {key} in {key_dictionary_time}s", flush=True)
+
                 for kkey in val.keys():
                     key_data_moved_size += sys.getsizeof(kkey)
                     key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
@@ -257,6 +277,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 if debug:
                     with open(log_file_name,'a') as f:
                         f.write(f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n")
+                    print(f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}", flush=True)
             else:
                 break
 

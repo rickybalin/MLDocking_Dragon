@@ -150,15 +150,8 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     inf_gpu_bind = [3, 2, 1, 0]
     run_dir = os.getcwd()
 
-    #load_pretrained_model(dd)
-
-    # Load pretrained model weights into DDict
-    # TO DO: currently in h5 file loaded with TF model.load_weights()
-    #        what other loading methods are available?
-
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    #grp = ProcessGroup(restart=False, pmi_enabled=True, ignore_error_on_exit=True, policy=global_policy)
     grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
     for node_num in range(num_inf_nodes):   
         node_name = Node(nodelist[node_num]).hostname
@@ -166,7 +159,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, 
                                                                         cpu_affinity=[inf_cpu_bind[proc]],
-                                  device=Policy.Device.GPU, gpu_affinity=[inf_gpu_bind[proc]])
+                                                                        gpu_affinity=[inf_gpu_bind[proc]])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
                                                      args=(dd,
@@ -176,9 +169,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
                                                         inf_num_limit,
                                                         ), 
                                                      cwd=run_dir,
-                                                     policy=local_policy, 
-                                                     stdout=MSG_DEVNULL,
-                                                     stderr=MSG_DEVNULL))
+                                                     policy=local_policy,))
     
     # Launch the ProcessGroup 
     grp.init()

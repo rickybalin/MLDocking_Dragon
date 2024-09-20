@@ -87,8 +87,9 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
             proc_id = node_num*num_procs_pn+proc
-            local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name,cpu_affinity=[proc])
-            #args = [(cdd, num_procs, node_num*num_procs_pn+i, continue_event) for i in range(num_procs_pn)]
+            local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
+                                  host_name=node_name,
+                                  cpu_affinity=[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=run_docking, 
                                                         args=(cdd, 
@@ -97,8 +98,7 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy, 
-                                                        stdout=MSG_DEVNULL,
-                                                        stderr=MSG_DEVNULL))
+                                                        ))
     
     # Launch the ProcessGroup 
     grp.init()

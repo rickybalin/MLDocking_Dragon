@@ -549,7 +549,6 @@ def dock(cdd, candidates, batch_key, proc: int, debug=False):
             else:
                 # Read the receptor to dock to
                 receptor = read_receptor(receptor_oedu_file)
-                print(receptor)
                 # Dock the ligand conformers to the receptor
                 dock, lig = dock_conf(receptor, conformers, max_poses=max_confs)
 

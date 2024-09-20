@@ -132,6 +132,8 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             last_list_key = candidate_dict["max_sort_iter"]
             ckey = str(int(last_list_key) + 1)
             candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+            non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+            print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}")
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
             save_list(candidate_dict, ckey, sort_val)
             

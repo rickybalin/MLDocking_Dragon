@@ -58,7 +58,8 @@ if __name__ == "__main__":
     mp.set_start_method("dragon")
     pbs_nodelist = parseNodeList()
     alloc = System()
-    num_tot_nodes = alloc.nnodes()
+    print("alloc:",alloc)
+    num_tot_nodes = alloc.nnodes
     tot_nodelist = alloc.nodes
 
     # Set up and launch the inference DDict
@@ -83,8 +84,7 @@ if __name__ == "__main__":
         dict_timeout = 800
 
     inf_dd = DDict(args.managers_per_node, args.inf_dd_nodes, inf_dd_mem_size, 
-                   timeout=dict_timeout, policy=inf_dd_policy, 
-                   num_streams_per_manager=32)
+                   timeout=dict_timeout, policy=inf_dd_policy,)
     print(f"Launched Dragon Dictionary for inference with total memory size {inf_dd_mem_size}", flush=True)
     print(f"on {args.inf_dd_nodes} nodes", flush=True)
     print(f"{pbs_nodelist[:args.inf_dd_nodes]}", flush=True)

@@ -69,7 +69,8 @@ def launch_training_switch(dd: DDict, node, candidate_dict: DDict, continue_even
 
     node_name = Node(node).hostname
 
-    local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, cpu_affinity=list(range(8)), device=Policy.Device.GPU, gpu_affinity=[3])
+    local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, 
+                          cpu_affinity=list(range(8)), gpu_affinity=[3])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=training_switch,
                                                 args=(dd, 
@@ -118,7 +119,10 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, BATCH, EPOCH):
 
     node_name = Node(node).hostname
 
-    local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, cpu_affinity=list(range(8)), device=Policy.Device.GPU, gpu_affinity=[3])
+    local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
+                          host_name=node_name, 
+                          cpu_affinity=list(range(8)), 
+                          gpu_affinity=[3])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=fine_tune,
                                                 args=(dd, 
@@ -127,8 +131,7 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, BATCH, EPOCH):
                                                     ), 
                                                 cwd=run_dir,
                                                 policy=local_policy, 
-                                                stdout=MSG_DEVNULL,
-                                                stderr=MSG_DEVNULL))
+                                                ))
     
     # Launch the ProcessGroup 
     grp.init()
