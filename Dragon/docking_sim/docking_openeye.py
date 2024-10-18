@@ -2,23 +2,22 @@
 
 The code is adapted from this repository: https://github.com/inspiremd/Model-generation
 """
-import MDAnalysis as mda
+import os
+if not os.getenv("DOCKING_SIM_DUMMY"):
+    import MDAnalysis as mda
+    from openeye import oechem, oedocking, oeomega
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
 import sys
-import tempfile
-from concurrent.futures import ProcessPoolExecutor
-from functools import cache, partial
 from pathlib import Path
 from typing import List, Optional
 import numpy as np
-from openeye import oechem, oedocking, oeomega
-import pandas as pd
-from tqdm import tqdm
-#from docking_utils import smi_to_structure
-#from utils import exception_handler
-import os
 import time
 from time import perf_counter
 import datetime
+import random
+from functools import cache
 
 import dragon
 import multiprocessing as mp
@@ -30,10 +29,6 @@ from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 
 from pathlib import Path
-
-from rdkit import Chem
-from rdkit.Chem import AllChem
-
 from typing import Any, Optional, Type, TypeVar, Union
 
 import yaml
@@ -224,7 +219,7 @@ def from_string(smiles, isomer=True, num_enantiomers=1):
         return from_mol(mol, isomer, num_enantiomers)
 
 
-def from_structure(structure_file: Path) -> oechem.OEMol:
+def from_structure(structure_file: Path):# -> oechem.OEMol:
     """
     Generates an set of conformers from a SMILES string
     """
@@ -318,61 +313,7 @@ def create_trajectory(protein_universe, ligand_dir, output_pdb_name, output_dcd_
             comb_univ = create_complex(protein_universe, f'{ligand_dir}/{ligand_file}') 
             w.write(comb_univ)    # write a whole universe
             os.remove(f'{ligand_dir}/{ligand_file}')
-    return
-
-
-def docking_switch(cdd, num_procs, proc, continue_event):
-    #for i in range(1):
-    iter = 0
-    #if proc ==0:
-    with open("docking_switch.log",'w') as f:
-        f.write(f"{datetime.datetime.now()}: Starting Docking on proc {proc}\n")
-    last_top_candidate_list = "-1"
-    
-    continue_flag = True
-    while continue_flag:
-
-        ckeys = cdd.keys()
-        # ckeys = [ckey for ckey in ckeys if "iter" not in ckey and ckey[0] != "d"]
-        # ckey_max = max(ckeys)
-        if "max_sort_iter" in ckeys:
-            ckey_max = cdd["max_sort_iter"]
-        else:
-            ckey_max = '-1'
-            
-        # Only run new simulations if there is a fresh candidate list
-        if ckey_max > last_top_candidate_list:
-            # #ckeys.sort()
-            
-            if "docking_iter" in ckeys:
-                docking_iter = cdd["docking_iter"] + 1
-            else:
-                docking_iter = iter
-
-            simulated_list = run_docking(cdd, docking_iter, proc, num_procs)
-
-            if simulated_list is not None:
-                with open("docking_switch.log", "a") as f:
-                    f.write(f"iter {iter}: ran new sims for list {simulated_list}\n")
-                last_top_candidate_list = simulated_list
-
-            if proc == 0:
-                cdd["docking_iter"] = docking_iter
-
-        else:
-            if proc == 0:
-                with open("docking_switch.log","a") as f:
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: no valid list {ckey_max} \n")
-        iter += 1
-        if continue_event is None:
-            continue_flag = False
-        else:
-            continue_flag = continue_event.is_set()
-    with open("docking_switch.log","a") as f:
-        f.write(f"{datetime.datetime.now()}: iter {iter}: proc {proc}: Finished docking sims \n")
-
-    return
-            
+    return            
 
 
 def filter_candidates(cdd, candidates: list, current_iter):
@@ -472,7 +413,10 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     # if there are new candidates to simulate, run sims
     if len(my_candidates) > 0:
         tic = perf_counter()
-        sim_metrics = dock(cdd, my_candidates, f"dock_iter{docking_iter}_proc{proc}", proc, debug=debug) 
+        if not os.getenv("DOCKING_SIM_DUMMY"):
+            sim_metrics = dock(cdd, my_candidates, f"dock_iter{docking_iter}_proc{proc}", proc, debug=debug) 
+        else:
+            sim_metrics = dummy_dock(cdd, my_candidates, f"dock_iter{docking_iter}_proc{proc}", proc, debug=debug) 
         toc = perf_counter()
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
@@ -561,6 +505,82 @@ def dock(cdd, candidates, batch_key, proc: int, debug=False):
         except:
             simulated_smiles.append(smiles)
             dock_scores.append(0)
+        smiter += 1
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"Simulated {smiter}/{num_cand} candidates\n")
+    toc = perf_counter()
+    time_per_cand = (toc-tic)
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Storing data in candidate dictionary\n")
+            f.write(f"{dock_scores=}\n")
+
+    try:
+        dtic = perf_counter()
+        cdd[batch_key] = {"smiles": simulated_smiles, "docking_scores": dock_scores}
+        dtoc = perf_counter()
+        if debug:
+            with open(f"dock_worker_{proc}.log","a") as f:
+                f.write(f"Docing data stored in candidate dictionary\n")
+    except Exception as e:
+        print(f"failed to return results to dict on proc {proc}",flush=True)
+        print(f"{e}",flush=True)
+        raise(e)
+    data_store_size = 0
+    data_store_size += sum([sys.getsizeof(sm) for sm in simulated_smiles])
+    data_store_size += sum([sys.getsizeof(sc) for sc in dock_scores])
+    data_store_size += sys.getsizeof("smiles") + sys.getsizeof("docking_scores")
+
+    metrics = {}
+    metrics['total_run_time'] = toc-tic
+    metrics['num_cand'] = num_cand
+    metrics['data_store_time'] = dtoc-dtic
+    metrics['data_store_size'] =  data_store_size
+    
+    if debug:
+        with open(f"dock_worker_{proc}.log","a") as f:
+            f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}, store time {dtoc-dtic}\n")
+
+    return metrics
+
+
+
+def dummy_dock(cdd, candidates, batch_key, proc: int, debug=False):
+    """Run OpenEye docking on a single ligand.
+    
+    Parameters
+    ----------
+    smiles : ste
+        A single SMILES string.
+    receptor_oedu_file : Path
+        Path to the receptor .oedu file.
+    max_confs : int
+        Number of ligand poses to generate
+    temp_storage : Path
+        Path to the temporary storage directory to write structures to,
+        if None, use the current working Python's built in temp storage.
+    
+    Returns
+    -------
+    float
+        The docking score of the best conformer.
+    """
+
+    num_cand = len(candidates)
+
+    tic = perf_counter()
+
+    simulated_smiles = []
+    dock_scores = []
+    
+    smiter = 0
+    for smiles in candidates:
+        # We will choose a random docking score
+        dock_score = random.uniform(8.0, 14.0)
+        time.sleep(7)
+        simulated_smiles.append(smiles)
+        dock_scores.append(dock_score)
         smiter += 1
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:

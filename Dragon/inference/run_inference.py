@@ -72,54 +72,6 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     x_inference = np.array([list(pad(tokenizer(smi)['input_ids'], maxlen, 0)) for smi in smiles_raw])
     return x_inference
 
-def infer_switch(dd, num_procs, proc, continue_event, inf_num_limit):
-    
-    switch_log = "infer_switch.log"
-    iter = 0
-    if proc == 0:
-        with open(switch_log,'a') as f:
-            f.write(f"{datetime.datetime.now()}: Starting inference\n")
-            f.write(f"{datetime.datetime.now()}: Limiting number of keys per worker to {inf_num_limit}\n")
-    last_model_iter = -1
-    
-    continue_flag = True
-
-    while continue_flag:
-        gc.collect()
-
-        # Only run inference if there is a new model
-        if "model_iter" in dd.keys():
-            current_model_iter = dd["model_iter"]
-        else:
-            current_model_iter = 0
-        if current_model_iter > last_model_iter:
-
-            tic = perf_counter()
-            if proc == 0:
-                with open(switch_log,"a") as f:
-                    f.write(f"{datetime.datetime.now()}: Inference on iter {iter} with model iter {current_model_iter}\n")
-            metrics = infer(dd, num_procs, proc, continue_event, limit=inf_num_limit)
-            if proc == 0:
-                dd["inf_iter"] = iter
-            # with open(switch_log,'a') as f:
-            #     f.write(f"iter {iter}: proc {proc}: time per smiles {time_per_smiles} s \n")
-            last_model_iter = current_model_iter
-            toc = perf_counter()
-            with open(switch_log, 'a') as f:
-                preamble = f"{datetime.datetime.now()}: iter {iter}: proc {proc}: "
-                for mkey in metrics.keys():
-                    line = preamble+f"{mkey}={metrics[mkey]} \n"
-                    f.write(line)
-                
-            if proc == 0:
-                with open(switch_log,'a') as f:
-                    f.write(f"{datetime.datetime.now()}: iter {iter}: run time {toc - tic} s\n")
-            iter += 1
-        if continue_event == None:
-            continue_flag = False
-        else:
-            continue_flag = continue_event.is_set()
-
 def check_model_iter(dd, model_iter, continue_event):
     test_match = True
     if continue_event is not None:
@@ -150,6 +102,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     try:
         keys = dd.keys()
     except Exception as e:
+        print(f"Client raised exception on DDict assignment: {e}", flush=True)
         print(f"could not get keys in inference worker")
         raise(e)
 
@@ -232,7 +185,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
-                val = dd[key]
+                try:
+                    val = dd[key]
+                except:
+                    print(f"Client raised exception on pulling from DDict: {e}", flush=True)
                 dict_toc = perf_counter()
                 key_dictionary_time = dict_toc - dict_tic
                 if debug:
@@ -257,7 +213,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 val['model_iter'] = [model_iter for i in range(len(smiles_sorted))]
 
                 dict_tic = perf_counter()
-                dd[key] = val
+                try:
+                    dd[key] = val
+                except:
+                    print(f"Client raised exception on DDict assignment: {e}", flush=True)
                 dict_toc = perf_counter()
                 key_dictionary_time += dict_toc -dict_tic
                 if debug:
