@@ -31,6 +31,8 @@ from inference.clr_callback import CyclicLR
 from tensorflow.python.client import device_lib
 from itertools import chain, repeat, islice
 
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+
 #def initialize_hvd():
 #    hvd.init() 
 #    print("I am rank %d of %d" %(hvd.rank(), hvd.size()))

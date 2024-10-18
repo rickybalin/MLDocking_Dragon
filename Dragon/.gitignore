@@ -1,0 +1,5 @@
+*.log
+*~
+ml_docking_dragon*
+*.pdf
+*.out

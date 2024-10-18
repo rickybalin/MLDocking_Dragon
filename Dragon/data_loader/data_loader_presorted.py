@@ -6,18 +6,13 @@ import argparse
 import os
 import sys
 import socket
+import gc
 
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
+from functools import partial
 
-global data_dict 
-data_dict = None
-
-def init_worker(q):
-    global data_dict
-    data_dict = q.get()
-    return
 
 def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """Return the file paths
@@ -45,14 +40,15 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
-def read_smiles(file_tuple: Tuple[int, str, int]):
+def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
-    global data_dict
-
+    
+    gc.collect()
+    
     file_index = file_tuple[0]
     manager_index = file_tuple[2]
     file_path = file_tuple[1]
@@ -72,39 +68,41 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                 smiles.append(smile)
 
     inf_results = [0.0 for i in range(len(smiles))]
+    key = f"{manager_index}_{file_index}"
 
     smiles_size = sum([sys.getsizeof(s) for s in smiles])
-    inf_size = sum([sys.getsizeof(infr) for infr in inf_results])
+    smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
+    smiles_size += sys.getsizeof(f_name)
+    smiles_size += sys.getsizeof(key)
 
     f_name_list = f_name.split('.gz')
     logname =  f_name_list[0].split(".")[0]+f_name_list[1]
-    outfiles_path = "smiles_sizes"
-    if not os.path.exists(outfiles_path):
-        os.mkdir(outfiles_path)
 
-    with open(f"{outfiles_path}/{logname}.out",'w') as f:
-        f.write(f"Worker located on {socket.gethostname()}\n")
-        f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
+    # with open(f"{outfiles_path}/{logname}.out",'w') as f:
+    #     f.write(f"Worker located on {socket.gethostname()}\n")
+    #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
 
     try:
-        key = f"{manager_index}_{file_index}"
         data_dict[key] = {"f_name": f_name, 
                           "smiles": smiles,
                           "inf": inf_results}
-        with open(f"{outfiles_path}/{logname}.out",'a') as f:
-            f.write(f"Stored data in dragon dictionary\n")
-            f.write(f"key is {key}")
+        #data_dict[key] = smiles
+        # with open(f"{outfiles_path}/{logname}.out",'a') as f:
+        #     f.write(f"Stored data in dragon dictionary\n")
+        #     f.write(f"key is {key}")
 
-        smiles_size += sys.getsizeof(f_name)
-        smiles_size += sys.getsizeof(key)
-        smiles_size += inf_size
         return smiles_size
     except Exception as e:
-        smiles_size = 0
+        outfiles_path = "smiles_sizes"
+        if not os.path.exists(outfiles_path):
+            os.mkdir(outfiles_path)
         with open(f"{outfiles_path}/{logname}.out",'a') as f:
+            f.write(f"key is {key}")
+            f.write(f"Worker located on {socket.gethostname()}\n")
+            f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
             f.write(f"Exception!\n")
-        #raise Exception(e)
-        return 0
+            f.write(f"{e}\n")
+        raise Exception(e)
     
     
 def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
@@ -126,25 +124,27 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}",flush=True)
     
-    # Launch Pool
-    initq = mp.Queue(maxsize=num_procs)
-    for _ in range(num_procs):
-        initq.put(_dict)
-        
-    pool = mp.Pool(num_procs, initializer=init_worker, initargs=(initq,))
-    print(f"Pool initialized", flush=True)
-
-    print(f"Reading smiles for {num_files}",flush=True)
-    
     try:
-        smiles_sizes = pool.imap(read_smiles, file_tuples)
+        for i in range(4):
 
-        print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
-        print(f"Mapped function complete", flush=True)
-        pool.close()
-        print(f"Pool closed",flush=True)
-        pool.join()
-        print(f"Pool joined",flush=True)
+            num_pool_procs = num_procs
+        
+            pool = mp.Pool(num_pool_procs)
+            print(f"Pool initialized", flush=True)
+
+            print(f"Reading smiles for {num_files}",flush=True)
+    
+            num_files_per_pool = num_files//4 + 1
+            print(f"{num_pool_procs=} {num_files_per_pool=}")
+            smiles_sizes = pool.imap_unordered(partial(read_smiles,data_dict=_dict),
+                                     file_tuples[i*num_files_per_pool:min((i+1)*num_files_per_pool,num_files)])
+
+            print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+            print(f"Mapped function complete", flush=True)
+            pool.close()
+            print(f"Pool closed",flush=True)
+            pool.join()
+            print(f"Pool joined",flush=True)
         
     except Exception as e:
         print(f"reading smiles failed")
