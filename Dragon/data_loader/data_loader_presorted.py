@@ -5,12 +5,13 @@ from typing import Tuple
 import argparse
 import os
 import sys
-import socket
 import gc
 
 import dragon
 import multiprocessing as mp
-from dragon.data.ddict.ddict import DDict
+from dragon.data.ddict import DDict
+from dragon.native.machine import current
+
 from functools import partial
 
 
@@ -24,7 +25,7 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     """
     files = []
     file_count = 0
-    
+
     smi_files = base_p.glob("**/*.smi")
     gz_files = base_p.glob("**/*.gz")
     smi_file_list = []
@@ -40,15 +41,16 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
             file_count += 1
     return files, file_count
 
+
 def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
-    
+
     gc.collect()
-    
+
     file_index = file_tuple[0]
     manager_index = file_tuple[2]
     file_path = file_tuple[1]
@@ -56,13 +58,13 @@ def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
     smiles = []
     f_name = str(file_path).split("/")[-1]
     f_extension = str(file_path).split("/")[-1].split(".")[-1]
-    if f_extension=="smi":
+    if f_extension == "smi":
         with file_path.open() as f:
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
-    elif f_extension=="gz":
-        with gzip.open(str(file_path), 'rt') as f:
+    elif f_extension == "gz":
+        with gzip.open(str(file_path), "rt") as f:
             for line in f:
                 smile = line.split("\t")[0]
                 smiles.append(smile)
@@ -75,18 +77,16 @@ def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
     smiles_size += sys.getsizeof(f_name)
     smiles_size += sys.getsizeof(key)
 
-    f_name_list = f_name.split('.gz')
-    logname =  f_name_list[0].split(".")[0]+f_name_list[1]
+    f_name_list = f_name.split(".gz")
+    logname = f_name_list[0].split(".")[0] + f_name_list[1]
 
     # with open(f"{outfiles_path}/{logname}.out",'w') as f:
-    #     f.write(f"Worker located on {socket.gethostname()}\n")
-    #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")      
+    #     f.write(f"Worker located on {current().hostname}\n")
+    #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
 
     try:
-        data_dict[key] = {"f_name": f_name, 
-                          "smiles": smiles,
-                          "inf": inf_results}
-        #data_dict[key] = smiles
+        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
+        # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
         #     f.write(f"Stored data in dragon dictionary\n")
         #     f.write(f"key is {key}")
@@ -96,15 +96,15 @@ def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
         outfiles_path = "smiles_sizes"
         if not os.path.exists(outfiles_path):
             os.mkdir(outfiles_path)
-        with open(f"{outfiles_path}/{logname}.out",'a') as f:
+        with open(f"{outfiles_path}/{logname}.out", "a") as f:
             f.write(f"key is {key}")
-            f.write(f"Worker located on {socket.gethostname()}\n")
+            f.write(f"Worker located on {current().hostname}\n")
             f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
             f.write(f"Exception!\n")
             f.write(f"{e}\n")
         raise Exception(e)
-    
-    
+
+
 def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
@@ -119,57 +119,82 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
-    file_tuples = [(i, f, i%num_managers) for i,f in enumerate(files)]
+    file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)
-    print(f"Number of pool procs is {num_procs}",flush=True)
-    
+    print(f"Number of pool procs is {num_procs}", flush=True)
+
     try:
         for i in range(4):
 
             num_pool_procs = num_procs
-        
+
             pool = mp.Pool(num_pool_procs)
             print(f"Pool initialized", flush=True)
 
-            print(f"Reading smiles for {num_files}",flush=True)
-    
-            num_files_per_pool = num_files//4 + 1
-            print(f"{num_pool_procs=} {num_files_per_pool=}")
-            smiles_sizes = pool.imap_unordered(partial(read_smiles,data_dict=_dict),
-                                     file_tuples[i*num_files_per_pool:min((i+1)*num_files_per_pool,num_files)])
+            print(f"Reading smiles for {num_files}", flush=True)
 
-            print(f"Size of dataset is {sum(smiles_sizes)} bytes",flush=True)
+            num_files_per_pool = num_files // 4 + 1
+            print(f"{num_pool_procs=} {num_files_per_pool=}")
+            smiles_sizes = pool.imap_unordered(
+                partial(read_smiles, data_dict=_dict),
+                file_tuples[
+                    i
+                    * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
+                ],
+            )
+
+            print(f"Size of dataset is {sum(smiles_sizes)} bytes", flush=True)
             print(f"Mapped function complete", flush=True)
             pool.close()
-            print(f"Pool closed",flush=True)
+            print(f"Pool closed", flush=True)
             pool.join()
-            print(f"Pool joined",flush=True)
-        
+            print(f"Pool joined", flush=True)
+
     except Exception as e:
         print(f"reading smiles failed")
         pool.terminate()
         raise Exception(e)
-   
+
 
 if __name__ == "__main__":
     # Import command line arguments
-    parser = argparse.ArgumentParser(description='Distributed dictionary example')
-    parser.add_argument('--num_nodes', type=int, default=1,
-                        help='number of nodes the dictionary distributed across')
-    parser.add_argument('--managers_per_node', type=int, default=1,
-                        help='number of managers per node for the dragon dict')
-    parser.add_argument('--total_mem_size', type=int, default=8,
-                        help='total managed memory size for dictionary in GB')
-    parser.add_argument('--max_procs', type=int, default=10,
-                        help='Maximum number of processes in a Pool')
-    parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
-                        help='Path to pre-sorted SMILES strings to load')
+    parser = argparse.ArgumentParser(description="Distributed dictionary example")
+    parser.add_argument(
+        "--num_nodes",
+        type=int,
+        default=1,
+        help="number of nodes the dictionary distributed across",
+    )
+    parser.add_argument(
+        "--managers_per_node",
+        type=int,
+        default=1,
+        help="number of managers per node for the dragon dict",
+    )
+    parser.add_argument(
+        "--total_mem_size",
+        type=int,
+        default=8,
+        help="total managed memory size for dictionary in GB",
+    )
+    parser.add_argument(
+        "--max_procs",
+        type=int,
+        default=10,
+        help="Maximum number of processes in a Pool",
+    )
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
+        help="Path to pre-sorted SMILES strings to load",
+    )
     args = parser.parse_args()
 
     # Start distributed dictionary
     mp.set_start_method("dragon")
-    total_mem_size = args.total_mem_size * (1024*1024*1024)
+    total_mem_size = args.total_mem_size * (1024 * 1024 * 1024)
     dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
 
