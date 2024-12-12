@@ -3,7 +3,9 @@ from time import perf_counter
 import argparse
 from typing import List
 import shutil
+import pathlib
 import dragon
+from math import ceil
 import multiprocessing as mp
 from dragon.data.ddict.ddict import DDict
 #from dragon.data.distdictionary.dragon_dict import DragonDict
@@ -15,6 +17,7 @@ from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
+from data_loader.data_loader_presorted import get_files
 
 def parseNodeList() -> List[str]:
     """
@@ -68,8 +71,7 @@ if __name__ == "__main__":
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
-    tot_mem = args.mem_per_node*num_tot_nodes
-    
+
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {"sorting": 1, 
                     "training": 1, 
@@ -81,9 +83,20 @@ if __name__ == "__main__":
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[:node_counts[key]]
           
+    # Get info on the number of files
+    base_path = pathlib.Path(args.data_path)
+    files, num_files = get_files(base_path)
+
+    mem_per_file = 12/8192
+    tot_mem = int(min(args.mem_per_node*num_tot_nodes,
+                  max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
+                  ))
+    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_tot_nodes}")
+
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = int(args.data_dictionary_mem_fraction*tot_mem)
-    candidate_dict_mem = tot_mem - data_dict_mem
+    data_dict_mem = max(int(args.data_dictionary_mem_fraction*tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem - data_dict_mem), num_tot_nodes)
+    print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
     data_dict_mem *= (1024*1024*1024)
     candidate_dict_mem *= (1024*1024*1024)
 
@@ -92,9 +105,10 @@ if __name__ == "__main__":
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem)#, trace=True)
+    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_tot_nodes} nodes", flush=True)
+    print(f"{data_dd.stats=}")
     
     # Launch the data loader component
     max_procs = args.max_procs_per_node*num_tot_nodes
@@ -115,7 +129,7 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None)
+    cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True)
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
     print(f"on {num_tot_nodes} nodes", flush=True)
     
@@ -129,6 +143,7 @@ if __name__ == "__main__":
     iter = 0
     while iter < max_iter:
         print(f"*** Start loop iter {iter} ***")
+        #print(f"{data_dd.stats=}")
         iter_start = perf_counter()
         # Launch the data inference component
         num_procs = 4*node_counts["inference"]

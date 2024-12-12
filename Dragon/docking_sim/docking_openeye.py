@@ -18,9 +18,13 @@ from time import perf_counter
 import datetime
 import random
 from functools import cache
+import socket
+import psutil
+
 
 import dragon
 import multiprocessing as mp
+from dragon.native.process import current as current_process
 from dragon.native.process_group import ProcessGroup
 from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
 from dragon.infrastructure.connection import Connection
@@ -350,12 +354,17 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 
 def run_docking(cdd, docking_iter, proc: int, num_procs: int):
-
+    print(f"Dock worker {proc} starting...")
     debug = True
     if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
-            f.write(f"Simulating on proc {proc}\n")
-
+        myp = current_process()
+        p = psutil.Process()
+        core_list = p.cpu_affinity()
+        log_file_name = f"dock_worker_{proc}.log"
+        hostname = socket.gethostname()
+        with open(log_file_name,"a") as f:
+            f.write(f"Launching infer for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}")
+    
     ckeys = cdd.keys()
 
     if "max_sort_iter" in ckeys:
@@ -365,7 +374,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     last_top_candidate_list = None
 
     if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
+        with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
 
     # most recent sorted list
@@ -377,7 +386,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     num_candidates = len(top_candidates)
             
     if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
+        with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: iter {docking_iter}: found {num_candidates} candidates to filter \n")
 
     # Partition top candidate list to get candidates for this process to simulate
@@ -393,7 +402,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     ret_time = 0
     ret_size = 0
     if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
+        with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker filtering {len(my_candidates)} candidates\n")
     
 
@@ -522,7 +531,7 @@ def dock(cdd, candidates, batch_key, proc: int, debug=False):
         dtoc = perf_counter()
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"Docing data stored in candidate dictionary\n")
+                f.write(f"Docking data stored in candidate dictionary\n")
     except Exception as e:
         print(f"failed to return results to dict on proc {proc}",flush=True)
         print(f"{e}",flush=True)

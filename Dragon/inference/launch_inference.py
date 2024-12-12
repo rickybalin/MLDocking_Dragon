@@ -78,4 +78,4 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     grp.start()
     print(f"Starting Process Group for Inference",flush=True)
     grp.join()
-    grp.stop()
+    grp.close()

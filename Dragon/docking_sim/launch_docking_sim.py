@@ -54,7 +54,7 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                             template=ProcessTemplate(target=run_docking, 
                                                         args=(cdd, 
                                                             docking_iter,
-                                                            proc,
+                                                            proc_id,
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy, 

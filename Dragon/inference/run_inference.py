@@ -186,7 +186,9 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
                 try:
+                    print(f"worker {proc}: getting val from dd",flush=True)
                     val = dd[key]
+                    print(f"worker {proc}: finished getting val from dd",flush=True)
                 except:
                     print(f"Client raised exception on pulling from DDict: {e}", flush=True)
                 dict_toc = perf_counter()

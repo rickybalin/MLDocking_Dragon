@@ -145,7 +145,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
             print(f"Pool closed",flush=True)
             pool.join()
             print(f"Pool joined",flush=True)
-        
+            print(f"{_dict.stats=}")
     except Exception as e:
         print(f"reading smiles failed")
         pool.terminate()
