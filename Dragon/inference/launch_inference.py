@@ -47,8 +47,14 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     """
     num_inf_nodes = len(nodelist)
     num_procs_pn = num_procs//num_inf_nodes
-    inf_cpu_bind = [4, 12, 20, 28]
-    inf_gpu_bind = [3, 2, 1, 0]
+
+    hostname = os.popen("hostname -f").read()
+    if "americas" in hostname or "aurora" in hostname:
+        inf_cpu_bind = [1, 10, 19, 28, 37, 46, 55, 64, 73, 82, 91, 100]
+        inf_gpu_bind = [0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1]
+    else:
+        inf_cpu_bind = [4, 12, 20, 28]
+        inf_gpu_bind = [3, 2, 1, 0]
     run_dir = os.getcwd()
 
     # Create the process group
