@@ -470,11 +470,8 @@ def dock(cdd, candidates, batch_key, proc: int, debug=False):
     num_cand = len(candidates)
 
     tic = perf_counter()
-    hostname = os.popen("hostname -f").read()
-
-    receptor_oedu_file = "/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu"
-    if "sirius" in hostname:
-        receptor_oedu_file = "/home/csimpson/openeye/3clpro_7bqy.oedu"
+    receptor_oedu_file = os.getenv("RECEPTOR_FILE")
+    
     #if debug:
     #    with open(f"dock_worker_{proc}.log","a") as f:
     #        f.write(f"{receptor_oedu_file=}\n")
