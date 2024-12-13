@@ -10,20 +10,12 @@ import random
 import datetime
 import gc
 import socket
-try:
-    from dragon.native.process import current as current_process
-except:
-    print("not using dragon dragon")
-try:
-    from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
-    from inference.utils_encoder import SMILES_SPE_Tokenizer
-    from training.ST_funcs.clr_callback import *
-    from training.ST_funcs.smiles_regress_transformer_funcs import *
-except:
-    from utils_transformer import ParamsJson, ModelArchitecture, pad
-    from utils_encoder import SMILES_SPE_Tokenizer
-    from training.ST_funcs.clr_callback import *
-    from training.ST_funcs.smiles_regress_transformer_funcs import *
+
+from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
+from inference.utils_encoder import SMILES_SPE_Tokenizer
+from training.ST_funcs.clr_callback import *
+from training.ST_funcs.smiles_regress_transformer_funcs import *
+
 import keras
 import tensorflow as tf
 
