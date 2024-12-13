@@ -15,6 +15,7 @@ from dragon.infrastructure.policy import Policy
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
+from sorter.sort_brute_force import brute_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
@@ -72,6 +73,11 @@ if __name__ == "__main__":
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
 
+    # Get info about gpus and cpus
+    gpu_devices = os.getenv("GPU_DEVICES").split(",")
+    num_gpus = len(gpu_devices)
+    
+    
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {"sorting": 1, 
                     "training": 1, 
@@ -146,7 +152,7 @@ if __name__ == "__main__":
         #print(f"{data_dd.stats=}")
         iter_start = perf_counter()
         # Launch the data inference component
-        num_procs = 4*node_counts["inference"]
+        num_procs = num_gpus*node_counts["inference"]
 
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         if num_tot_nodes < 3:
@@ -172,15 +178,18 @@ if __name__ == "__main__":
         tic = perf_counter()
         if iter == 0:
             cand_dd["max_sort_iter"] = "-1"
-        max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
-        sorter_proc = mp.Process(target=sort_dictionary_pg, 
-                                args=(data_dd, 
-                                    top_candidate_number, 
-                                    max_sorter_procs, 
-                                    nodelists["sorting"],
-                                    cand_dd))
-        sorter_proc.start()
-        sorter_proc.join()
+        if os.getenv("USE_MPI_SORT"):
+            max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+            sorter_proc = mp.Process(target=sort_dictionary_pg, 
+                                     args=(data_dd, 
+                                           top_candidate_number, 
+                                           max_sorter_procs, 
+                                           nodelists["sorting"],
+                                           cand_dd))
+            sorter_proc.start()
+            sorter_proc.join()
+        else:
+            brute_sort(data_dd, top_candidate_number, cand_dd)
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
