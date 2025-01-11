@@ -18,7 +18,7 @@ from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
 from sorter.sort_brute_force import brute_sort
-from sorter.sort_threaded import merge_sort
+from sorter.sort_threaded_queue import merge_sort
 from sorter.sort_threaded_pool import pool_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training

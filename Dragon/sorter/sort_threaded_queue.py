@@ -8,68 +8,6 @@ from dragon.globalservices.api_setup import connect_to_infrastructure
 connect_to_infrastructure()
 
 
-#def merge(left: list, right: list, num_return_sorted: int) -> list:
-#    """This function merges two lists.
-#
-#    :param left: First list of tuples containing data
-#    :type left: list
-#    :param right: Second list of tuples containing data
-#    :type right: list
-#    :return: Merged data
-#    :rtype: list
-#    """
-#    
-#    # Merge by 0th element of tuples
-#    # i.e. [(9.4, "asdfasd"), (3.5, "oisdjfosa"), ...]
-#
-#    merged_list = [None] * (len(left) + len(right))
-#
-#    i = 0
-#    j = 0
-#    k = 0
-#
-#    while i < len(left) and j < len(right):
-#        if left[i][0] < right[j][0]:
-#            merged_list[k] = left[i]
-#            i = i + 1
-#        else:
-#            merged_list[k] = right[j]
-#            j = j + 1
-#        k = k + 1
-#
-#    # When we are done with the while loop above
-#    # it is either the case that i > midpoint or
-#    # that j > end but not both.
-#
-#    # finish up copying over the 1st list if needed
-#    while i < len(left):
-#        merged_list[k] = left[i]
-#        i = i + 1
-#        k = k + 1
-#
-#    # finish up copying over the 2nd list if needed
-#    while j < len(right):
-#        merged_list[k] = right[j]
-#        j = j + 1
-#        k = k + 1
-#
-#    # only return the last num_return_sorted elements
-#    #print(f"Merged list returned {merged_list[-num_return_sorted:]}",flush=True)
-#    return merged_list[-num_return_sorted:]
-
-
-def merge_results_list(results, num_return_sorted, pool):
-    num_results = len(results)
-    if num_results > 1:
-        merged_results = merge(merge_result_list(results[0:num_results//2]),
-                               merge_result_list(results[num_results//2:]),
-                               num_return_sorted)
-    else:
-        return results[0]
-    return merged_results[0]
-
-
-
 def parallel_merge_sort(_dict, keys, num_return_sorted, nkey_cutoff,sorted_chunk_queue):
 
     if len(keys) <= nkey_cutoff:
@@ -114,11 +52,12 @@ def merge_sort(_dict, num_return_sorted, candidate_dict, num_procs):
     
     print(f"Finished merging results in {perf_counter() - tic} seconds",flush=True)
     # put data in candidate_dict                                                                                                 
-    top_candidates = results[0]
-    print(f"{top_candidates=}")
-    num_top_candidates = len(results)
+    top_candidates = results
+    num_top_candidates = len(top_candidates)
     with open("sort_controller.log", "a") as f:
-        f.write(f"Collected {num_top_candidates=}\n")
+        f.write(f"Collected {num_top_candidates=}:\n")
+        for tc in top_candidates:
+            f.write(f"{tc}\n")
     print(f"Collected {num_top_candidates=}",flush=True)
     if num_top_candidates > 0:
         last_list_key = candidate_dict["max_sort_iter"]
@@ -149,10 +88,5 @@ def sort(_dict, my_key_list, num_return_sorted):
     print(f"Sort of {len(my_key_list)} keys in {toc-tic} seconds",flush=True)
     return my_results
     
-            
-#def save_list(candidate_dict, ckey, sort_val):
-#    candidate_dict[ckey] = sort_val
-#    candidate_dict["sort_iter"] = int(ckey)
-#    candidate_dict["max_sort_iter"] = ckey
-#    print(f"candidate dictionary on iter {int(ckey)}",flush=True)
+
 
