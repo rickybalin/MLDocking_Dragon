@@ -46,28 +46,50 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     :type num_procs: int
     """
     num_inf_nodes = len(nodelist)
-    num_procs_pn = num_procs//num_inf_nodes
-
-    hostname = os.popen("hostname -f").read()
-    if "americas" in hostname or "aurora" in hostname:
-        inf_cpu_bind = [1, 10, 19, 28, 37, 46, 55, 64, 73, 82, 91, 100]
-        inf_gpu_bind = [0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1]
-    else:
-        inf_cpu_bind = [4, 12, 20, 28]
-        inf_gpu_bind = [3, 2, 1, 0]
+    
+    gpu_devices_string = os.getenv("GPU_DEVICES")
+    inf_gpu_bind = []
+    for g in gpu_devices_string.split(","):
+        if "." in g:
+            inf_gpu_bind.append([float(g)])
+        else:
+            inf_gpu_bind.append([int(g)])
+    num_procs_pn = len(inf_gpu_bind) # number of procs per node is number of gpus
+    
+    cpu_affinity_string = os.getenv("CPU_AFFINITY")
+    cpu_ranges = cpu_affinity_string.split(":")
+    inf_cpu_bind = []
+    for cr in cpu_ranges[1:]:
+        bind_threads = []
+        thread_ranges = cr.split(",")
+        for tr in thread_ranges:
+            t = tr.split("-")
+            if len(t) == 1:
+                bind_threads.append(int(t))
+            elif len(t) == 2:
+                start_t = int(t[0])
+                end_t = int(t[1])
+                for st in range(start_t,end_t+1):
+                    bind_threads.append(st)
+        inf_cpu_bind.append(bind_threads)
+   
     run_dir = os.getcwd()
-
+    print(f"{inf_cpu_bind=}")
+    print(f"{inf_gpu_bind=}")
+    if len(inf_cpu_bind) != len(inf_gpu_bind):
+        raise(Exception("Number of cpu bindings does not match the number of gpus"))
+    
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    #grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
     grp = ProcessGroup(restart=False, ignore_error_on_exit=False, policy=global_policy)
     for node_num in range(num_inf_nodes):   
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
             proc_id = node_num*num_procs_pn+proc
-            local_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=node_name, 
-                                                                        cpu_affinity=[inf_cpu_bind[proc]],
-                                                                        gpu_affinity=[inf_gpu_bind[proc]])
+            local_policy = Policy(placement=Policy.Placement.HOST_NAME,
+                                  host_name=node_name, 
+                                  cpu_affinity=inf_cpu_bind[proc],
+                                  gpu_affinity=inf_gpu_bind[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
                                                      args=(dd,

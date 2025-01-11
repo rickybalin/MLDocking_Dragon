@@ -1,4 +1,6 @@
 import os
+#import logging
+#logger = logging.getLogger(__name__)
 from time import perf_counter
 import argparse
 from typing import List
@@ -16,6 +18,8 @@ from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
 from sorter.sort_brute_force import brute_sort
+from sorter.sort_threaded import merge_sort
+from sorter.sort_threaded_pool import pool_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
@@ -35,16 +39,33 @@ def parseNodeList() -> List[str]:
         nodelist = [line.split('.')[0] for line in nodelist]
     return nodelist
 
+def get_prime_number(n):
+    # Use 1, 2 or 3 if that is n
+    if n <= 3:
+        return n
+    
+    # All prime numbers are odd except two
+    if not (n & 1):
+        n -= 1
+    
+    for i in range(n, 3, -2):
+        isprime = True
+        for j in range(3,n):
+            if i % j == 0:
+                isprime = False
+                break
+        if isprime:
+            return i
+    return 3
+    
+
+
 if __name__ == "__main__":
     
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
     parser.add_argument('--data_dictionary_mem_fraction', type=float, default=0.7,
                         help='fraction of memory dedicated to data dictionary')
-    parser.add_argument('--inference_node_num', type=int, default=1,
-                        help='number of nodes running inference')
-    parser.add_argument('--sorting_node_num', type=int, default=1,
-                        help='number of nodes running sorting')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
@@ -57,14 +78,14 @@ if __name__ == "__main__":
                         help='Timeout for Dictionary in seconds')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
-    parser.add_argument('--only_load_data', type=int, default=0,
-                        help='Flag to only do the data loading')
     args = parser.parse_args()
-
+    #
+    #logging.basicConfig(level=logging.INFO)
+    #logger.info("Begun dragon driver")
     # Start driver
     start_time = perf_counter()
-    print("Begun dragon driver", flush=True)
-    print(f"Reading inference data from path: {args.data_path}", flush=True)
+    print("Begun dragon driver",flush=True)
+    print(f"Reading inference data from path: {args.data_path}",flush=True)
     mp.set_start_method("dragon")
 
     # Get information about the allocation
@@ -88,7 +109,10 @@ if __name__ == "__main__":
     offset = 0
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[:node_counts[key]]
-          
+
+    # Use a prime number of nodes for dictionaries
+    num_dict_nodes = get_prime_number(num_tot_nodes)
+
     # Get info on the number of files
     base_path = pathlib.Path(args.data_path)
     files, num_files = get_files(base_path)
@@ -97,7 +121,7 @@ if __name__ == "__main__":
     tot_mem = int(min(args.mem_per_node*num_tot_nodes,
                   max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
                   ))
-    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_tot_nodes}")
+    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}")
 
     # Set up and launch the inference data DDict and top candidate DDict
     data_dict_mem = max(int(args.data_dictionary_mem_fraction*tot_mem), num_tot_nodes)
@@ -111,9 +135,11 @@ if __name__ == "__main__":
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True)
+
+    
+    data_dd = DDict(args.managers_per_node, num_dict_nodes, data_dict_mem, trace=True)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
-    print(f"on {num_tot_nodes} nodes", flush=True)
+    print(f"on {num_dict_nodes} nodes", flush=True)
     print(f"{data_dd.stats=}")
     
     # Launch the data loader component
@@ -135,9 +161,9 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True)
+    cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
-    print(f"on {num_tot_nodes} nodes", flush=True)
+    print(f"on {num_dict_nodes} nodes", flush=True)
     
     # Number of top candidates to produce
     if num_tot_nodes < 3:
@@ -188,8 +214,27 @@ if __name__ == "__main__":
                                            cand_dd))
             sorter_proc.start()
             sorter_proc.join()
+        elif os.getenv("USE_QUEUE_SORT"):
+            sorter_proc = mp.Process(target=merge_sort,
+                                     args=(data_dd,
+                                           top_candidate_number,
+                                           cand_dd,
+                                           max_procs))
+            sorter_proc.start()
+            sorter_proc.join()
         else:
-            brute_sort(data_dd, top_candidate_number, cand_dd)
+
+            sorter_proc = mp.Process(target=pool_sort,
+                             args=(data_dd,
+                                   top_candidate_number,
+                                   cand_dd,
+                                   max_procs,
+                                   )
+                            )
+            sorter_proc.start()
+            sorter_proc.join()
+            #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
+            #brute_sort(data_dd, top_candidate_number, cand_dd)
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)

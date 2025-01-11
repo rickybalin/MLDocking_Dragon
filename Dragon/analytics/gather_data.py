@@ -26,27 +26,35 @@ def gather_data(paths):
     inf_data = {}
     for d in datasets:
         data[d] = parse_stdout(paths[d])
+        print(data)
         inf_data[d] = parse_inference_log(paths[d])
     return data, inf_data
 
 def parse_inference_log(path_list):
     ret = {}    
 
-    for p in path_list:
+    for p in [path_list]:
 
         tot_smiles = 0
         tot_data_moved = 0
         tot_data_move_time = 0
         tot_time = 0
         num_active_procs = 0
+        print(f"{p=}")
         
-
-        nodes = p.split("/")[0]
+        with open(p, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                if "Running on " in line:
+                    nodes = line.split()[2]
+                    break
+                
+        #nodes = p.split("/")[0]
         key = p.split("/")[-1]
         ret[key] = {}
         
-        ret[key]["nodes"] = int(nodes[:-5])
-        nodes = int(nodes[:-5])
+        ret[key]["nodes"] = int(nodes)
+        nodes = int(nodes)
         base_path = "/".join(p.split("/")[:-1])
         log_file = os.path.join(base_path,"infer_switch.log")
         if os.path.exists(log_file):
@@ -121,11 +129,21 @@ def parse_inference_log(path_list):
 def parse_stdout(path_list):
  
     ret = {}
-    for p in path_list:
-        nodes = p.split("/")[0]
+    print(f"{path_list}")
+    for p in [path_list]:
+
+
+        with open(p, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                if "Running on " in line:
+                    nodes = line.split()[2]
+                    break
+                
+        #nodes = p.split("/")[-2]
         key = p.split("/")[-1]
         ret[key] = {}
-        ret[key]["nodes"] = int(nodes[:-5])
+        ret[key]["nodes"] = int(nodes)
         ret[key]["size"] = 0
         with open(p,"r") as f:
             lines = f.readlines()
@@ -234,7 +252,9 @@ def plot_quantity_v_nodes(data, quantity, label = None, ax = None, xlog=False,yl
 
 
 
-paths = get_dataset_path(["test-tiny","test-med","test-large"])
+#paths = get_dataset_path(["test-tiny","test-med","test-large"])
+paths = {"brute_16node":"/gila/Aurora_deployment/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/sequential_loop_tests/brute_sort/16nodes/dragon.o10292237"}
+
 data,inf_data = gather_data(paths)
 plot_quantity_v_nodes(data,"Total Time (s)")
 plot_quantity_v_nodes(data,"Data Load Time (s)")

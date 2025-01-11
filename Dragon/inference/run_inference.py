@@ -94,11 +94,17 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         log_file_name = f"infer_worker_{proc}.log"
         print(f"Opening inference worker log {log_file_name}", flush=True)
         with open(log_file_name,'a') as f:
-            f.write(f"\n\n\n\nNew run\n")
+            f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
         cuda_device = os.getenv("CUDA_VISIBLE_DEVICES")
+        pvc_device = os.getenv("ZE_AFFINITY_MASK")
+        device = None
+        if cuda_device:
+            device = cuda_device
+        if pvc_device:
+            device = pvc_device
         hostname = socket.gethostname()
-        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{cuda_device}", flush=True)
+        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
     try:
         keys = dd.keys()
     except Exception as e:
@@ -257,7 +263,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     return metrics
 ## Run main
 if __name__ == "__main__":
-    print('Cannot be run as a script at this time', flush=True)
+    
     import pathlib
     import gzip
     import glob
@@ -268,10 +274,8 @@ if __name__ == "__main__":
     dd = {}
 
     file_dir = os.getenv("DATA_PATH")
-    #file_dir = "/gila/Aurora_deployment/dragon/data/tiny/"
     all_files = glob.glob(file_dir+"*.gz")
     files = all_files[0:1]
-    #files = [file_dir+"H28P470.smi.gzch.gz"]
     num_files = len(files)
     file_tuples = [(i,fpath,i) for i,fpath in enumerate(files)]
 
@@ -303,4 +307,3 @@ if __name__ == "__main__":
                    "inf": inf_results}
     
     infer(dd, num_procs, proc, continue_event, limit=None)
-
