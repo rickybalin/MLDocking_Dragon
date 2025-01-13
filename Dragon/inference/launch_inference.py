@@ -65,7 +65,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
         for tr in thread_ranges:
             t = tr.split("-")
             if len(t) == 1:
-                bind_threads.append(int(t))
+                bind_threads.append(int(t[0]))
             elif len(t) == 2:
                 start_t = int(t[0])
                 end_t = int(t[1])
