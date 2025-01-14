@@ -25,7 +25,7 @@ case "$FULL_HOSTNAME" in
 	POLARIS=1
 	echo "Setting up for Polaris run"
 	source /eagle/hpe_dragon_collab/csimpson/env.sh
-	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted-big/tiny
+	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
 	export DRIVER_PATH=/eagle/hpe_dragon_collab/csimpson/MLDocking_Dragon/Dragon/
 	export RECEPTOR_FILE=/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu
 	;;
@@ -50,12 +50,16 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     export ZE_ENABLE_PCI_ID_DEVICE_ORDER=1
     export ITEX_LIMIT_MEMORY_SIZE_IN_MB=8192
     export ITEX_ENABLE_NEXTPLUGGABLE_DEVICE=0
+    PROCS_PER_NODE=104
+    MEM_PER_NODE=128
 fi
 if [[ -n $POLARIS || -n $SIRIUS ]]; then
     echo "Setting up for Nvidia GPUS"
     export GPU_DEVICES="3,2,1,0"
-    export CPU_AFFINITY="list:0-7,32-39:8-15,40:47:16-23,48-55:24-31,56-63"
+    export CPU_AFFINITY="list:0-7,32-39:8-15,40-47:16-23,48-55:24-31,56-63"
     export USE_MPI_SORT=1
+    PROCS_PER_NODE=32
+    MEM_PER_NODE=128
 fi
 
 echo "Location of dragon:"
@@ -69,8 +73,6 @@ export DRAGON_DEFAULT_SEG_SZ=34359738368
 
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
-PROCS_PER_NODE=104
-MEM_PER_NODE=128
 MANAGERS=1
 echo Running on $NODES nodes
 echo Reading files from $DATA_PATH
@@ -86,7 +88,7 @@ DEBUG_STR=
 # Run
 module list
 echo $LD_LIBRARY_PATH
-dragon-cleanup
+#dragon-cleanup
 EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
 --managers_per_node=$MANAGERS \
 --data_path=${DATA_PATH} \
