@@ -136,6 +136,9 @@ if __name__ == "__main__":
     )
     loader_proc.start()
     loader_proc.join()
+    print("Here are the stats after data loading...")
+    print("++++++++++++++++++++++++++++++++++++++++")
+    print(data_dd.stats)
     toc = perf_counter()
     load_time = toc - tic
     if loader_proc.exitcode == 0:

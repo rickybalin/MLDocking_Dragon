@@ -1,0 +1,4 @@
+#/bin/bash
+export MPI4PY_BUILD_MPICC=/opt/cray/pe/craype/2.7.34/bin/cc
+# uncomment installing mpi4py from requirements.txt
+pip install -r requirements.txt

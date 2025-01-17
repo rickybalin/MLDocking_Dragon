@@ -11,6 +11,7 @@ import dragon
 import multiprocessing as mp
 from dragon.data.ddict import DDict
 from dragon.native.machine import current
+import traceback
 
 from functools import partial
 
@@ -42,50 +43,57 @@ def get_files(base_p: pathlib.PosixPath) -> Tuple[list, int]:
     return files, file_count
 
 
-def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
+def read_smiles(file_tuple: Tuple[int, str, int]):
     """Read the smile strings from file
 
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
-
-    gc.collect()
-
-    file_index = file_tuple[0]
-    manager_index = file_tuple[2]
-    file_path = file_tuple[1]
-
-    smiles = []
-    f_name = str(file_path).split("/")[-1]
-    f_extension = str(file_path).split("/")[-1].split(".")[-1]
-    if f_extension == "smi":
-        with file_path.open() as f:
-            for line in f:
-                smile = line.split("\t")[0]
-                smiles.append(smile)
-    elif f_extension == "gz":
-        with gzip.open(str(file_path), "rt") as f:
-            for line in f:
-                smile = line.split("\t")[0]
-                smiles.append(smile)
-
-    inf_results = [0.0 for i in range(len(smiles))]
-    key = f"{manager_index}_{file_index}"
-
-    smiles_size = sum([sys.getsizeof(s) for s in smiles])
-    smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
-    smiles_size += sys.getsizeof(f_name)
-    smiles_size += sys.getsizeof(key)
-
-    f_name_list = f_name.split(".gz")
-    logname = f_name_list[0].split(".")[0] + f_name_list[1]
-
-    # with open(f"{outfiles_path}/{logname}.out",'w') as f:
-    #     f.write(f"Worker located on {current().hostname}\n")
-    #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
-
     try:
+        #gc.collect()
+        me = mp.current_process()
+
+        data_dict = me.stash["ddict"]
+
+        file_index = file_tuple[0]
+        manager_index = file_tuple[2]
+        file_path = file_tuple[1]
+
+        print("Now in read_smiles")
+
+        smiles = []
+        f_name = str(file_path).split("/")[-1]
+        f_extension = str(file_path).split("/")[-1].split(".")[-1]
+        if f_extension == "smi":
+            with file_path.open() as f:
+                for line in f:
+                    smile = line.split("\t")[0]
+                    smiles.append(smile)
+        elif f_extension == "gz":
+            with gzip.open(str(file_path), "rt") as f:
+                for line in f:
+                    smile = line.split("\t")[0]
+                    smiles.append(smile)
+
+        inf_results = [0.0 for i in range(len(smiles))]
+        key = f"{manager_index}_{file_index}"
+
+        smiles_size = sum([sys.getsizeof(s) for s in smiles])
+        smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
+        smiles_size += sys.getsizeof(f_name)
+        smiles_size += sys.getsizeof(key)
+
+        f_name_list = f_name.split(".gz")
+        logname = f_name_list[0].split(".")[0] + f_name_list[1]
+
+        # with open(f"{outfiles_path}/{logname}.out",'w') as f:
+        #     f.write(f"Worker located on {current().hostname}\n")
+        #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+
+
+        print(f"Now putting key {key}", flush=True)
         data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
+        print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
         #     f.write(f"Stored data in dragon dictionary\n")
@@ -93,17 +101,30 @@ def read_smiles(file_tuple: Tuple[int, str, int], data_dict: DDict):
 
         return smiles_size
     except Exception as e:
-        outfiles_path = "smiles_sizes"
-        if not os.path.exists(outfiles_path):
-            os.mkdir(outfiles_path)
-        with open(f"{outfiles_path}/{logname}.out", "a") as f:
-            f.write(f"key is {key}")
-            f.write(f"Worker located on {current().hostname}\n")
-            f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
-            f.write(f"Exception!\n")
-            f.write(f"{e}\n")
-        raise Exception(e)
+        try:
+            tb = traceback.format_exc()
+            msg = "Could not receive message because underlying memory was destroyed:\n%s\n Traceback:\n%s"%(e, tb)
+            outfiles_path = "smiles_sizes"
+            if not os.path.exists(outfiles_path):
+                os.mkdir(outfiles_path)
+            with open(f"{outfiles_path}/{logname}.out", "a") as f:
+                f.write(f"key is {key}")
+                f.write(f"Worker located on {current().hostname}\n")
+                f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
+                f.write(f"Exception was: %s\n"%msg)
+            raise Exception(e)
+        except Exception as ex:
+            print("GOT EXCEPTION IN EXCEPTION")
+            print(ex)
 
+
+def initialize_worker(the_ddict):
+        # Since we want each worker to maintain a persistent handle to the DDict,
+        # attach it to the current/local process instance. Done this way, workers attach only
+        # once and can reuse it between processing work items
+        me = mp.current_process()
+        me.stash = {}
+        me.stash["ddict"] = the_ddict
 
 def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
     """Load pre-sorted inference data from files and to Dragon dictionary
@@ -129,7 +150,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
 
             num_pool_procs = num_procs
 
-            pool = mp.Pool(num_pool_procs)
+            pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
             print(f"Pool initialized", flush=True)
 
             print(f"Reading smiles for {num_files}", flush=True)
@@ -137,7 +158,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
             num_files_per_pool = num_files // 4 + 1
             print(f"{num_pool_procs=} {num_files_per_pool=}")
             smiles_sizes = pool.imap_unordered(
-                partial(read_smiles, data_dict=_dict),
+                read_smiles,
                 file_tuples[
                     i
                     * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
