@@ -5,7 +5,7 @@ import multiprocessing as mp
 from dragon.native.process_group import ProcessGroup
 from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
 from dragon.infrastructure.connection import Connection
-from dragon.data.ddict.ddict import DDict
+from dragon.data.ddict import DDict
 from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 import os
@@ -19,23 +19,23 @@ driver_path = os.getenv("DRIVER_PATH")
 
 
 def load_pretrained_model(dd: DDict):
-    # Read HyperParameters 
-    json_file = driver_path+'inference/config.json'
+    # Read HyperParameters
+    json_file = driver_path + "inference/config.json"
     hyper_params = ParamsJson(json_file)
 
     # Load model and weights
     try:
-        #with open(f"pretrained_model.log","w") as sys.stdout:
+        # with open(f"pretrained_model.log","w") as sys.stdout:
         model = ModelArchitecture(hyper_params).call()
-        model.load_weights(driver_path+f'inference/smile_regress.autosave.model.h5')
+        model.load_weights(driver_path + f"inference/smile_regress.autosave.model.h5")
         print(f"{model=}", flush=True)
         dd["model"] = model
         dd["model_iter"] = 0
     except Exception as e:
-        #eprint(e, flush=True)
-        with open(f"pretrained_model.log",'a') as f:
+        # eprint(e, flush=True)
+        with open(f"pretrained_model.log", "a") as f:
             f.write(f"{e}")
-    
+
 
 def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     """Launch the inference ruotine
@@ -82,10 +82,10 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(restart=False, ignore_error_on_exit=False, policy=global_policy)
-    for node_num in range(num_inf_nodes):   
+    for node_num in range(num_inf_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
-            proc_id = node_num*num_procs_pn+proc
+            proc_id = node_num * num_procs_pn + proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name, 
                                   cpu_affinity=inf_cpu_bind[proc],
@@ -103,7 +103,8 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     
     # Launch the ProcessGroup 
     grp.init()
+    print(f"Starting Process Group for Inference", flush=True)
     grp.start()
-    print(f"Starting Process Group for Inference",flush=True)
     grp.join()
+    print(f"Joined Process Group for Inference", flush=True)
     grp.close()

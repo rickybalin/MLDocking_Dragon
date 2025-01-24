@@ -28,7 +28,7 @@ from dragon.native.process import current as current_process
 from dragon.native.process_group import ProcessGroup
 from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
 from dragon.infrastructure.connection import Connection
-from dragon.data.ddict.ddict import DDict
+from dragon.data.ddict import DDict
 from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 from inference.run_inference import split_dict_keys
@@ -289,17 +289,16 @@ def create_trajectory(protein_universe, ligand_dir, output_pdb_name, output_dcd_
         w.write(comb_univ_1)
     with mda.Writer(output_dcd_name, comb_univ_1.n_atoms,) as w:
         for it, ligand_file in enumerate(ligand_files):
-            comb_univ = create_complex(protein_universe, f'{ligand_dir}/{ligand_file}') 
+            comb_univ = create_complex(protein_universe, f'{ligand_dir}/{ligand_file}')
             w.write(comb_univ)    # write a whole universe
             os.remove(f'{ligand_dir}/{ligand_file}')
-    return            
+    return
 
 
 def filter_candidates(cdd, candidates: list, current_iter):
     try:
         # Get keys that store previous docking results
         ckeys = cdd.keys()
-                
         ret_time = 0
         ret_size = 0
 
@@ -343,6 +342,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     # most recent sorted list
     top_candidates = cdd[ckey_max]["smiles"]
 
+
     # previous sorted list
     prev_top_candidates = []
     if int(ckey_prev) >= 0:
@@ -358,6 +358,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     top_candidates = list(set(top_candidates) - set(prev_top_candidates))
     top_candidates.sort()
     num_candidates = len(top_candidates)
+
     if debug:
         with open(log_file_name,"a") as f:
             f.write(f"Found {num_candidates} candidates not in previous list\n")
@@ -380,12 +381,11 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     if debug:
         with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker simulating {len(my_candidates)} candidates\n")
-    
 
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
-        
+
     # if there are new candidates to simulate, run sims
     if len(my_candidates) > 0:
         tic = perf_counter()
@@ -393,11 +393,11 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             sim_metrics = dock(cdd, my_candidates, proc, debug=debug) 
         else:
             sim_metrics = dummy_dock(cdd, my_candidates, proc, debug=debug) 
+
         toc = perf_counter()
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
                 f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
-                        
     else:
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
@@ -410,7 +410,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
 
 def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
-    
+
     Parameters
     ----------
     cdd : DDict
@@ -435,9 +435,11 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
 
     simulated_smiles = []
     dock_scores = []
+
     data_store_time = 0
     data_store_size = 0
     
+
     smiter = 0
     for smiles in candidates:
         if debug:
@@ -449,8 +451,10 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
             except:
                 print(f"Conformers failed in batch {batch_key}, returning 0 docking score", flush=True)
                 simulated_smiles.append(smiles)
+
                 dock_score = 0
             
+
                 # Not implementing this alternate way of getting conformers for now
                 # with tempfile.NamedTemporaryFile(suffix=".pdb", dir=temp_storage) as fd:
                 #     # Read input SMILES and generate conformer
@@ -501,7 +505,7 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
     metrics['num_cand'] = num_cand
     metrics['data_store_time'] = data_store_time
     metrics['data_store_size'] =  data_store_size
-    
+
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"{dock_scores=}\n")
@@ -513,7 +517,7 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
 
 def dummy_dock(cdd, candidates, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
-    
+
     Parameters
     ----------
     smiles : ste
@@ -525,7 +529,7 @@ def dummy_dock(cdd, candidates, proc: int, debug=False):
     temp_storage : Path
         Path to the temporary storage directory to write structures to,
         if None, use the current working Python's built in temp storage.
-    
+
     Returns
     -------
     float
@@ -541,7 +545,7 @@ def dummy_dock(cdd, candidates, proc: int, debug=False):
 
     data_store_time = 0
     data_store_size = 0
-    
+
     smiter = 0
     for smiles in candidates:
         # We will choose a random docking score
@@ -572,7 +576,7 @@ def dummy_dock(cdd, candidates, proc: int, debug=False):
     metrics['num_cand'] = num_cand
     metrics['data_store_time'] = data_store_time
     metrics['data_store_size'] =  data_store_size
-    
+
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}, store time {data_store_time}\n")
