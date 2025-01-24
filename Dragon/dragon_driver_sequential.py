@@ -1,9 +1,13 @@
 import os
+#import logging
+#logger = logging.getLogger(__name__)
 from time import perf_counter
 import argparse
 from typing import List
 import shutil
+import pathlib
 import dragon
+from math import ceil
 import multiprocessing as mp
 from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
@@ -12,81 +16,74 @@ from dragon.infrastructure.policy import Policy
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
+from sorter.sort_brute_force import brute_sort
+from sorter.sort_threaded_queue import merge_sort
+from sorter.sort_threaded_pool import pool_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
+from data_loader.data_loader_presorted import get_files
+
+
+def get_prime_number(n):
+    # Use 1, 2 or 3 if that is n
+    if n <= 3:
+        return n
+    
+    # All prime numbers are odd except two
+    if not (n & 1):
+        n -= 1
+    
+    for i in range(n, 3, -2):
+        isprime = True
+        for j in range(3,n):
+            if i % j == 0:
+                isprime = False
+                break
+        if isprime:
+            return i
+    return 3
+    
 
 
 if __name__ == "__main__":
 
     # Import command line arguments
-    parser = argparse.ArgumentParser(description="Distributed dictionary example")
-    parser.add_argument(
-        "--data_dictionary_mem_fraction",
-        type=float,
-        default=0.7,
-        help="fraction of memory dedicated to data dictionary",
-    )
-    parser.add_argument(
-        "--inference_node_num",
-        type=int,
-        default=1,
-        help="number of nodes running inference",
-    )
-    parser.add_argument(
-        "--sorting_node_num",
-        type=int,
-        default=1,
-        help="number of nodes running sorting",
-    )
-    parser.add_argument(
-        "--managers_per_node",
-        type=int,
-        default=1,
-        help="number of managers per node for the dragon dict",
-    )
-    parser.add_argument(
-        "--mem_per_node",
-        type=int,
-        default=8,
-        help="managed memory size per node for dictionary in GB",
-    )
-    parser.add_argument(
-        "--max_procs_per_node",
-        type=int,
-        default=10,
-        help="Maximum number of processes in a Pool",
-    )
-    parser.add_argument(
-        "--max_iter", type=int, default=10, help="Maximum number of iterations"
-    )
-    parser.add_argument(
-        "--dictionary_timeout",
-        type=int,
-        default=10,
-        help="Timeout for Dictionary in seconds",
-    )
-    parser.add_argument(
-        "--data_path",
-        type=str,
-        default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
-        help="Path to pre-sorted SMILES strings to load",
-    )
-    parser.add_argument(
-        "--only_load_data", type=int, default=0, help="Flag to only do the data loading"
-    )
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser(description='Distributed dictionary example')
+    parser.add_argument('--data_dictionary_mem_fraction', type=float, default=0.7,
+                        help='fraction of memory dedicated to data dictionary')
+    parser.add_argument('--managers_per_node', type=int, default=1,
+                        help='number of managers per node for the dragon dict')
+    parser.add_argument('--mem_per_node', type=int, default=8,
+                        help='managed memory size per node for dictionary in GB')
+    parser.add_argument('--max_procs_per_node', type=int, default=10,
+                        help='Maximum number of processes in a Pool')
+    parser.add_argument('--max_iter', type=int, default=10,
+                        help='Maximum number of iterations')
+    parser.add_argument('--dictionary_timeout', type=int, default=10,
+                        help='Timeout for Dictionary in seconds')
+    parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
+                        help='Path to pre-sorted SMILES strings to load')
 
+    args = parser.parse_args()
+    #
+    #logging.basicConfig(level=logging.INFO)
+    #logger.info("Begun dragon driver")
     # Start driver
     start_time = perf_counter()
-    print("Begun dragon driver", flush=True)
-    print(f"Reading inference data from path: {args.data_path}", flush=True)
+    print("Begun dragon driver",flush=True)
+    print(f"Reading inference data from path: {args.data_path}",flush=True)
     mp.set_start_method("dragon")
 
     # Get information about the allocation
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
+
     tot_mem = args.mem_per_node * num_tot_nodes
+
+    # Get info about gpus and cpus
+    gpu_devices = os.getenv("GPU_DEVICES").split(",")
+    num_gpus = len(gpu_devices)
 
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {
@@ -99,28 +96,39 @@ if __name__ == "__main__":
     nodelists = {}
     offset = 0
     for key in node_counts.keys():
-        nodelists[key] = tot_nodelist[: node_counts[key]]
+        nodelists[key] = tot_nodelist[:node_counts[key]]
+
+    # Use a prime number of nodes for dictionaries
+    num_dict_nodes = get_prime_number(num_tot_nodes)
+
+    # Get info on the number of files
+    base_path = pathlib.Path(args.data_path)
+    files, num_files = get_files(base_path)
+
+    mem_per_file = 12/8192
+    tot_mem = int(min(args.mem_per_node*num_tot_nodes,
+                  max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
+                  ))
+    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}")
 
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = int(args.data_dictionary_mem_fraction * tot_mem)
-    candidate_dict_mem = tot_mem - data_dict_mem
-    data_dict_mem *= 1024 * 1024 * 1024
-    candidate_dict_mem *= 1024 * 1024 * 1024
+    data_dict_mem = max(int(args.data_dictionary_mem_fraction*tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem - data_dict_mem), num_tot_nodes)
+    print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
+    data_dict_mem *= (1024*1024*1024)
+    candidate_dict_mem *= (1024*1024*1024)
 
     # Start distributed dictionary used for inference
     # inf_dd_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(inf_dd_nodelist).hostname)
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-    data_dd = DDict(
-        args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True
-    )  # , trace=True)
-    print(
-        f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}",
-        flush=True,
-    )
-    print(f"on {num_tot_nodes} nodes", flush=True)
-
+   
+    data_dd = DDict(args.managers_per_node, num_dict_nodes, data_dict_mem, trace=True)
+    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
+    print(f"on {num_dict_nodes} nodes", flush=True)
+    print(f"{data_dd.stats=}")
+    
     # Launch the data loader component
     max_procs = args.max_procs_per_node * num_tot_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
@@ -146,15 +154,10 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    cand_dd = DDict(
-        args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True
-    )
-    print(
-        f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}",
-        flush=True,
-    )
-    print(f"on {num_tot_nodes} nodes", flush=True)
-
+    cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
+    print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
+    print(f"on {num_dict_nodes} nodes", flush=True)
+    
     # Number of top candidates to produce
     if num_tot_nodes < 3:
         top_candidate_number = 1000
@@ -165,9 +168,10 @@ if __name__ == "__main__":
     iter = 0
     while iter < max_iter:
         print(f"*** Start loop iter {iter} ***")
+        #print(f"{data_dd.stats=}")
         iter_start = perf_counter()
         # Launch the data inference component
-        num_procs = 4 * node_counts["inference"]
+        num_procs = num_gpus*node_counts["inference"]
 
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         if num_tot_nodes < 3:
@@ -199,19 +203,39 @@ if __name__ == "__main__":
         tic = perf_counter()
         if iter == 0:
             cand_dd["max_sort_iter"] = "-1"
-        max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
-        sorter_proc = mp.Process(
-            target=sort_dictionary_pg,
-            args=(
-                data_dd,
-                top_candidate_number,
-                max_sorter_procs,
-                nodelists["sorting"],
-                cand_dd,
-            ),
-        )
-        sorter_proc.start()
-        sorter_proc.join()
+
+        if os.getenv("USE_MPI_SORT"):
+            max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+            sorter_proc = mp.Process(target=sort_dictionary_pg, 
+                                     args=(data_dd, 
+                                           top_candidate_number, 
+                                           max_sorter_procs, 
+                                           nodelists["sorting"],
+                                           cand_dd))
+            sorter_proc.start()
+            sorter_proc.join()
+        elif os.getenv("USE_QUEUE_SORT"):
+            sorter_proc = mp.Process(target=merge_sort,
+                                     args=(data_dd,
+                                           top_candidate_number,
+                                           cand_dd,
+                                           max_procs))
+            sorter_proc.start()
+            sorter_proc.join()
+        else:
+
+            sorter_proc = mp.Process(target=pool_sort,
+                             args=(data_dd,
+                                   top_candidate_number,
+                                   cand_dd,
+                                   max_procs,
+                                   )
+                            )
+            sorter_proc.start()
+            sorter_proc.join()
+            #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
+            #brute_sort(data_dd, top_candidate_number, cand_dd)
+
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)

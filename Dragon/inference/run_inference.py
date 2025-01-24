@@ -11,11 +11,13 @@ import datetime
 import gc
 from dragon.native.process import current as current_process
 from dragon.native.machine import current
+import socket
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_encoder import SMILES_SPE_Tokenizer
 from training.ST_funcs.clr_callback import *
 from training.ST_funcs.smiles_regress_transformer_funcs import *
+
 import keras
 import tensorflow as tf
 
@@ -92,20 +94,23 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     # !!! DEBUG !!!
     debug = True
     if debug:
-        myp = current_process()
+        #myp = current_process()
         p = psutil.Process()
         core_list = p.cpu_affinity()
         log_file_name = f"infer_worker_{proc}.log"
         print(f"Opening inference worker log {log_file_name}", flush=True)
-        with open(log_file_name, "a") as f:
-            f.write(f"\n\n\n\nNew run\n")
-            f.write(f"Hello from process {myp.ident} on core {core_list}\n")
+        with open(log_file_name,'a') as f:
+            f.write(f"\n\nNew run\n")
+            f.write(f"Hello from process {p} on core {core_list}\n")
         cuda_device = os.getenv("CUDA_VISIBLE_DEVICES")
-        hostname = current().hostname
-        print(
-            f"Launching infer for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}:{cuda_device}",
-            flush=True,
-        )
+        pvc_device = os.getenv("ZE_AFFINITY_MASK")
+        device = None
+        if cuda_device:
+            device = cuda_device
+        if pvc_device:
+            device = pvc_device
+        hostname = socket.gethostname()
+        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
     try:
         keys = dd.keys()
     except Exception as e:
@@ -198,9 +203,9 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
                 try:
-                    print(f"worker {proc} get key iter {ikey} {key}", flush=True)
+                    print(f"worker {proc}: getting val from dd",flush=True)
                     val = dd[key]
-                    print(f"worker {proc} got key iter {ikey} {key}", flush=True)
+                    print(f"worker {proc}: finished getting val from dd",flush=True)
                 except:
                     print(
                         f"Client raised exception on pulling from DDict: {e}",
@@ -297,8 +302,51 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     }
     print(f"worker {proc} is all DONE!! :)", flush=True)
     return metrics
-
-
 ## Run main
 if __name__ == "__main__":
-    print("Cannot be run as a script at this time", flush=True)
+    
+    import pathlib
+    import gzip
+    import glob
+    
+    num_procs = 1
+    proc = 0
+    continue_event = None
+    dd = {}
+
+
+    file_dir = os.getenv("DATA_PATH")
+    all_files = glob.glob(file_dir+"*.gz")
+    files = all_files[0:1]
+    num_files = len(files)
+    file_tuples = [(i,fpath,i) for i,fpath in enumerate(files)]
+
+
+    for file_tuple in file_tuples:
+        file_index = file_tuple[0]
+        manager_index = file_tuple[2]
+        file_path = file_tuple[1]
+        
+        smiles = []
+        f_name = str(file_path).split("/")[-1]
+        f_extension = str(file_path).split("/")[-1].split(".")[-1]
+        if f_extension=="smi":
+            with file_path.open() as f:
+                for line in f:
+                    smile = line.split("\t")[0]
+                    smiles.append(smile)
+        elif f_extension=="gz":
+            with gzip.open(str(file_path), 'rt') as f:
+                for line in f:
+                    smile = line.split("\t")[0]
+                    smiles.append(smile)
+
+        inf_results = [0.0 for i in range(len(smiles))]
+        key = f"{manager_index}_{file_index}"
+        f_name_list = f_name.split('.gz')
+        logname =  f_name_list[0].split(".")[0]+f_name_list[1]
+        dd[key] = {"f_name": f_name, 
+                   "smiles": smiles,
+                   "inf": inf_results}
+    
+    infer(dd, num_procs, proc, continue_event, limit=None)

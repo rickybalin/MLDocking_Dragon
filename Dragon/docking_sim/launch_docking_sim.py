@@ -41,7 +41,6 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
 
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    #grp = ProcessGroup(restart=False, pmi_enabled=True, ignore_error_on_exit=True, policy=global_policy)
     grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
     for node_num in range(num_nodes):
         node_name = Node(nodelist[node_num]).hostname
@@ -54,8 +53,8 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                             template=ProcessTemplate(target=run_docking,
                                                         args=(cdd,
                                                             docking_iter,
-                                                            proc,
-                                                            num_procs),
+                                                            proc_id,
+                                                            num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy,
                                                         ))
