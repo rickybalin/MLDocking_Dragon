@@ -59,8 +59,6 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         manager_index = file_tuple[2]
         file_path = file_tuple[1]
 
-        print("Now in read_smiles")
-
         smiles = []
         f_name = str(file_path).split("/")[-1]
         f_extension = str(file_path).split("/")[-1].split(".")[-1]
@@ -91,9 +89,9 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         #     f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
 
 
-        print(f"Now putting key {key}", flush=True)
+        #print(f"Now putting key {key}", flush=True)
         data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
-        print(f"Finished putting key {key}", flush=True)
+        #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
         #     f.write(f"Stored data in dragon dictionary\n")
@@ -146,6 +144,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     print(f"Number of pool procs is {num_procs}", flush=True)
 
     try:
+        total_data_size = 0
         for i in range(4):
 
             num_pool_procs = num_procs
@@ -165,13 +164,14 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
                 ],
             )
 
-            print(f"Size of dataset is {sum(smiles_sizes)} bytes", flush=True)
+            print(f"Size of dataset is {sum(smiles_sizes)/(1024^3)} GB", flush=True)
             print(f"Mapped function complete", flush=True)
             pool.close()
             print(f"Pool closed", flush=True)
             pool.join()
             print(f"Pool joined", flush=True)
-
+            total_data_size += sum(smiles_sizes)/(1024^3)
+        print(f"Total data read in {total_data_size} GB")
     except Exception as e:
         print(f"reading smiles failed")
         pool.terminate()

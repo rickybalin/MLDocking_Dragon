@@ -105,15 +105,16 @@ if __name__ == "__main__":
     base_path = pathlib.Path(args.data_path)
     files, num_files = get_files(base_path)
 
-    mem_per_file = 12/8192
-    tot_mem = int(min(args.mem_per_node*num_tot_nodes,
-                  max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
-                  ))
+    # mem_per_file = 12/8192
+    # tot_mem = int(min(args.mem_per_node*num_tot_nodes,
+    #               max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
+    #               ))
+    tot_mem = args.mem_per_node*num_tot_nodes
     print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}")
 
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = max(int(args.data_dictionary_mem_fraction*tot_mem), num_tot_nodes)
-    candidate_dict_mem = max(int(tot_mem - data_dict_mem), num_tot_nodes)
+    data_dict_mem = max(int(tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem*(1.-args.data_dictionary_mem_fraction)), num_tot_nodes)
     print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
     data_dict_mem *= (1024*1024*1024)
     candidate_dict_mem *= (1024*1024*1024)
