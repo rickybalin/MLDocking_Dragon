@@ -148,10 +148,8 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
         for i in range(4):
 
             num_pool_procs = num_procs
-
             pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
             print(f"Pool initialized", flush=True)
-
             print(f"Reading smiles for {num_files}", flush=True)
 
             num_files_per_pool = num_files // 4 + 1
@@ -164,14 +162,14 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
                 ],
             )
 
-            print(f"Size of dataset is {sum(smiles_sizes)/(1024^3)} GB", flush=True)
+            print(f"Size of dataset is {sum(smiles_sizes)/(1024.*1024.*1024.)} GB", flush=True)
+            total_data_size += sum(smiles_sizes)
             print(f"Mapped function complete", flush=True)
             pool.close()
             print(f"Pool closed", flush=True)
             pool.join()
             print(f"Pool joined", flush=True)
-            total_data_size += sum(smiles_sizes)/(1024^3)
-        print(f"Total data read in {total_data_size} GB")
+        print(f"Total data read in {total_data_size/(1024.*1024.*1024.)} GB", flush=True)
     except Exception as e:
         print(f"reading smiles failed")
         pool.terminate()
