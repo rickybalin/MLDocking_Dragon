@@ -1,20 +1,29 @@
-from multiprocessing import Pool
 import math
 from time import perf_counter
 import dragon
+import multiprocessing as mp
+from multiprocessing import Pool
 from functools import partial
 from .sort_mpi import merge, save_list
 from dragon.globalservices.api_setup import connect_to_infrastructure
 connect_to_infrastructure()
 
-    
+
+def initialize_worker(the_ddict):
+    # Since we want each worker to maintain a persistent handle to the DDict,
+    # attach it to the current/local process instance. Done this way, workers attach only
+    # once and can reuse it between processing work items
+    me = mp.current_process()
+    me.stash = {}
+    me.stash["ddict"] = the_ddict
+
+
 def pool_sort(_dict, num_return_sorted, candidate_dict, num_procs):
     tic = perf_counter()
-    with Pool(processes=num_procs) as pool:
+    with Pool(processes=num_procs, initializer=initialize_worker, initargs=(_dict,)) as pool:
         print(f"Starting key sort and merge",flush=True)
         # First, every thread sorts and merges a set of keys
         results = [r for r in pool.imap_unordered(partial(sort,
-                                                          _dict=_dict,
                                                           size=num_procs,
                                                           num_return_sorted=num_return_sorted),
                                       range(num_procs))
@@ -65,8 +74,12 @@ def merge_results(results, pool, num_return_sorted):
         return []
         
         
-def sort(rank, _dict, size, num_return_sorted):
+def sort(rank, size, num_return_sorted):
     tic = perf_counter()
+
+    me = mp.current_process()
+    _dict = me.stash["ddict"]
+    
     key_list = _dict.keys()
     key_list = [key for key in key_list if "iter" not in key and "model" not in key]
     key_list.sort()

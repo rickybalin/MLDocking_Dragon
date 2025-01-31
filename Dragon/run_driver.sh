@@ -20,6 +20,10 @@ case "$FULL_HOSTNAME" in
     *"aurora"* )
 	AURORA=1
 	echo "Setting up for Aurora run"
+	source /flare/datascience/csimpson/hpe_dragon_collab/env.sh
+	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
+	DATA_PATH=/flare/datascience/dragon/tiny
+	export DRIVER_PATH=/flare/datascience/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/
 	;;
     *"polaris"* )
 	POLARIS=1
@@ -51,7 +55,7 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     export ITEX_LIMIT_MEMORY_SIZE_IN_MB=8192
     export ITEX_ENABLE_NEXTPLUGGABLE_DEVICE=0
     PROCS_PER_NODE=104
-    MEM_PER_NODE=128
+    MEM_PER_NODE=256
 fi
 if [[ -n $POLARIS || -n $SIRIUS ]]; then
     echo "Setting up for Nvidia GPUS"
