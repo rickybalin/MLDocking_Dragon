@@ -212,6 +212,7 @@ if __name__ == "__main__":
             cand_dd["max_sort_iter"] = "-1"
 
         if os.getenv("USE_MPI_SORT"):
+            print("Using MPI sort",flush=True)
             max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
             sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                      args=(data_dd, 
@@ -222,6 +223,7 @@ if __name__ == "__main__":
             sorter_proc.start()
             sorter_proc.join()
         elif os.getenv("USE_QUEUE_SORT"):
+            print("Using threaded queue sort",flush=True)
             sorter_proc = mp.Process(target=merge_sort,
                                      args=(data_dd,
                                            top_candidate_number,
@@ -230,7 +232,7 @@ if __name__ == "__main__":
             sorter_proc.start()
             sorter_proc.join()
         else:
-
+            print("Using threaded pool sort",flush=True)
             sorter_proc = mp.Process(target=pool_sort,
                              args=(data_dd,
                                    top_candidate_number,
