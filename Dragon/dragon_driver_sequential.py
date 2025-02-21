@@ -2,6 +2,7 @@ import os
 from time import perf_counter
 import argparse
 from typing import List
+import random
 import shutil
 import dragon
 import multiprocessing as mp
@@ -113,7 +114,7 @@ if __name__ == "__main__":
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
     data_dd = DDict(
-        args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True
+        args.managers_per_node, num_tot_nodes, data_dict_mem
     )  # , trace=True)
     print(
         f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}",
@@ -146,119 +147,156 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    cand_dd = DDict(
-        args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True
-    )
-    print(
-        f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}",
-        flush=True,
-    )
-    print(f"on {num_tot_nodes} nodes", flush=True)
 
-    # Number of top candidates to produce
-    if num_tot_nodes < 3:
-        top_candidate_number = 1000
-    else:
-        top_candidate_number = 5000
+    try:
+        failures = 0
+        keys_start = perf_counter()
+        keys = data_dd.keys()
+        keys_end = perf_counter()
+        keys_time = keys_end - keys_start
+        print(f"Time for keys() call: {keys_time:.3f} seconds", flush=True)
 
-    max_iter = args.max_iter
-    iter = 0
-    while iter < max_iter:
-        print(f"*** Start loop iter {iter} ***")
-        iter_start = perf_counter()
-        # Launch the data inference component
-        num_procs = 4 * node_counts["inference"]
+        lookup_start = perf_counter()
 
-        print(f"Launching inference with {num_procs} processes ...", flush=True)
-        if num_tot_nodes < 3:
-            inf_num_limit = 8
-            print(
-                f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker"
-            )
-        else:
-            inf_num_limit = None
+        for i in range(1000):
+            try:
+                key = keys[random.randint(0,len(keys)-1)]
+                value = data_dd[key]
+                if i>0 and i%100 == 0:
+                    print('',flush=True)
+                print('.', end="", flush=True)
 
-        tic = perf_counter()
-        inf_proc = mp.Process(
-            target=launch_inference,
-            args=(
-                data_dd,
-                nodelists["inference"],
-                num_procs,
-                inf_num_limit,
-            ),
-        )
-        inf_proc.start()
-        inf_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+            except Exception as ex:
+                failures += 1
+                print(f'Got Exception while looking up key {key} in distributed dictionary', flush=True)
+                print(f'Exception: {ex}')
 
-        # Launch data sorter component and create candidate dictionary
-        print(f"Launching sorting ...", flush=True)
-        tic = perf_counter()
-        if iter == 0:
-            cand_dd["max_sort_iter"] = "-1"
-        max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
-        sorter_proc = mp.Process(
-            target=sort_dictionary_pg,
-            args=(
-                data_dd,
-                top_candidate_number,
-                max_sorter_procs,
-                nodelists["sorting"],
-                cand_dd,
-            ),
-        )
-        sorter_proc.start()
-        sorter_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+        print('', flush=True)
+        lookup_end = perf_counter()
 
-        # Launch Docking Simulations
-        print(f"Launched Docking Simulations", flush=True)
-        tic = perf_counter()
-        num_procs = args.max_procs_per_node * node_counts["docking"]
-        dock_proc = mp.Process(
-            target=launch_docking_sim,
-            args=(cand_dd, iter, num_procs, nodelists["docking"]),
-        )
-        dock_proc.start()
-        dock_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
-        print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
+    except Exception as ex:
+        failures += 1
+        print(f'Got exception while looking up keys.\nException: {ex}')
 
-        # Launch Training
-        print(f"Launched Fine Tune Training", flush=True)
-        tic = perf_counter()
-        BATCH = 64
-        EPOCH = 500
-        train_proc = mp.Process(
-            target=launch_training,
-            args=(
-                data_dd,
-                nodelists["training"][0],  # training is always 1 node
-                cand_dd,
-                BATCH,
-                EPOCH,
-            ),
-        )
-        train_proc.start()
-        train_proc.join()
-        toc = perf_counter()
-        print(f"Performed training in {toc-tic} seconds \n", flush=True)
-        iter_end = perf_counter()
-        print(
-            f"Performed iter {iter} in {iter_end - iter_start} seconds \n", flush=True
-        )
-        iter += 1
+    if failures == 0:
+        print('Successfully looked up 1000 keys in distributed dict.')
+
+    lookup_time = lookup_end - lookup_start
+    print(f"Time for 1000 lookups in ddict: {lookup_time:.3f} seconds", flush=True)
+
+    # cand_dd = DDict(
+    #     args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True
+    # )
+    # print(
+    #     f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}",
+    #     flush=True,
+    # )
+    # print(f"on {num_tot_nodes} nodes", flush=True)
+
+    # # Number of top candidates to produce
+    # if num_tot_nodes < 3:
+    #     top_candidate_number = 1000
+    # else:
+    #     top_candidate_number = 5000
+
+    # max_iter = args.max_iter
+    # iter = 0
+    # while iter < max_iter:
+    #     print(f"*** Start loop iter {iter} ***")
+    #     iter_start = perf_counter()
+    #     # Launch the data inference component
+    #     num_procs = 4 * node_counts["inference"]
+
+    #     print(f"Launching inference with {num_procs} processes ...", flush=True)
+    #     if num_tot_nodes < 3:
+    #         inf_num_limit = 8
+    #         print(
+    #             f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker"
+    #         )
+    #     else:
+    #         inf_num_limit = None
+
+    #     tic = perf_counter()
+    #     inf_proc = mp.Process(
+    #         target=launch_inference,
+    #         args=(
+    #             data_dd,
+    #             nodelists["inference"],
+    #             num_procs,
+    #             inf_num_limit,
+    #         ),
+    #     )
+    #     inf_proc.start()
+    #     inf_proc.join()
+    #     toc = perf_counter()
+    #     infer_time = toc - tic
+    #     print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+
+    #     # Launch data sorter component and create candidate dictionary
+    #     print(f"Launching sorting ...", flush=True)
+    #     tic = perf_counter()
+    #     if iter == 0:
+    #         cand_dd["max_sort_iter"] = "-1"
+    #     max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
+    #     sorter_proc = mp.Process(
+    #         target=sort_dictionary_pg,
+    #         args=(
+    #             data_dd,
+    #             top_candidate_number,
+    #             max_sorter_procs,
+    #             nodelists["sorting"],
+    #             cand_dd,
+    #         ),
+    #     )
+    #     sorter_proc.start()
+    #     sorter_proc.join()
+    #     toc = perf_counter()
+    #     infer_time = toc - tic
+    #     print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+
+    #     # Launch Docking Simulations
+    #     print(f"Launched Docking Simulations", flush=True)
+    #     tic = perf_counter()
+    #     num_procs = args.max_procs_per_node * node_counts["docking"]
+    #     dock_proc = mp.Process(
+    #         target=launch_docking_sim,
+    #         args=(cand_dd, iter, num_procs, nodelists["docking"]),
+    #     )
+    #     dock_proc.start()
+    #     dock_proc.join()
+    #     toc = perf_counter()
+    #     infer_time = toc - tic
+    #     os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
+    #     print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
+
+    #     # Launch Training
+    #     print(f"Launched Fine Tune Training", flush=True)
+    #     tic = perf_counter()
+    #     BATCH = 64
+    #     EPOCH = 500
+    #     train_proc = mp.Process(
+    #         target=launch_training,
+    #         args=(
+    #             data_dd,
+    #             nodelists["training"][0],  # training is always 1 node
+    #             cand_dd,
+    #             BATCH,
+    #             EPOCH,
+    #         ),
+    #     )
+    #     train_proc.start()
+    #     train_proc.join()
+    #     toc = perf_counter()
+    #     print(f"Performed training in {toc-tic} seconds \n", flush=True)
+    #     iter_end = perf_counter()
+    #     print(
+    #         f"Performed iter {iter} in {iter_end - iter_start} seconds \n", flush=True
+    #     )
+    #     iter += 1
 
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
-    cand_dd.destroy()
+    # cand_dd.destroy()
     data_dd.destroy()
     end_time = perf_counter()
-    print(f"Total time {end_time - start_time} s", flush=True)
+    print(f"Total time {end_time - start_time} seconds", flush=True)
