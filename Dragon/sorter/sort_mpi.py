@@ -62,7 +62,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    num_keys = 8192
+    num_keys = 128
     
     
     print(f"Sort rank {rank} has started",flush=True)
@@ -108,7 +108,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
-
+        print(f"rank {rank}: my_results has {len(my_results)} values")
     print(f"Rank {rank} finished direct sort; starting local merge",flush=True)
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
@@ -121,7 +121,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                 #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
                 if rank == (2**(k+1))*j:         
                     neighbor_result = comm.recv(source = rank + offset)
-                    merge(my_results,neighbor_result,num_return_sorted)
+                    my_results = merge(my_results,neighbor_result,num_return_sorted)
                     #print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
                 if rank == (2**(k+1))*j + offset:
                     comm.send(my_results,rank - offset)
