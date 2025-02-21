@@ -164,7 +164,7 @@ def sort_controller(dd,
     #     ckey_max = max(ckeys)
     #     print(f"top candidates = {candidate_dict[ckey_max]}")
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, cdd):
+def sort_dictionary_pg(dd: DDict, num_keys, num_return_sorted, num_procs: int, nodelist, cdd):
    
     num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
@@ -187,7 +187,7 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
                             cpu_affinity=list(range(num_procs_pn)))
         grp.add_process(nproc=num_procs_pn, 
                             template=ProcessTemplate(target=mpi_sort, 
-                                                    args=(dd, num_return_sorted,cdd), 
+                                                    args=(dd, num_keys, num_return_sorted,cdd), 
                                                     policy=local_policy,
                                                     cwd=run_dir))
     print(f"Added processes to sorting group",flush=True)
