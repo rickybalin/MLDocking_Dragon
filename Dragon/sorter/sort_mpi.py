@@ -62,19 +62,29 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-
-    print(f"Sort rank {rank} has started",flush=True)
+    num_keys = 8192
     
-    key_list = _dict.keys()
+    
+    print(f"Sort rank {rank} has started",flush=True)
+
+    if rank == 0:
+        key_list = list(_dict.keys())
+        key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+        key_list.sort()
+        print(f"Sort rank {rank} retrieved keys",flush=True)
+    else:
+        key_list = ['' for i in range(num_keys)]
+
+    key_list = comm.bcast(key_list, root=0)
     #if rank == 0:
     #    print(f"{key_list=}")
-    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
-    key_list.sort()
+    
+    
     #if "inf_iter" in key_list:
     #    key_list.remove("inf_iter")
     num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//size+1,1)
-
+    print(f"Sort rank {rank} sorting {direct_sort_num} keys",flush=True)
     my_key_list = []
     if rank*direct_sort_num < num_keys:
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
@@ -85,7 +95,9 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
         try:
             if rank == 0:
                 print(f"Getting key {key}",flush=True)
+            print(f"Sort rank {rank} getting key {key}",flush=True)
             val = _dict[key]
+            print(f"Sort rank {rank} finished getting key {key}",flush=True)
             if rank == 0:
                 print(f"Got key {key}",flush=True)
         except Exception as e:
