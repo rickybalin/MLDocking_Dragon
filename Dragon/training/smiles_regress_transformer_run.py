@@ -92,7 +92,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
     with open("train_switch.log", 'a') as f:
         f.write(f"Create training data\n")
     ########Create training and validation data##### 
-    x_train, y_train = train_val_data(candidate_dict)
+    x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
     with open("train_switch.log", 'a') as f:
         f.write(f"Finished creating training data\n")
     
@@ -109,7 +109,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
                             batch_size=BATCH,
                             epochs=EPOCH,
                             verbose=2,
-                            #validation_data=valid_dataset,
+                            validation_data=(x_val,y_val),
                             #callbacks=callbacks,
                         )
             weights = model.get_weights()

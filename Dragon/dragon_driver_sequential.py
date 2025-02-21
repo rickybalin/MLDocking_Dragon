@@ -1,10 +1,15 @@
 import os
+
+# import logging
+# logger = logging.getLogger(__name__)
 from time import perf_counter
 import argparse
 from typing import List
 import random
 import shutil
+import pathlib
 import dragon
+from math import ceil
 import multiprocessing as mp
 from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
@@ -13,8 +18,32 @@ from dragon.infrastructure.policy import Policy
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
+from sorter.sort_brute_force import brute_sort
+from sorter.sort_threaded_queue import merge_sort
+from sorter.sort_threaded_pool import pool_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
+from data_loader.data_loader_presorted import get_files
+
+
+def get_prime_number(n):
+    # Use 1, 2 or 3 if that is n
+    if n <= 3:
+        return n
+
+    # All prime numbers are odd except two
+    if not (n & 1):
+        n -= 1
+
+    for i in range(n, 3, -2):
+        isprime = True
+        for j in range(3, n):
+            if i % j == 0:
+                isprime = False
+                break
+        if isprime:
+            return i
+    return 3
 
 
 if __name__ == "__main__":
@@ -26,18 +55,6 @@ if __name__ == "__main__":
         type=float,
         default=0.7,
         help="fraction of memory dedicated to data dictionary",
-    )
-    parser.add_argument(
-        "--inference_node_num",
-        type=int,
-        default=1,
-        help="number of nodes running inference",
-    )
-    parser.add_argument(
-        "--sorting_node_num",
-        type=int,
-        default=1,
-        help="number of nodes running sorting",
     )
     parser.add_argument(
         "--managers_per_node",
@@ -72,11 +89,11 @@ if __name__ == "__main__":
         default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
         help="Path to pre-sorted SMILES strings to load",
     )
-    parser.add_argument(
-        "--only_load_data", type=int, default=0, help="Flag to only do the data loading"
-    )
-    args = parser.parse_args()
 
+    args = parser.parse_args()
+    #
+    # logging.basicConfig(level=logging.INFO)
+    # logger.info("Begun dragon driver")
     # Start driver
     start_time = perf_counter()
     print("Begun dragon driver", flush=True)
@@ -87,7 +104,17 @@ if __name__ == "__main__":
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
+
     tot_mem = args.mem_per_node * num_tot_nodes
+
+    # Get info about gpus and cpus
+
+    gpu_devices = os.getenv("GPU_DEVICES")
+    if gpu_devices is not None:
+        gpu_devices = gpu_devices.split(",")
+        num_gpus = len(gpu_devices)
+    else:
+        num_gpus = 0
 
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {
@@ -102,9 +129,35 @@ if __name__ == "__main__":
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[: node_counts[key]]
 
+    # Use a prime number of nodes for dictionaries
+    num_dict_nodes = get_prime_number(num_tot_nodes)
+
+    # Get info on the number of files
+    base_path = pathlib.Path(args.data_path)
+    files, num_files = get_files(base_path)
+
+    mem_per_file = 12 / 8192
+    tot_mem = int(
+        min(
+            args.mem_per_node * num_tot_nodes,
+            max(
+                ceil(
+                    num_files * mem_per_file * 100 / args.data_dictionary_mem_fraction
+                ),
+                2 * num_tot_nodes,
+            ),
+        )
+    )
+    print(
+        f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}"
+    )
+
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = int(args.data_dictionary_mem_fraction * tot_mem)
-    candidate_dict_mem = tot_mem - data_dict_mem
+    data_dict_mem = max(int(args.data_dictionary_mem_fraction * tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem - data_dict_mem), num_tot_nodes)
+    print(
+        f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB"
+    )
     data_dict_mem *= 1024 * 1024 * 1024
     candidate_dict_mem *= 1024 * 1024 * 1024
 
@@ -147,7 +200,6 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-
     try:
         failures = 0
         keys_start = perf_counter()
@@ -160,26 +212,29 @@ if __name__ == "__main__":
 
         for i in range(1000):
             try:
-                key = keys[random.randint(0,len(keys)-1)]
+                key = keys[random.randint(0, len(keys) - 1)]
                 value = data_dd[key]
-                if i>0 and i%100 == 0:
-                    print('',flush=True)
-                print('.', end="", flush=True)
+                if i > 0 and i % 100 == 0:
+                    print("", flush=True)
+                print(".", end="", flush=True)
 
             except Exception as ex:
                 failures += 1
-                print(f'Got Exception while looking up key {key} in distributed dictionary', flush=True)
-                print(f'Exception: {ex}')
+                print(
+                    f"Got Exception while looking up key {key} in distributed dictionary",
+                    flush=True,
+                )
+                print(f"Exception: {ex}")
 
-        print('', flush=True)
+        print("", flush=True)
         lookup_end = perf_counter()
 
     except Exception as ex:
         failures += 1
-        print(f'Got exception while looking up keys.\nException: {ex}')
+        print(f"Got exception while looking up keys.\nException: {ex}")
 
     if failures == 0:
-        print('Successfully looked up 1000 keys in distributed dict.')
+        print("Successfully looked up 1000 keys in distributed dict.")
 
     lookup_time = lookup_end - lookup_start
     print(f"Time for 1000 lookups in ddict: {lookup_time:.3f} seconds", flush=True)
