@@ -159,7 +159,7 @@ if __name__ == "__main__":
     toc = perf_counter()
     load_time = toc - tic
     print(f"Retrieved dictionary stats in {load_time:.3f} seconds", flush=True)
-    
+    num_keys = len(data_dd.keys())
     
     cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
@@ -215,7 +215,8 @@ if __name__ == "__main__":
             print("Using MPI sort",flush=True)
             max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
             sorter_proc = mp.Process(target=sort_dictionary_pg, 
-                                     args=(data_dd, 
+                                     args=(data_dd,
+                                           num_keys,
                                            top_candidate_number, 
                                            max_sorter_procs, 
                                            nodelists["sorting"],

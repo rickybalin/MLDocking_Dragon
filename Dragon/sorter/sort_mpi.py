@@ -57,14 +57,12 @@ def merge(left: list, right: list, num_return_sorted: int) -> list:
     #print(f"Merged list returned {merged_list[-num_return_sorted:]}",flush=True)
     return merged_list[-num_return_sorted:]
 
-def mpi_sort(_dict, num_return_sorted, candidate_dict):
+def mpi_sort(_dict, num_keys, num_return_sorted, candidate_dict):
     MPI.Init()
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    num_keys = 128
-    
-    
+        
     print(f"Sort rank {rank} has started",flush=True)
 
     if rank == 0:
@@ -76,13 +74,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
         key_list = ['' for i in range(num_keys)]
 
     key_list = comm.bcast(key_list, root=0)
-    #if rank == 0:
-    #    print(f"{key_list=}")
     
-    
-    #if "inf_iter" in key_list:
-    #    key_list.remove("inf_iter")
-    num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//size+1,1)
     print(f"Sort rank {rank} sorting {direct_sort_num} keys",flush=True)
     my_key_list = []
@@ -108,12 +100,12 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
-        print(f"rank {rank}: my_results has {len(my_results)} values")
+        print(f"rank {rank}: my_results has {len(my_results)} values, min={my_results[0]}, max={my_results[-1]}")
     print(f"Rank {rank} finished direct sort; starting local merge",flush=True)
+
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
     max_j = size//2
-
     try:
         for k in range(max_k):
             offset = 2**k
@@ -122,6 +114,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                 if rank == (2**(k+1))*j:         
                     neighbor_result = comm.recv(source = rank + offset)
                     my_results = merge(my_results,neighbor_result,num_return_sorted)
+                    print(f"rank {rank}: my_results has {len(my_results)} values, min={my_results[0]}, max={my_results[-1]}")
                     #print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
                 if rank == (2**(k+1))*j + offset:
                     comm.send(my_results,rank - offset)
