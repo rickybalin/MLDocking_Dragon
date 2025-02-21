@@ -62,17 +62,29 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
+    num_keys = 128
+    
+    
+    print(f"Sort rank {rank} has started",flush=True)
 
-    key_list = _dict.keys()
+    if rank == 0:
+        key_list = list(_dict.keys())
+        key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+        key_list.sort()
+        print(f"Sort rank {rank} retrieved keys",flush=True)
+    else:
+        key_list = ['' for i in range(num_keys)]
+
+    key_list = comm.bcast(key_list, root=0)
     #if rank == 0:
     #    print(f"{key_list=}")
-    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
-    key_list.sort()
+    
+    
     #if "inf_iter" in key_list:
     #    key_list.remove("inf_iter")
     num_keys = len(key_list)
     direct_sort_num = max(len(key_list)//size+1,1)
-
+    print(f"Sort rank {rank} sorting {direct_sort_num} keys",flush=True)
     my_key_list = []
     if rank*direct_sort_num < num_keys:
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
@@ -81,7 +93,13 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
     my_results = []
     for key in my_key_list:
         try:
+            if rank == 0:
+                print(f"Getting key {key}",flush=True)
+            print(f"Sort rank {rank} getting key {key}",flush=True)
             val = _dict[key]
+            print(f"Sort rank {rank} finished getting key {key}",flush=True)
+            if rank == 0:
+                print(f"Got key {key}",flush=True)
         except Exception as e:
             print(f"Failed to pull {key} from dict", flush=True)
             print(f"Exception {e}",flush=True)
@@ -90,7 +108,8 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
             this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
             this_value.sort(key=lambda tup: tup[0])
             my_results = merge(this_value, my_results, num_return_sorted)
-
+        print(f"rank {rank}: my_results has {len(my_results)} values")
+    print(f"Rank {rank} finished direct sort; starting local merge",flush=True)
     # Merge results between ranks
     max_k = math.ceil(math.log2(size))
     max_j = size//2
@@ -102,7 +121,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
                 #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
                 if rank == (2**(k+1))*j:         
                     neighbor_result = comm.recv(source = rank + offset)
-                    merge(my_results,neighbor_result,num_return_sorted)
+                    my_results = merge(my_results,neighbor_result,num_return_sorted)
                     #print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
                 if rank == (2**(k+1))*j + offset:
                     comm.send(my_results,rank - offset)
@@ -113,6 +132,7 @@ def mpi_sort(_dict, num_return_sorted, candidate_dict):
         with open("sort_controller.log","a") as f:
             f.write(f"Merge failed on rank {rank}: {e}\n")
     # rank 0 collects the final sorted list
+    print(f"Rank {rank} finished local merge",flush=True)
     if rank == 0:
         print(f"Collected sorted results on rank 0",flush=True)
         # put data in candidate_dict

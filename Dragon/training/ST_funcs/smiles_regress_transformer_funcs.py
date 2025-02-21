@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import json
+import random
 import sys
 from functools import partial
 
@@ -181,42 +182,35 @@ def assemble_docking_data_top(candidate_dict):
     try:
         # Retrieve simulation results for all candidates in top list
         ckeys = candidate_dict.keys()
-        #ckeys = [key for key in ckeys if "iter" not in key and key[0] != "d" and key[0] != "l"]
         max_ckey = candidate_dict["max_sort_iter"]
         top_val = candidate_dict[max_ckey]
 
-        docking_keys = [key for key in ckeys if key[:9] == "dock_iter"]
-        docking_keys.sort(reverse=True)
         top_smiles = top_val["smiles"]
 
         train_smiles = []
         train_scores = []
-
-        for key in docking_keys:
-            dval = candidate_dict[key]
-            smiles = dval["smiles"]
-            scores = dval["docking_scores"]
-            if len(top_smiles) > 0:
-                for sm,sc in zip(smiles,scores):
-                    # only train with docking scores that are non-zero
-                    if sm in top_smiles and sc > 0:
-                        train_smiles.append(sm)
-                        train_scores.append(sc)
-                        top_smiles.remove(sm)
-            else:
-                # If all the top smiles have been found, don't continue
-                break
+        num_skipped = 0
         
-        #with open("sample_train_data.out",'w') as f:
-        #    for sm,sc in zip(train_smiles,train_scores):
-        #        f.write(f"{sm},{sc[[0]]}\n")
+        for sm in top_smiles:
+            if sm not in ckeys:
+                num_skipped += 1
+                with open("train_switch.log", "a") as f:
+                    f.write(f"Could not find top candidate in keys: {sm}\n")
+                continue
+            sc = candidate_dict[sm]
+            if sc > 0:
+                train_smiles.append(sm)
+                train_scores.append(sc)
+        print(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training",flush=True)
+        print(f"Missing {num_skipped} candidates from dictionary",flush=True)
+        print(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates",flush=True) 
         return train_smiles, train_scores
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
 
         with open("train_switch.log", "a") as f:
             f.write("Exception in assembling data\n")
-            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}")
+            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
     
 
@@ -249,25 +243,34 @@ def assemble_docking_data(candidate_dict):
             f.write(f"{sm},{sc[0]}\n")
     return train_smiles, train_scores
 
-def train_val_data(candidate_dict,fine_tuned=False):
+def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
     try:
         train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
-        #train_smiles = candidate_dict["smiles"]
-        #train_scores = candidate_dict["docking_scores"]
+        train_data = list(zip(train_smiles,train_scores))
+        random.shuffle(train_data)
+        train_smiles,train_scores = zip(*train_data)
+        num_train = len(train_smiles)
+        num_val = int(num_train*validation_fraction)
+        val_smiles = train_smiles[0:num_val]
+        val_scores = train_scores[0:num_val]
+
+
         train_scores = pd.DataFrame(train_scores)
+        val_scores = pd.DataFrame(val_scores)
+        
         if len(train_smiles) > 0:
             # data_train.head()
             # # Dataset has type and smiles as the two fields
             # # reshaping: y formatted as [[y_1],[y_2],...] with floats
             x_smiles_train = train_smiles
-            #x_smiles_val = data_vali["smiles"]
+            x_smiles_val = val_smiles
             #y_train = np.array(train_scores) #
 
             #if fine_tuned:
             #    y_train = train_scores.values.reshape(-1, 1) #* 1.0 
             #else:
             y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
-            #y_val = data_vali["type"].values.reshape(-1, 1) * 1.0
+            y_val = val_scores.values.reshape(-1, 1, 1) #* 1.0 
             
             vocab_size = 3132
             maxlen = 45
@@ -287,13 +290,13 @@ def train_val_data(candidate_dict,fine_tuned=False):
                                                         vocab_file,
                                                         spe_file)
 
-            # x_val = preprocess_smiles_pair_encoding(x_smiles_val,
-            #                                           maxlen,
-            #                                             vocab_file,
-            #                                             spe_file)
+            x_val = preprocess_smiles_pair_encoding(x_smiles_val,
+                                                       maxlen,
+                                                         vocab_file,
+                                                         spe_file)
             #print(f"xtrain: {x_train}",flush=True)
             
-            return x_train, y_train
+            return x_train, y_train, x_val, y_val
         else:
             return [],[]
     except Exception as e:
