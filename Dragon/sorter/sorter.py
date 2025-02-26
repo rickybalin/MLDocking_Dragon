@@ -15,6 +15,10 @@ from dragon.native.machine import cpu_count, current, System, Node
 from .sort_mpi import mpi_sort
 import datetime
 import time
+from data_loader.data_loader_presorted import load_inference_data
+from sorter.sorter import sort_dictionary_pg
+from sorter.sort_threaded_queue import merge_sort
+from sorter.sort_threaded_pool import pool_sort
 
 global data_dict 
 data_dict = None
@@ -217,57 +221,117 @@ if __name__ == "__main__":
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=1,
                         help='managed memory size per node for dictionary in GB')
-    parser.add_argument('--max_procs_per_node', type=int, default=10,
+    parser.add_argument('--max_procs_per_node', type=int, default=32,
                         help='Maximum number of processes in a Pool')
-    parser.add_argument('--dictionary_timeout', type=int, default=10,
-                        help='Timeout for Dictionary in seconds')
-    parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
+    parser.add_argument('--data_path', type=str, default="/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny",
                         help='Path to pre-sorted SMILES strings to load')
     args = parser.parse_args()
 
-    # Start distributed dictionary
+    
     mp.set_start_method("dragon")
-    total_mem_size = args.mem_per_node * args.num_nodes * (1024*1024*1024)
-    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
-    print("Launched Dragon Dictionary \n", flush=True)
 
-    loader_proc = mp.Process(target=create_dummy_data, 
-                             args=(dd,
-                                   args.num_nodes*args.managers_per_node), 
-                             )#ignore_exit_on_error=True)
+    # Get information about the allocation
+    alloc = System()
+    num_tot_nodes = int(alloc.nnodes)
+    tot_nodelist = alloc.nodes
+
+    # Start distributed dictionary and load data
+    tot_mem = num_tot_nodes*args.mem_per_node
+    data_dictionary_mem_fraction = 0.1
+
+    data_dict_mem = max(int(tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem*(1.-data_dictionary_mem_fraction)), num_tot_nodes)
+    print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
+    data_dict_mem *= (1024*1024*1024)
+    candidate_dict_mem *= (1024*1024*1024)
+
+    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True)
+    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
+    print(f"on {num_tot_nodes} nodes", flush=True)
+    print(f"{data_dd.stats=}")
+
+    max_procs = args.max_procs_per_node * num_tot_nodes
+    print("Loading inference data into Dragon Dictionary ...", flush=True)
+    tic = perf_counter()
+    loader_proc = mp.Process(
+        target=load_inference_data,
+        args=(
+            data_dd,
+            args.data_path,
+            max_procs,
+            num_tot_nodes * args.managers_per_node,
+        ),
+    )
     loader_proc.start()
-    print("Process started",flush=True)
-
     loader_proc.join()
-    print("Process ended",flush=True)
+    toc = perf_counter()
+    load_time = toc - tic
+    if loader_proc.exitcode == 0:
+        print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
+    else:
+        raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
+    tic = perf_counter()
+    print("Here are the stats after data loading...")
+    print("++++++++++++++++++++++++++++++++++++++++")
+    print(data_dd.stats)
+    toc = perf_counter()
+    load_time = toc - tic
+    print(f"Retrieved dictionary stats in {load_time:.3f} seconds", flush=True)
 
-    candidate_queue = mp.Queue()
-    top_candidate_number = 10
-    sorter_proc = mp.Process(target=sort_dictionary, 
-                             args=(dd,
-                                   top_candidate_number,
-                                   args.max_procs_per_node*args.num_nodes,
-                                   dd.keys(),
-                                    candidate_queue), 
-                             )#ignore_exit_on_error=True)
-    sorter_proc.start()
-    print("Process started",flush=True)
+    cand_dd = DDict(args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True)
+    print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
+    print(f"on {num_tot_nodes} nodes", flush=True)
+    
+    # Number of top candidates to produce
+    if num_tot_nodes < 3:
+        top_candidate_number = 1000
+    else:
+        top_candidate_number = 5000
 
-    sorter_proc.join()
-    print("Process ended",flush=True)
-    top_candidates = candidate_queue.get(timeout=None)
-    print(f"{top_candidates=}")
+    num_keys = data_dd.keys()
 
-    # # Launch the data loader
-    # print("Loading inference data into Dragon Dictionary ...", flush=True)
-    # tic = perf_counter()
-    # load_inference_data(dd, args.data_path, args.max_procs)
-    # toc = perf_counter()
-    # load_time = toc - tic
-    # print(f"Loaded inference data in {load_time:.3f} seconds \n", flush=True)
+    # Sort
+    print(f"Launching sorting ...", flush=True)
+    tic = perf_counter()
+    cand_dd["max_sort_iter"] = "-1"
 
-    # Close the dictionary
-    print("Done, closing the Dragon Dictionary", flush=True)
-    dd.destroy()
+    if os.getenv("USE_MPI_SORT"):
+        print("Using MPI sort",flush=True)
+        max_sorter_procs = args.max_procs_per_node*args.num_nodes
+        sorter_proc = mp.Process(target=sort_dictionary_pg, 
+                                    args=(data_dd,
+                                        num_keys,
+                                        top_candidate_number, 
+                                        max_sorter_procs, 
+                                        tot_nodelist,
+                                        cand_dd))
+        sorter_proc.start()
+        sorter_proc.join()
+    elif os.getenv("USE_QUEUE_SORT"):
+        print("Using threaded queue sort",flush=True)
+        sorter_proc = mp.Process(target=merge_sort,
+                                    args=(data_dd,
+                                        top_candidate_number,
+                                        cand_dd,
+                                        max_procs))
+        sorter_proc.start()
+        sorter_proc.join()
+    else:
+        print("Using threaded pool sort",flush=True)
+        sorter_proc = mp.Process(target=pool_sort,
+                            args=(data_dd,
+                                top_candidate_number,
+                                cand_dd,
+                                max_procs,
+                                )
+                        )
+        sorter_proc.start()
+        sorter_proc.join()
+        #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
+        #brute_sort(data_dd, top_candidate_number, cand_dd)
+
+    toc = perf_counter()
+    infer_time = toc - tic
+    print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+

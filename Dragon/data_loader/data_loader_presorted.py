@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import gc
+import random
 
 import dragon
 import multiprocessing as mp
@@ -49,6 +50,9 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
+
+    sort_test = os.getenv("TEST_SORTING")
+
     try:
         #gc.collect()
         me = mp.current_process()
@@ -73,7 +77,10 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                     smile = line.split("\t")[0]
                     smiles.append(smile)
 
-        inf_results = [0.0 for i in range(len(smiles))]
+        inf_val = 0.0
+        if sort_test:
+            inf_val = random.uniform(8.0, 14.0)
+        inf_results = [inf_val for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
