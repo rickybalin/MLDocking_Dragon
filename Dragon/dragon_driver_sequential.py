@@ -200,47 +200,52 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
-    try:
-        failures = 0
-        keys_start = perf_counter()
-        keys = data_dd.keys()
-        keys_end = perf_counter()
-        keys_time = keys_end - keys_start
-        print(f"Time for keys() call: {keys_time:.3f} seconds", flush=True)
+    # try:
+    #     failures = 0
+    #     keys_start = perf_counter()
+    #     keys = data_dd.keys()
+    #     keys_end = perf_counter()
+    #     keys_time = keys_end - keys_start
+    #     print(f"Time for keys() call: {keys_time:.3f} seconds", flush=True)
 
-        lookup_start = perf_counter()
+    #     lookup_start = perf_counter()
 
-        for i in range(1000):
-            try:
-                key = keys[random.randint(0, len(keys) - 1)]
-                value = data_dd[key]
-                if i > 0 and i % 100 == 0:
-                    print("", flush=True)
-                print(".", end="", flush=True)
+    #     for i in range(1000):
+    #         try:
+    #             key = keys[random.randint(0, len(keys) - 1)]
+    #             value = data_dd[key]
+    #             if i > 0 and i % 100 == 0:
+    #                 print("", flush=True)
+    #             print(".", end="", flush=True)
 
-            except Exception as ex:
-                failures += 1
-                print(
-                    f"Got Exception while looking up key {key} in distributed dictionary",
-                    flush=True,
-                )
-                print(f"Exception: {ex}")
+    #         except Exception as ex:
+    #             failures += 1
+    #             print(
+    #                 f"Got Exception while looking up key {key} in distributed dictionary",
+    #                 flush=True,
+    #             )
+    #             print(f"Exception: {ex}")
 
-        print("", flush=True)
-        lookup_end = perf_counter()
+    #     print("", flush=True)
+    #     lookup_end = perf_counter()
 
-    except Exception as ex:
-        failures += 1
-        print(f"Got exception while looking up keys.\nException: {ex}")
+    # except Exception as ex:
+    #     failures += 1
+    #     print(f"Got exception while looking up keys.\nException: {ex}")
 
-    if failures == 0:
-        print("Successfully looked up 1000 keys in distributed dict.")
+    # if failures == 0:
+    #     print("Successfully looked up 1000 keys in distributed dict.")
 
-    lookup_time = lookup_end - lookup_start
-    print(f"Time for 1000 lookups in ddict: {lookup_time:.3f} seconds", flush=True)
+    # lookup_time = lookup_end - lookup_start
+    # print(f"Time for 1000 lookups in ddict: {lookup_time:.3f} seconds", flush=True)
 
+    cand_dd = None
     # cand_dd = DDict(
-    #     args.managers_per_node, num_tot_nodes, candidate_dict_mem, policy=None, trace=True
+    #     args.managers_per_node,
+    #     num_tot_nodes,
+    #     candidate_dict_mem,
+    #     policy=None,
+    #     trace=True,
     # )
     # print(
     #     f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}",
@@ -249,10 +254,10 @@ if __name__ == "__main__":
     # print(f"on {num_tot_nodes} nodes", flush=True)
 
     # # Number of top candidates to produce
-    # if num_tot_nodes < 3:
-    #     top_candidate_number = 1000
-    # else:
-    #     top_candidate_number = 5000
+    if num_tot_nodes < 3:
+        top_candidate_number = 1000
+    else:
+        top_candidate_number = 5000
 
     # max_iter = args.max_iter
     # iter = 0
@@ -289,25 +294,23 @@ if __name__ == "__main__":
 
     #     # Launch data sorter component and create candidate dictionary
     #     print(f"Launching sorting ...", flush=True)
-    #     tic = perf_counter()
+    tic = perf_counter()
     #     if iter == 0:
     #         cand_dd["max_sort_iter"] = "-1"
-    #     max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
-    #     sorter_proc = mp.Process(
-    #         target=sort_dictionary_pg,
-    #         args=(
-    #             data_dd,
-    #             top_candidate_number,
-    #             max_sorter_procs,
-    #             nodelists["sorting"],
-    #             cand_dd,
-    #         ),
-    #     )
-    #     sorter_proc.start()
-    #     sorter_proc.join()
-    #     toc = perf_counter()
-    #     infer_time = toc - tic
-    #     print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+    max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
+    sorter_proc = mp.Process(
+        target=sort_dictionary_pg,
+        args=(
+            data_dd,
+            top_candidate_number,
+            cand_dd,
+        ),
+    )
+    sorter_proc.start()
+    sorter_proc.join()
+    toc = perf_counter()
+    infer_time = toc - tic
+    print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
 
     #     # Launch Docking Simulations
     #     print(f"Launched Docking Simulations", flush=True)
