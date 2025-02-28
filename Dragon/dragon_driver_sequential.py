@@ -239,7 +239,6 @@ if __name__ == "__main__":
     # lookup_time = lookup_end - lookup_start
     # print(f"Time for 1000 lookups in ddict: {lookup_time:.3f} seconds", flush=True)
 
-    cand_dd = None
     # cand_dd = DDict(
     #     args.managers_per_node,
     #     num_tot_nodes,
@@ -297,13 +296,12 @@ if __name__ == "__main__":
     tic = perf_counter()
     #     if iter == 0:
     #         cand_dd["max_sort_iter"] = "-1"
-    max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
+    # max_sorter_procs = args.max_procs_per_node * node_counts["sorting"]
     sorter_proc = mp.Process(
         target=sort_dictionary_pg,
         args=(
             data_dd,
             top_candidate_number,
-            cand_dd,
         ),
     )
     sorter_proc.start()

@@ -245,8 +245,16 @@ class PQEntry:
         return repr(self)
 
 
-def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id, shutdown_event):
+def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
     try:
+        shutdown_event = mp.Event()
+
+        # We colocate the shutdown event object with the manager_sorter
+        # to make checking it as efficient as possible in the loop
+        # further down in this algorithm. The main process will get
+        # an event from each manager.
+        sorted_queue.put(shutdown_event)
+
         my_manager = dd.manager(manager_id)
 
         keys = my_manager.keys()
@@ -284,7 +292,7 @@ def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id, shutdown_eve
     print(f"Exiting sorter for manager {manager_id}", flush=True)
 
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
+def sort_dictionary_pg(dd: DDict, num_return_sorted):
 
     stats = dd.dstats
 
@@ -299,7 +307,7 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
     grp = ProcessGroup(restart=False)
 
     sorted_queues = []
-    shutdown_event = mp.Event()
+    shutdown_events = []
 
     # print(f"Launching sorting process group {nodelist}", flush=True)
     for manager_id in stats:
@@ -315,7 +323,7 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
             nproc=1,
             template=ProcessTemplate(
                 target=manager_sorter,
-                args=(dd, num_return_sorted, sorted_queue, manager_id, shutdown_event),
+                args=(dd, num_return_sorted, sorted_queue, manager_id),
                 policy=local_policy,
             ),
         )
@@ -325,6 +333,11 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
     grp.start()
     print(f"Starting Process Group for Sorting", flush=True)
     sort_start = perf_counter()
+
+    # Get the shutdown event objects which are sent first.
+    for i in range(len(sorted_queues)):
+        shutdown_events.append(sorted_queues[i].get())
+
     # merge sorted values from manager_sorters
     # prime the priority queue
     priority_queue = []
@@ -357,7 +370,9 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
     print("HERE IS THE CANDIDATE LIST")
     print("**************************", flush=True)
     print(candidate_list[:10], flush=True)
-    shutdown_event.set()
+
+    for i in range(len(sorted_queues)):
+        shutdown_events[i].set()
 
     while len(sorted_queues) > 0:
         sorted_queue = sorted_queues.pop()
@@ -375,7 +390,7 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, cdd):
             pass
 
     grp.join()
-    grp.stop()
+    grp.close()
 
     print("Finished Sorting!!!", flush=True)
 
