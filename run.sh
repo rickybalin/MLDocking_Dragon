@@ -5,8 +5,8 @@ module load cudatoolkit
 
 export DOCKING_SIM_DUMMY=1
 
-#export DATA_PATH=/lus/scratch/mendygra/alcf/MLDocking_Dragon/tiny
-export DATA_PATH=/lus/scratch/wahlc/dragon/collabs/anl/data/cms-data/med
+export DATA_PATH=/lus/scratch/mendygra/alcf/MLDocking_Dragon/tiny
+#export DATA_PATH=/lus/scratch/wahlc/dragon/collabs/anl/data/cms-data/med
 export DRIVER_PATH=/home/users/klee/home/Repos/fix/MLDocking_Dragon/Dragon/
 export CUDNN_LIB_DIR=/lus/scratch/nhill/nccl-tests/cudnn-linux-x86_64-9.5.0.50_cuda12-archive/lib
 

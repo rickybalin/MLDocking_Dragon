@@ -248,6 +248,7 @@ class PQEntry:
 def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
     try:
         shutdown_event = mp.Event()
+        shutdown_event.clear()
 
         # We colocate the shutdown event object with the manager_sorter
         # to make checking it as efficient as possible in the loop
@@ -295,6 +296,8 @@ def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
 def sort_dictionary_pg(dd: DDict, num_return_sorted):
 
     stats = dd.dstats
+
+    print(f"Finding the best {num_return_sorted} candidates.", flush=True)
 
     # At larger scales, it might be useful create more than one of these processes,
     # themselves in a process group where each of them is given an output queue and
@@ -364,11 +367,14 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted):
             pass
     sort_end = perf_counter()
 
+    if len(priority_queue) == 0:
+        print("We ended with priority_queue length 0", flush=True)
+
     sort_time = sort_end - sort_start
     print(f"Performed sorting in {sort_time:.3f} seconds \n", flush=True)
 
-    print("HERE IS THE CANDIDATE LIST")
-    print("**************************", flush=True)
+    print("HERE IS THE CANDIDATE LIST (first 10 only)")
+    print("******************************************", flush=True)
     print(candidate_list[:10], flush=True)
 
     for i in range(len(sorted_queues)):
