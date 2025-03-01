@@ -16,6 +16,10 @@ from .sort_mpi import mpi_sort
 import datetime
 import time
 import heapq
+import socket
+import traceback
+
+MAX_BRANCHING_FACTOR = 5
 
 global data_dict
 data_dict = None
@@ -228,6 +232,10 @@ class PQEntry:
         self._queue_index = queue_index
 
     def __lt__(self, other):
+        # The > is used to get the priority queue in
+        # descending order of values. The best inference
+        # values rise to the top this way and are chosen
+        # first.
         return self.value[0] > other.value[0]
 
     @property
@@ -245,7 +253,7 @@ class PQEntry:
         return repr(self)
 
 
-def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
+def filter_manager(dd, num_return_sorted, sorted_queue, manager_id):
     try:
         shutdown_event = mp.Event()
         shutdown_event.clear()
@@ -260,16 +268,13 @@ def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
 
         keys = my_manager.keys()
         this_value = []
+
         for key in keys:
             val = my_manager[key]
-            # print(val.keys(), flush=True) this prints
-            # dict_keys(['f_name', 'smiles', 'inf'])
             this_value.extend(zip(val["inf"], val["smiles"]))
             this_value = heapq.nlargest(
                 num_return_sorted, this_value, key=lambda x: x[0]
             )
-
-        # print(f"From manager {manager_id} the list is: {this_value}", flush=True)
 
         # This could be uncommented to sort everything in memory at once, but that
         # might consume too much memory (and did on the medium dataset - resulting
@@ -281,124 +286,220 @@ def manager_sorter(dd, num_return_sorted, sorted_queue, manager_id):
         # this_value.sort(key=lambda tup: tup[0], reverse=True)
 
         for i in range(num_return_sorted):
-            # print(f"Putting value from manager {manager_id}", flush=True)
             if shutdown_event.is_set():
                 break
             sorted_queue.put(this_value[i])
 
         sorted_queue.close()
     except Exception as ex:
-        print(f"Exception in manager_sorter: {ex}", flush=True)
+        tb = traceback.format_exc()
+        print(
+            "There was an exception in the filter_manager: %s\n Traceback: %s"
+            % (ex, tb),
+            flush=True,
+        )
 
-    print(f"Exiting sorter for manager {manager_id}", flush=True)
+
+def filter_aggregator(dd: DDict, managers_hosts, num_return_sorted, out_queue):
+    try:
+        # managers_hosts is a list of tuples (manager_id, hostname)
+        print(
+            f"Starting aggregator on node {socket.gethostname()} with managers {managers_hosts}",
+            flush=True,
+        )
+
+        if len(managers_hosts) == 1:
+            # It was already a in a process started on the manager node, so just call
+            # the filter_manager code.
+            return filter_manager(num_return_sorted, out_queue, managers_hosts[0][0])
+
+        # At larger scales, it is useful create more than one of these processes,
+        # themselves in a process group where each of them is given an output queue and
+        # a set of managers to merge (instead of merging all managers in one process).
+        # Then the second-level merging would merge their managers, writing the merged
+        # values to their output queues while a third level merge is done to merge all the
+        # second level merges together. In this way, this algorithm can scale to whatever
+        # size is necessary.
+
+        sorted_queues = []
+        shutdown_events = []
+
+        if len(managers_hosts) > MAX_BRANCHING_FACTOR:
+
+            num_divisions = len(managers_hosts) // MAX_BRANCHING_FACTOR
+
+            if num_divisions == 1:
+                num_divisions = 2
+
+            if num_divisions > MAX_BRANCHING_FACTOR:
+                num_divisions = MAX_BRANCHING_FACTOR
+
+            division_sz = len(managers_hosts) // num_divisions
+
+            if division_sz * num_divisions < len(managers_hosts):
+                division_sz += 1
+
+            grp = ProcessGroup(restart=False)
+
+            while len(managers_hosts) > 0:
+                managers_subset = managers_hosts[:division_sz]
+                managers_hosts = managers_hosts[division_sz:]
+                sorted_queue = SentinelQueue(mp.Queue())
+                sorted_queues.append(sorted_queue)
+
+                node_name = managers_subset[0][1]
+                local_policy = Policy(
+                    placement=Policy.Placement.HOST_NAME,
+                    host_name=node_name,
+                )
+                grp.add_process(
+                    nproc=1,
+                    template=ProcessTemplate(
+                        target=filter_aggregator,
+                        args=(dd, managers_subset, num_return_sorted, sorted_queue),
+                        policy=local_policy,
+                    ),
+                )
+
+            grp.init()
+            grp.start()
+
+        else:
+
+            grp = ProcessGroup(restart=False)
+
+            for manager_id, node_name in managers_hosts:
+                sorted_queue = SentinelQueue(mp.Queue())
+                sorted_queues.append(sorted_queue)
+
+                local_policy = Policy(
+                    placement=Policy.Placement.HOST_NAME,
+                    host_name=node_name,
+                )
+                grp.add_process(
+                    nproc=1,
+                    template=ProcessTemplate(
+                        target=filter_manager,
+                        args=(dd, num_return_sorted, sorted_queue, manager_id),
+                        policy=local_policy,
+                    ),
+                )
+
+            grp.init()
+            grp.start()
+
+        # Get the shutdown event objects which are sent first.
+        for i in range(len(sorted_queues)):
+            shutdown_events.append(sorted_queues[i].get())
+
+        my_shutdown_event = mp.Event()
+        my_shutdown_event.clear()
+
+        # We colocate the shutdown event object with the process
+        # to make checking it as efficient as possible in the loop
+        # further down in this algorithm. The main process will get
+        # an event from each manager.
+        out_queue.put(my_shutdown_event)
+
+        # merge sorted values from manager_sorters
+        # prime the priority queue
+        priority_queue = []
+
+        for i in range(len(sorted_queues)):
+            try:
+                item = sorted_queues[i].get()
+                heapq.heappush(priority_queue, PQEntry(item, i))
+            except EOFError:
+                pass
+
+        # merge the values from different procs
+        num_puts = 0
+        while len(priority_queue) > 0:
+            if my_shutdown_event.is_set():
+                break
+
+            # If items are not in strictly decreasing order for values, then
+            # you need to reverse the < to a > in the PQEntry __lt__ method.
+            item = heapq.heappop(priority_queue)
+            num_puts += 1
+            out_queue.put(item.value)
+
+            try:
+                next = sorted_queues[item.queue_index].get()
+                heapq.heappush(priority_queue, PQEntry(next, item.queue_index))
+            except EOFError:
+                pass
+
+        out_queue.close()
+
+        for i in range(len(sorted_queues)):
+            shutdown_events[i].set()
+
+        while len(sorted_queues) > 0:
+            sorted_queue = sorted_queues.pop()
+            try:
+                while True:
+                    # we get more items in case we need to wake up the manager sorter
+                    # from a blocking put operation so it can check the shutdown_event.
+                    sorted_queue.get()
+            except:
+                pass
+            try:
+                sorted_queue.destroy()
+                del sorted_queue
+            except:
+                pass
+
+        grp.join()
+        grp.close()
+
+    except Exception as ex:
+        tb = traceback.format_exc()
+        print(
+            "There was an exception in filter_aggregator: %s\n Traceback: %s"
+            % (ex, tb),
+            flush=True,
+        )
 
 
 def sort_dictionary_pg(dd: DDict, num_return_sorted):
 
-    stats = dd.dstats
-
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
 
-    # At larger scales, it might be useful create more than one of these processes,
-    # themselves in a process group where each of them is given an output queue and
-    # a set of managers to merge (instead of merging all managers in one process).
-    # Then the second-level merging would merge their managers, writing the merged
-    # values to their output queues while a third level merge is done to merge all the
-    # second level merges together. In this way, this algorithm can scale to whatever
-    # size is necessary.
+    stats = dd.dstats
 
-    grp = ProcessGroup(restart=False)
+    managers_hosts = [(manager_id, stats[manager_id].hostname) for manager_id in stats]
+    # Order by hostname so aggregators are close to other processes they will control.
+    managers_hosts.sort(key=lambda tup: tup[1])
+    sorted_queue = SentinelQueue(mp.Queue())
 
-    sorted_queues = []
-    shutdown_events = []
+    sort_proc = mp.Process(
+        target=filter_aggregator,
+        args=(dd, managers_hosts, num_return_sorted, sorted_queue),
+    )
+    sort_proc.start()
 
-    # print(f"Launching sorting process group {nodelist}", flush=True)
-    for manager_id in stats:
-        sorted_queue = SentinelQueue(mp.Queue())
-        sorted_queues.append(sorted_queue)
-
-        node_name = stats[manager_id].hostname
-        local_policy = Policy(
-            placement=Policy.Placement.HOST_NAME,
-            host_name=node_name,
-        )
-        grp.add_process(
-            nproc=1,
-            template=ProcessTemplate(
-                target=manager_sorter,
-                args=(dd, num_return_sorted, sorted_queue, manager_id),
-                policy=local_policy,
-            ),
-        )
-
-    print(f"Added processes to sorting group", flush=True)
-    grp.init()
-    grp.start()
-    print(f"Starting Process Group for Sorting", flush=True)
-    sort_start = perf_counter()
-
-    # Get the shutdown event objects which are sent first.
-    for i in range(len(sorted_queues)):
-        shutdown_events.append(sorted_queues[i].get())
-
-    # merge sorted values from manager_sorters
-    # prime the priority queue
-    priority_queue = []
-
-    for i in range(len(sorted_queues)):
-        try:
-            item = sorted_queues[i].get()
-            heapq.heappush(priority_queue, PQEntry(item, i))
-        except EOFError:
-            pass
-
-    # merge the values from different managers
+    shutdown_event = sorted_queue.get()
     candidate_list = []
-    while len(priority_queue) > 0 and len(candidate_list) < num_return_sorted:
-        # If items are not in strictly decreasing order for values, then
-        # you need to reverse the < to a > in the PQEntry __lt__ method.
-        item = heapq.heappop(priority_queue)
-        candidate_list.append(item.value)
 
-        try:
-            next = sorted_queues[item.queue_index].get()
-            heapq.heappush(priority_queue, PQEntry(next, item.queue_index))
-        except EOFError:
-            pass
-    sort_end = perf_counter()
+    while len(candidate_list) < num_return_sorted:
+        candidate_list.append(sorted_queue.get())
 
-    if len(priority_queue) == 0:
-        print("We ended with priority_queue length 0", flush=True)
+    shutdown_event.set()
 
-    sort_time = sort_end - sort_start
-    print(f"Performed sorting in {sort_time:.3f} seconds \n", flush=True)
+    try:
+        while True:
+            # we get more items in case we need to wake up the manager sorter
+            # from a blocking put operation so it can check the shutdown_event
+            sorted_queue.get()
+    except:
+        pass
+
+    sort_proc.join()
 
     print("HERE IS THE CANDIDATE LIST (first 10 only)")
     print("******************************************", flush=True)
     print(candidate_list[:10], flush=True)
-
-    for i in range(len(sorted_queues)):
-        shutdown_events[i].set()
-
-    while len(sorted_queues) > 0:
-        sorted_queue = sorted_queues.pop()
-        try:
-            while True:
-                # we get more items in case we need to wake up the manager sorter
-                # from a blocking put operation so it can check the shutdown_event.
-                sorted_queue.get()
-        except:
-            pass
-        try:
-            sorted_queue.destroy()
-            del sorted_queue
-        except:
-            pass
-
-    grp.join()
-    grp.close()
-
-    print("Finished Sorting!!!", flush=True)
 
 
 def create_dummy_data(_dict, num_managers):
