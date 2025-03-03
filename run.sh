@@ -21,8 +21,8 @@ export DRAGON_DEFAULT_SEG_SZ=34359738368
 export FI_HMEM="none"
 
 PROCS_PER_NODE=32
-MEM_PER_NODE=250
-MANAGERS=4
+MEM_PER_NODE=200
+MANAGERS=2
 echo Reading files from $DATA_PATH
 echo Running with $PROCS_PER_NODE max. processes in Pool per Node
 echo Mem per node $MEM_PER_NODE
