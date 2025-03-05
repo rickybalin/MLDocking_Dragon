@@ -77,14 +77,15 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                     smile = line.split("\t")[0]
                     smiles.append(smile)
 
-        inf_val = 0.0
+        inf_results = [0.0 for i in range(len(smiles))]
         if sort_test:
-            inf_val = random.uniform(8.0, 14.0)
-        inf_results = [inf_val for i in range(len(smiles))]
+            inf_results = [random.uniform(8.0, 14.0) for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
+        model_iters = [-1 for i in range(len(smiles))]
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
         smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
+        smiles_size += sum([sys.getsizeof(miter) for miter in model_iters])
         smiles_size += sys.getsizeof(f_name)
         smiles_size += sys.getsizeof(key)
 
@@ -97,7 +98,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
 
         #print(f"Now putting key {key}", flush=True)
-        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
+        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results, "model_iter": model_iters}
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:

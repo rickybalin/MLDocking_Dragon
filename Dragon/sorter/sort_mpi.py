@@ -2,7 +2,8 @@ import mpi4py
 mpi4py.rc.initialize = False
 from mpi4py import MPI
 import math
-
+import sys
+import os
 import dragon
 from dragon.globalservices.api_setup import connect_to_infrastructure
 connect_to_infrastructure()
@@ -82,25 +83,36 @@ def mpi_sort(_dict, num_keys, num_return_sorted, candidate_dict):
         my_key_list = key_list[rank*direct_sort_num:min((rank+1)*direct_sort_num,num_keys)]
     
     # Direct sort keys assigned to this rank
+    
     my_results = []
-    for key in my_key_list:
+    for i,key in enumerate(my_key_list):
         try:
-            if rank == 0:
-                print(f"Getting key {key}",flush=True)
-            print(f"Sort rank {rank} getting key {key}",flush=True)
+            print(f"Sort rank {rank} getting key {key} on iter {i}",flush=True)
             val = _dict[key]
-            print(f"Sort rank {rank} finished getting key {key}",flush=True)
-            if rank == 0:
-                print(f"Got key {key}",flush=True)
+            print(f"Sort rank {rank} finished getting key {key} on iter {i}",flush=True)
         except Exception as e:
             print(f"Failed to pull {key} from dict", flush=True)
             print(f"Exception {e}",flush=True)
             raise(e)
+        
         if any(val["inf"]):
-            this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
-            this_value.sort(key=lambda tup: tup[0])
-            my_results = merge(this_value, my_results, num_return_sorted)
-            print(f"rank {rank}: my_results has {len(my_results)} values")
+            try:
+                print(f"rank {rank}: make tuple list on iter {i}",flush=True)
+                this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
+                my_results.extend(this_value)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno, flush=True)
+                print(e, flush=True)
+                raise(e)
+            #print(f"rank {rank}: local sort on iter {i}",flush=True)
+            #this_value.sort(key=lambda tup: tup[0])
+            #print(f"rank {rank}: finished local sort on iter {i}",flush=True)
+            #my_results = merge(this_value, my_results, num_return_sorted)
+            
+    my_results.sort(key=lambda tup: tup[0])
+    my_results = my_results[-num_return_sorted:]
     print(f"Rank {rank} finished direct sort; starting local merge",flush=True)
 
     # Merge results between ranks
@@ -110,7 +122,7 @@ def mpi_sort(_dict, num_keys, num_return_sorted, candidate_dict):
         for k in range(max_k):
             offset = 2**k
             for j in range(max_j):
-                #if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
+                if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
                 if rank == (2**(k+1))*j:         
                     neighbor_result = comm.recv(source = rank + offset)
                     my_results = merge(my_results,neighbor_result,num_return_sorted)
@@ -126,8 +138,10 @@ def mpi_sort(_dict, num_keys, num_return_sorted, candidate_dict):
             f.write(f"Merge failed on rank {rank}: {e}\n")
     # rank 0 collects the final sorted list
     print(f"Rank {rank} finished local merge",flush=True)
+    
     if rank == 0:
         print(f"Collected sorted results on rank 0",flush=True)
+        #print(f"{my_results=}")
         # put data in candidate_dict
         top_candidates = my_results
         num_top_candidates = len(my_results)
@@ -151,6 +165,7 @@ def mpi_sort(_dict, num_keys, num_return_sorted, candidate_dict):
             save_list(candidate_dict, ckey, sort_val)
             
     MPI.Finalize()
+    return
 
 def save_list(candidate_dict, ckey, sort_val):
     candidate_dict[ckey] = sort_val

@@ -1,5 +1,4 @@
 from time import perf_counter
-from typing import Tuple
 import argparse
 import os
 import random
@@ -14,11 +13,8 @@ from dragon.infrastructure.connection import Connection
 from dragon.native.machine import cpu_count, current, System, Node
 from .sort_mpi import mpi_sort
 import datetime
-import time
 from data_loader.data_loader_presorted import load_inference_data
-from sorter.sorter import sort_dictionary_pg
-from sorter.sort_threaded_queue import merge_sort
-from sorter.sort_threaded_pool import pool_sort
+
 
 global data_dict 
 data_dict = None
@@ -52,7 +48,6 @@ def compare_candidate_results(candidate_dict, continue_event, num_return_sorted,
     if len(candidate_keys) > 0:
         num_top_candidates = len(candidate_dict[candidate_keys[0]]["smiles"])
     
-
     if sort_iter > max_iter:
         # end if maximum number of iterations reached
         end_workflow = True
@@ -60,7 +55,6 @@ def compare_candidate_results(candidate_dict, continue_event, num_return_sorted,
     elif len(candidate_keys) > ncompare and num_top_candidates == num_return_sorted:
         # look for unique entries in most recent ncompare lists
         # only do this if there are enough lists to compare and if enough candidates have been identified
-        
         
         not_in_common = []
         model_iters = []
@@ -308,28 +302,28 @@ if __name__ == "__main__":
                                         cand_dd))
         sorter_proc.start()
         sorter_proc.join()
-    elif os.getenv("USE_QUEUE_SORT"):
-        print("Using threaded queue sort",flush=True)
-        sorter_proc = mp.Process(target=merge_sort,
-                                    args=(data_dd,
-                                        top_candidate_number,
-                                        cand_dd,
-                                        max_procs))
-        sorter_proc.start()
-        sorter_proc.join()
-    else:
-        print("Using threaded pool sort",flush=True)
-        sorter_proc = mp.Process(target=pool_sort,
-                            args=(data_dd,
-                                top_candidate_number,
-                                cand_dd,
-                                max_procs,
-                                )
-                        )
-        sorter_proc.start()
-        sorter_proc.join()
-        #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
-        #brute_sort(data_dd, top_candidate_number, cand_dd)
+    # elif os.getenv("USE_QUEUE_SORT"):
+    #     print("Using threaded queue sort",flush=True)
+    #     sorter_proc = mp.Process(target=merge_sort,
+    #                                 args=(data_dd,
+    #                                     top_candidate_number,
+    #                                     cand_dd,
+    #                                     max_procs))
+    #     sorter_proc.start()
+    #     sorter_proc.join()
+    # else:
+    #     print("Using threaded pool sort",flush=True)
+    #     sorter_proc = mp.Process(target=pool_sort,
+    #                         args=(data_dd,
+    #                             top_candidate_number,
+    #                             cand_dd,
+    #                             max_procs,
+    #                             )
+    #                     )
+    #     sorter_proc.start()
+    #     sorter_proc.join()
+    #     #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
+    #     #brute_sort(data_dd, top_candidate_number, cand_dd)
 
     toc = perf_counter()
     infer_time = toc - tic
