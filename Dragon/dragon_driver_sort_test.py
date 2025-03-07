@@ -15,9 +15,6 @@ from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
 from sorter.sorter import sort_dictionary_pg
-from sorter.sort_brute_force import brute_sort
-from sorter.sort_threaded_queue import merge_sort
-from sorter.sort_threaded_pool import pool_sort
 from data_loader.data_loader_presorted import get_files
 
 
@@ -112,8 +109,8 @@ if __name__ == "__main__":
 
     if os.getenv("USE_MPI_SORT"):
         print("Using MPI sort",flush=True)
-        #max_sorter_procs = args.max_procs_per_node*num_tot_nodes
-        max_sorter_procs = 1*num_tot_nodes
+        max_sorter_procs = args.max_procs_per_node*num_tot_nodes
+        #max_sorter_procs = 1*num_tot_nodes
         sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                     args=(data_dd,
                                         num_keys,
@@ -123,29 +120,9 @@ if __name__ == "__main__":
                                         cand_dd))
         sorter_proc.start()
         sorter_proc.join()
-    elif os.getenv("USE_QUEUE_SORT"):
-        print("Using threaded queue sort",flush=True)
-        sorter_proc = mp.Process(target=merge_sort,
-                                    args=(data_dd,
-                                        top_candidate_number,
-                                        cand_dd,
-                                        max_procs))
-        sorter_proc.start()
-        sorter_proc.join()
-    else:
-        print("Using threaded pool sort",flush=True)
-        sorter_proc = mp.Process(target=pool_sort,
-                            args=(data_dd,
-                                top_candidate_number,
-                                cand_dd,
-                                max_procs,
-                                )
-                        )
-        sorter_proc.start()
-        sorter_proc.join()
-        #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
-        #brute_sort(data_dd, top_candidate_number, cand_dd)
 
+    else:
+        print("No other sorting method implemented",flush=True)
     toc = perf_counter()
     infer_time = toc - tic
     print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
