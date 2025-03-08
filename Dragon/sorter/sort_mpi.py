@@ -86,19 +86,20 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         for h in global_hosts_by_rank:
             if h not in all_hosts:
                 all_hosts.append(h)
+        num_nodes = len(all_hosts)
         if rank == 0:
             print(f"Sorting hosts: {all_hosts}")
 
         # Create communicator for local ranks only
         for h in all_hosts:
-            color = 0 if current_host == h else MPI.UNDEFINED
+            color = True if current_host == h else MPI.UNDEFINED
             new_comm = comm.Split(color=color, key=rank)
             if current_host == h:
                 my_host_comm = new_comm
         local_rank = my_host_comm.Get_rank()
+        local_size = my_host_comm.Get_size()
         print(f"Sort rank {rank} has local rank {local_rank} on host {current_host}")
-        local_ranks = [i for i in range(size) if global_hosts_by_rank[i] == current_host]
-
+        
         # Get keys on local rank and bcast them to other local ranks
         key_list = []
         for i in range(len(manager_nodes)):
@@ -126,18 +127,15 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         raise(e)
 
     # Split local keys by cpu_num (redundant with local rank)
-    num_local_ranks = len(local_ranks)
-    direct_sort_num = len(key_list)//num_local_ranks
+    direct_sort_num = len(key_list)//local_size
     
     my_key_list = []
     min_index = cpu_num*direct_sort_num
-    if cpu_num < num_local_ranks -1:
-        max_index = (cpu_num+1)*direct_sort_num
-    else:
-        max_index = num_keys
+    max_index = min(min_index + direct_sort_num, num_keys)
     my_key_list = key_list[min_index:max_index]
+    
     toc = perf_counter()
-    print(f"Sort rank {rank} got keys in {toc-tic} seconds, sorting {len(my_key_list)} keys",flush=True)
+    print(f"Sort rank {rank} got keys in {toc-tic} seconds, sorting {len(my_key_list)}/{len(key_list)} local keys",flush=True)
 
     # Direct sort keys assigned to this rank
     tic = perf_counter()
@@ -157,73 +155,120 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 #print(f"rank {rank}: make tuple list on iter {i}",flush=True)
                 this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
                 my_results.extend(this_value)
+                my_results.sort(key=lambda tup: tup[0])
+                my_results = my_results[-num_return_sorted:]
             except Exception as e:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type, fname, exc_tb.tb_lineno, flush=True)
                 print(e, flush=True)
                 raise(e)
-            #print(f"rank {rank}: local sort on iter {i}",flush=True)
-            #this_value.sort(key=lambda tup: tup[0])
-            #print(f"rank {rank}: finished local sort on iter {i}",flush=True)
-            #my_results = merge(this_value, my_results, num_return_sorted)
             
     my_results.sort(key=lambda tup: tup[0])
     my_results = my_results[-num_return_sorted:]
     toc = perf_counter()
-    print(f"Rank {rank} finished direct sort in {toc-tic} seconds; starting local merge",flush=True)
-
-    # Merge results between ranks
-    max_k = math.ceil(math.log2(size))
-    max_j = size//2
-    print(f"{max_k=} {max_j=}",flush=True)
+    print(f"Rank {rank} finished direct sort in {toc-tic} seconds; found {len(my_results)} results; starting local merge",flush=True)
+            
+    # Combine local results
     try:
-        for k in range(max_k):
-            offset = 2**k
-            for j in range(max_j):
-                if rank ==0: print(f"rank 0 cond val is {k=} {j=} {offset=} {(2**(k+1))*j}")
-                if rank == (2**(k+1))*j:         
-                    neighbor_result = comm.recv(source = rank + offset)
-                    my_results = merge(my_results,neighbor_result,num_return_sorted)
-                    print(f"rank {rank}: my_results has {len(my_results)} values")
-                    #print(f"{rank=}: {k=} {offset=} {len(neighbor_result)=}")
-                if rank == (2**(k+1))*j + offset:
-                    comm.send(my_results,rank - offset)
-            max_j = max(max_j//2,1)
+        local_results = []
+        num_my_results = len(my_results)
+        for i in range(num_return_sorted):
+        #for i,res in enumerate(my_results[::-1]):
+            tic = perf_counter()
+            if i < num_my_results:
+                res = my_results[::-1][i]
+            else:
+                res = (0.0,'dummy',-1)
+            gathered_local_results = my_host_comm.gather(res, root=0)
+            toc = perf_counter()
+            if local_rank == 0:
+                #print(f"Sort rank {rank} gathered in {toc-tic} seconds on iter {i}",flush=True)
+                last_results = local_results.copy()
+                local_results.extend(gathered_local_results)
+                local_results.sort(key=lambda tup: tup[0])
+                local_results = local_results[-num_return_sorted:]
+                # Since we are pulling results in reverse order from all lists,
+                # once adding new entries does not change the trucated list
+                # there are no more entries that will make it in the top candidates.
+                # The local_rank can stop gathering results.
+                if last_results == local_results:
+                    print(f"Rank {rank} exiting local merge",flush=True)
+                    break
+            else:
+                assert gathered_local_results is None
+                local_results = None
+        print(f"Rank {rank} finished node local merge",flush=True)
     except Exception as e:
-        print(f"Merge failed on rank {rank}",flush=True)
-        print(f"{e}",flush=True)
-        with open("sort_controller.log","a") as f:
-            f.write(f"Merge failed on rank {rank}: {e}\n")
-    # rank 0 collects the final sorted list
-    print(f"Rank {rank} finished local merge",flush=True)
+        print(f"Exception {e}")
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno)
+        raise(e)
+
+    # Merge results between nodes
+    # Make a communicator that includes all ranks with local_rank=0    
+    color = True if local_rank == 0 else MPI.UNDEFINED
+    root_comm = comm.Split(color=color, key=rank)
+    root_rank = None
+    try:
+        if local_rank == 0:
+            root_size = root_comm.Get_size()
+            root_rank = root_comm.Get_rank()
+            all_results = []
+            for res in local_results[::-1]:
+                gathered_local_results = root_comm.gather(res, root=0)
+                if root_rank == 0:
+                    last_results = all_results.copy()
+                    all_results.extend(gathered_local_results)
+                    all_results.sort(key=lambda tup: tup[0])
+                    all_results = all_results[-num_return_sorted:]
+                    if last_results == all_results:
+                        print(f"Rank {rank} exiting node merge",flush=True)
+                        break
+                else:
+                    assert gathered_local_results is None
+                    all_results = None
+            print(f"Rank {rank} finished node global merge {color=}",flush=True)
+    except Exception as e:
+        print(f"Exception {e}")
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno)
+        raise(e)
+
+    print(f"Rank {rank} moving onto saving",flush=True)
     
-    if rank == 0:
+    if root_rank == 0:
         print(f"Collected sorted results on rank 0",flush=True)
         #print(f"{my_results=}")
         # put data in candidate_dict
-        top_candidates = my_results
-        num_top_candidates = len(my_results)
+        top_candidates = all_results
+        num_top_candidates = len(all_results)
         with open("sort_controller.log", "a") as f:
             f.write(f"Collected {num_top_candidates=}\n")
         print(f"Collected {num_top_candidates=}",flush=True)
         if num_top_candidates > 0:
-            # candidate_keys = candidate_dict.keys()
-            # if "iter" in candidate_keys:
-            #     candidate_keys.remove("iter")
-            # print(f"candidate keys {candidate_keys}")
-            # ckey = "0"
-            # if len(candidate_keys) > 0:
-            #     ckey = str(int(max(candidate_keys))+1)
-            last_list_key = candidate_dict["max_sort_iter"]
-            ckey = str(int(last_list_key) + 1)
-            candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
-            non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
-            print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}")
-            sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
-            save_list(candidate_dict, ckey, sort_val)
+            try:
+                last_list_key = candidate_dict["max_sort_iter"]
+                ckey = str(int(last_list_key) + 1)
+                print(f"{ckey=}",flush=True)
+                candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+                non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+                print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
+                sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
             
+                print(f"{ckey=}",flush=True)
+                save_list(candidate_dict, ckey, sort_val)
+            except Exception as e:
+                print(f"Exception {e}",flush=True)
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno,flush=True)
+                raise(e)
+    print(f"Rank {rank} done",flush=True)
     MPI.Finalize()
+    
     return
 
 def save_list(candidate_dict, ckey, sort_val):
