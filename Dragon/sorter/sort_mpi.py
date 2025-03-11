@@ -217,19 +217,19 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             root_rank = root_comm.Get_rank()
             all_results = []
             for res in local_results[::-1]:
-                gathered_local_results = root_comm.gather(res, root=0)
+                gathered_node_results = root_comm.gather(res, root=0)
                 if root_rank == 0:
                     last_results = all_results.copy()
-                    all_results.extend(gathered_local_results)
+                    all_results.extend(gathered_node_results)
                     all_results.sort(key=lambda tup: tup[0])
                     all_results = all_results[-num_return_sorted:]
                     if last_results == all_results:
                         print(f"Rank {rank} exiting node merge",flush=True)
                         break
                 else:
-                    assert gathered_local_results is None
+                    assert gathered_node_results is None
                     all_results = None
-            print(f"Rank {rank} finished node global merge {color=}",flush=True)
+        print(f"Rank {rank} finished node global merge {color=}",flush=True)
     except Exception as e:
         print(f"Exception {e}")
         exc_type, exc_obj, exc_tb = sys.exc_info()
