@@ -183,6 +183,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             gathered_local_results = my_host_comm.gather(res, root=0)
             toc = perf_counter()
             if local_rank == 0:
+                continue_loop = True
                 #print(f"Sort rank {rank} gathered in {toc-tic} seconds on iter {i}",flush=True)
                 last_results = local_results.copy()
                 local_results.extend(gathered_local_results)
@@ -194,47 +195,65 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 # The local_rank can stop gathering results.
                 if last_results == local_results:
                     print(f"Rank {rank} exiting local merge",flush=True)
-                    break
+                    continue_loop = False
             else:
                 assert gathered_local_results is None
                 local_results = None
+                continue_loop = True
+            continue_loop = my_host_comm.bcast(continue_loop, root=0)
+            if not continue_loop:
+                break
         print(f"Rank {rank} finished node local merge",flush=True)
     except Exception as e:
-        print(f"Exception {e}")
+        print(f"Exception {e}", flush=True)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        print(exc_type, fname, exc_tb.tb_lineno,flush=True)
         raise(e)
 
     # Merge results between nodes
     # Make a communicator that includes all ranks with local_rank=0    
-    color = True if local_rank == 0 else MPI.UNDEFINED
-    root_comm = comm.Split(color=color, key=rank)
-    root_rank = None
     try:
+        color = True if local_rank == 0 else MPI.UNDEFINED
+        root_comm = comm.Split(color=color, key=rank)
+        root_rank = None
+        print(f"Rank {rank} starting node global merge {color=}",flush=True)
         if local_rank == 0:
             root_size = root_comm.Get_size()
             root_rank = root_comm.Get_rank()
+            print(f"Rank {rank} has {local_rank=} and {root_rank=}",flush=True)
             all_results = []
-            for res in local_results[::-1]:
+            num_local_results = len(local_results)
+            for i in range(num_return_sorted):
+                if i < num_local_results:
+                    res = local_results[::-1][i]
+                else:
+                    res = (0.0,'dummy',-1)
+                print(f"Rank {rank} gathering results for iter {i}",flush=True)
                 gathered_node_results = root_comm.gather(res, root=0)
+                print(f"Rank {rank} finished gather for iter {i}; is None? {gathered_node_results==None}",flush=True)
                 if root_rank == 0:
+                    continue_loop = True
                     last_results = all_results.copy()
                     all_results.extend(gathered_node_results)
                     all_results.sort(key=lambda tup: tup[0])
                     all_results = all_results[-num_return_sorted:]
                     if last_results == all_results:
                         print(f"Rank {rank} exiting node merge",flush=True)
-                        break
+                        continue_loop = False
                 else:
                     assert gathered_node_results is None
                     all_results = None
+                    continue_loop = True
+                continue_loop = root_comm.bcast(continue_loop, root=0)
+                if not continue_loop:
+                    break
         print(f"Rank {rank} finished node global merge {color=}",flush=True)
     except Exception as e:
-        print(f"Exception {e}")
+        print(f"Exception {e}", flush=True)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        print(exc_type, fname, exc_tb.tb_lineno, flush=True)
         raise(e)
 
     print(f"Rank {rank} moving onto saving",flush=True)
@@ -266,9 +285,15 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type, fname, exc_tb.tb_lineno,flush=True)
                 raise(e)
-    print(f"Rank {rank} done",flush=True)
-    MPI.Finalize()
-    
+    try:
+        print(f"Rank {rank} done",flush=True)
+        MPI.Finalize()
+    except Exception as e:
+        print(f"MPI Finalize failed: Exception {e}",flush=True)
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno,flush=True)
+        raise(e)
     return
 
 def save_list(candidate_dict, ckey, sort_val):

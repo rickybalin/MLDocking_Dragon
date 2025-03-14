@@ -16,7 +16,7 @@ from dragon.infrastructure.policy import Policy
 from data_loader.data_loader_presorted import load_inference_data
 from sorter.sorter import sort_dictionary_pg
 from data_loader.data_loader_presorted import get_files
-
+#from inference.launch_inference import launch_inference
 
 if __name__ == "__main__":
 
