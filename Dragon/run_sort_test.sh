@@ -1,5 +1,9 @@
 #!/bin/bash -l
 
+if [-n $PBS_O_WORKDIR]; then
+    cd ${PBS_O_WORKDIR}
+fi    
+
 # Setup
 #cd $PBS_O_WORKDIR
 NODES=$(cat $PBS_NODEFILE | wc -l)
@@ -8,13 +12,14 @@ NODES=$(cat $PBS_NODEFILE | wc -l)
 FULL_HOSTNAME=`hostname -f`
 echo "FULL_HOSTNAME="$FULL_HOSTNAME
 
+DATA_PATH=$1
+
 case "$FULL_HOSTNAME" in
     *"americas"* )
 	SUNSPOT=1
 	echo "Setting up for Sunspot run"
 	source /gila/Aurora_deployment/csimpson/hpe_dragon_collab/env.sh
 	export RECEPTOR_FILE=/gila/Aurora_deployment/dragon/receptor_files/3clpro_7bqy.oedu
-	DATA_PATH=/gila/Aurora_deployment/dragon/data/tiny
 	export DRIVER_PATH=/gila/Aurora_deployment/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/
 	;;
     *"aurora"* )
@@ -25,7 +30,6 @@ case "$FULL_HOSTNAME" in
 	POLARIS=1
 	echo "Setting up for Polaris run"
 	source /eagle/hpe_dragon_collab/csimpson/env.sh
-	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
 	export DRIVER_PATH=/eagle/hpe_dragon_collab/csimpson/MLDocking_Dragon/Dragon/
 	export RECEPTOR_FILE=/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu
 	;;
@@ -94,7 +98,7 @@ export TEST_SORTING=1
 export USE_MPI_SORT=1
 #export USE_QUEUE_SORT=1
 
-EXE="dragon $DEBUG_STR ${DRIVER_PATH}/sorter/sorter.py \
+EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sort_test.py \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \
 --mem_per_node=$MEM_PER_NODE"

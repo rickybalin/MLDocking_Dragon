@@ -1,16 +1,14 @@
-# Data loading test
+# Sequential Workflow
 
-### Interactive session
-Get an interactive session with several nodes.  Then do:
+Get in an interactive session with several nodes or from a submit script:
 
 ```shell
 ./run_driver.sh
 ```
 
-
-### Batch Job submission
+# Sort test
 
 ```shell
-qsub batch_job_driver.sh
+./run_sort_test.sh ./path/to/data
 ```
 
