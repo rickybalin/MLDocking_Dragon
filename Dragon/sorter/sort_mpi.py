@@ -79,18 +79,18 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
 
     # Get local keys
     try:
-        # Get the host of every rank
-        global_hosts_by_rank = comm.allgather(current_host)
-        # Get unique hosts
+        stic = perf_counter()
+        # Get the host of every rank; assume all hosts are manager nodes
         all_hosts = []
-        for h in global_hosts_by_rank:
-            if h not in all_hosts:
-                all_hosts.append(h)
+        for h in manager_nodes:
+            if h.h_uid not in all_hosts:
+                all_hosts.append(h.h_uid)
         num_nodes = len(all_hosts)
         if rank == 0:
             print(f"Sorting hosts: {all_hosts}")
 
         # Create communicator for local ranks only
+        ctic = perf_counter()
         for h in all_hosts:
             color = True if current_host == h else MPI.UNDEFINED
             new_comm = comm.Split(color=color, key=rank)
@@ -98,7 +98,9 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 my_host_comm = new_comm
         local_rank = my_host_comm.Get_rank()
         local_size = my_host_comm.Get_size()
-        print(f"Sort rank {rank} has local rank {local_rank} on host {current_host}")
+        
+        stoc = perf_counter()
+        print(f"Sort rank {rank} has local rank {local_rank} on host {current_host}; setup time is {stoc-stic}; comm setup time is {stoc-ctic}")
         
         # Get keys on local rank and bcast them to other local ranks
         key_list = []
@@ -106,36 +108,38 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             # local rank 0 gets keys from local managers
             if local_rank == 0:
                 if manager_nodes[i].h_uid == current_host:
+                    ktic = perf_counter()
                     local_manager = i
                     dm = _dict.manager(i)
                     key_list.extend(dm.keys())
-            else:
-            # all other local ranks make an empty key_list of the correct size
-                for dms in stats:
-                    if dms.manager_id == i:
-                        num_keys = dms.num_keys
-                        key_list.extend(['' for i in range(num_keys)])
-                        
+                    ktoc = perf_counter()
+                    print(f"Sort rank {rank} retrieved local keys in {ktoc - ktic} seconds",flush=True)
+        
+        if local_rank == 0:
+            my_key_list = []
+            direct_sort_num = len(key_list)//local_size
+            print(f"Sort rank {rank} retrieved {len(key_list)} local keys",flush=True)
+            for i in range(local_size):
+                min_index = i*direct_sort_num
+                max_index = min(min_index + direct_sort_num, num_keys)
+                my_key_list.append(key_list[min_index:max_index])
+        else:
+            my_key_list = None
         # Communicate key_list to local ranks
-        key_list = my_host_comm.bcast(key_list, root=0)
-        #print(f"Sort rank {rank} has {key_list=}")
+        ctic = perf_counter()
+        my_key_list = my_host_comm.scatter(my_key_list,root=0)
+        ctoc = perf_counter()
+        print(f"Sort rank {rank} scatter local keys in {ctoc - ctic} seconds",flush=True)
+        print(f"Sort rank {rank} has {my_key_list=}")
     except Exception as e:
         print(f"Exception {e}")
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
         raise(e)
-
-    # Split local keys by cpu_num (redundant with local rank)
-    direct_sort_num = len(key_list)//local_size
-    
-    my_key_list = []
-    min_index = cpu_num*direct_sort_num
-    max_index = min(min_index + direct_sort_num, num_keys)
-    my_key_list = key_list[min_index:max_index]
     
     toc = perf_counter()
-    print(f"Sort rank {rank} got keys in {toc-tic} seconds, sorting {len(my_key_list)}/{len(key_list)} local keys",flush=True)
+    print(f"Sort rank {rank} got keys in {toc-tic} seconds, sorting {len(my_key_list)} local keys",flush=True)
 
     # Direct sort keys assigned to this rank
     tic = perf_counter()
@@ -217,7 +221,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         color = True if local_rank == 0 else MPI.UNDEFINED
         root_comm = comm.Split(color=color, key=rank)
         root_rank = None
-        print(f"Rank {rank} starting node global merge {color=}",flush=True)
+        print(f"Rank {rank} starting node global merge",flush=True)
         if local_rank == 0:
             root_size = root_comm.Get_size()
             root_rank = root_comm.Get_rank()
@@ -229,9 +233,9 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                     res = local_results[::-1][i]
                 else:
                     res = (0.0,'dummy',-1)
-                print(f"Rank {rank} gathering results for iter {i}",flush=True)
+                #print(f"Rank {rank} gathering results for iter {i}",flush=True)
                 gathered_node_results = root_comm.gather(res, root=0)
-                print(f"Rank {rank} finished gather for iter {i}; is None? {gathered_node_results==None}",flush=True)
+                #print(f"Rank {rank} finished gather for iter {i}; is None? {gathered_node_results==None}",flush=True)
                 if root_rank == 0:
                     continue_loop = True
                     last_results = all_results.copy()
@@ -239,7 +243,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                     all_results.sort(key=lambda tup: tup[0])
                     all_results = all_results[-num_return_sorted:]
                     if last_results == all_results:
-                        print(f"Rank {rank} exiting node merge",flush=True)
+                        print(f"Rank {rank} exiting node merge after iter {i}",flush=True)
                         continue_loop = False
                 else:
                     assert gathered_node_results is None
@@ -248,7 +252,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 continue_loop = root_comm.bcast(continue_loop, root=0)
                 if not continue_loop:
                     break
-        print(f"Rank {rank} finished node global merge {color=}",flush=True)
+        print(f"Rank {rank} finished node global merge",flush=True)
     except Exception as e:
         print(f"Exception {e}", flush=True)
         exc_type, exc_obj, exc_tb = sys.exc_info()

@@ -192,9 +192,12 @@ def sort_dictionary_pg(dd: DDict, num_keys, num_return_sorted, num_procs: int, n
     grp.init()
     grp.start()
     print(f"Starting Process Group for Sorting",flush=True)
-
     grp.join()
-    grp.stop()
+    print(f"Process Group for Sorting has joined",flush=True)
+    #dd.destroy()
+    #cdd.destroy()
+    grp.close()
+    #grp.stop()
 
 def create_dummy_data(_dict,num_managers):
 

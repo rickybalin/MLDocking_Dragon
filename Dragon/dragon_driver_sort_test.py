@@ -81,7 +81,7 @@ if __name__ == "__main__":
         print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
-
+    loader_proc.close()
     tic = perf_counter()
     print("Here are the stats after data loading...")
     print("++++++++++++++++++++++++++++++++++++++++")
@@ -120,6 +120,7 @@ if __name__ == "__main__":
                                         cand_dd))
         sorter_proc.start()
         sorter_proc.join()
+        sorter_proc.close()
 
     else:
         print("No other sorting method implemented",flush=True)
