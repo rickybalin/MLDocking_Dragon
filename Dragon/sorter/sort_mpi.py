@@ -130,7 +130,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         my_key_list = my_host_comm.scatter(my_key_list,root=0)
         ctoc = perf_counter()
         print(f"Sort rank {rank} scatter local keys in {ctoc - ctic} seconds",flush=True)
-        print(f"Sort rank {rank} has {my_key_list=}")
+        #print(f"Sort rank {rank} has {my_key_list=}")
     except Exception as e:
         print(f"Exception {e}")
         exc_type, exc_obj, exc_tb = sys.exc_info()
