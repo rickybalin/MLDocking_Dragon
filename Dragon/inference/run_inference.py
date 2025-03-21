@@ -151,6 +151,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     load_from_fs = False
     try:
         model_iter = dd["model_iter"]
+        print("Model in dict")
     except:
         print("No model iter in dict")
         load_from_fs = True
@@ -185,6 +186,9 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             model_iter = dd["model_iter"]
             weights_dict = dd["model"]
             hyper_params = dd["model_hyper_params"]
+
+            with open(log_file_name, "a") as f:
+                f.write(f"Finished loading fine tuned model\n")
 
             model = ModelArchitecture(hyper_params).call()
             # Assign the weights back to the model
