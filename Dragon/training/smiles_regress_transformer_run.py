@@ -33,7 +33,7 @@ driver_path = os.getenv("DRIVER_PATH")
 
 def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
 
-    fine_tune_log = "train_switch.log"
+    fine_tune_log = "training.log"
 
     ######## Build model #############
     keys = dd.keys()
@@ -48,12 +48,12 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
             model_path = os.path.join(driver_path,'training/smile_regress.autosave.model.h5')
             model.load_weights(model_path)
         except Exception as e:
-            with open("train_switch.log","a") as f:
+            with open(fine_tune_log,"a") as f:
                 f.write(f"Failed to load pretrained model from fileystem: {model_path}")
                 f.write(f"{e}")
         model_iter = 1
         
-        with open("train_switch.log","a") as f:
+        with open(fine_tune_log,"a") as f:
             f.write(f"Finished loading pretrained model\n")
             f.write("\n")
     else:
@@ -68,12 +68,12 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
                             for weight_idx in range(len(layer.get_weights()))]
                 layer.set_weights(weights)
 
-            with open("train_switch.log","a") as f:
+            with open(fine_tune_log,"a") as f:
                 f.write(f"Finished loading fine tuned model\n")
                 f.write("\n")
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            with open(f"train_switch.log",'a') as f:
+            with open(fine_tune_log,'a') as f:
                 f.write(f"Failed to load fine tuned model from dictionary\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}\n")
@@ -83,26 +83,26 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
                 layer.trainable = False
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-        with open(f"train_switch.log",'a') as f:
+        with open(fine_tune_log,'a') as f:
             f.write(f"Failed to set layers to train\n")
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
 
 
-    with open("train_switch.log", 'a') as f:
+    with open(fine_tune_log, 'a') as f:
         f.write(f"Create training data\n")
     ########Create training and validation data##### 
     x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
-    with open("train_switch.log", 'a') as f:
+    with open(fine_tune_log, 'a') as f:
         f.write(f"Finished creating training data\n")
     
     # Only train if there is new data
     if len(x_train) > 0:
-        with open("train_switch.log", 'a') as f:
+        with open(fine_tune_log, 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
         
         try:
-            with open("train_switch.log", 'a') as sys.stdout:
+            with open(fine_tune_log, 'a') as sys.stdout:
                 history = model.fit(
                             x_train,
                             y_train,
@@ -125,7 +125,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
 
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            with open("train_switch.log","a") as f:
+            with open(fine_tune_log,"a") as f:
                 f.write(f"model fit failed\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}")
@@ -140,6 +140,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
        
         dd["model"] = weights_dict
         dd["model_iter"] = model_iter
+        print("Saved fine tuned model to dictionary",flush=True)
 
     except Exception as e:
         print("writing model to dictionary failed!")

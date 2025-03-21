@@ -24,8 +24,7 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, BATCH, EPOCH):
 
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-
-    grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
+    grp = ProcessGroup(policy=global_policy)
 
     node_name = Node(node).hostname
 
@@ -49,7 +48,7 @@ def launch_training(dd: DDict, node, candidate_dict: DDict, BATCH, EPOCH):
     print(f"Starting Process Group for Training")
     
     grp.join()
-    grp.stop()
+    grp.close()
     print(f"Training process group stopped",flush=True)
     #print(dd["model_iter"])
     #print(dd["model"])

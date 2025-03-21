@@ -403,8 +403,8 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             with open(f"dock_worker_{proc}.log","a") as f:
                 f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
 
-    with open(f"finished_run_docking.log", "a") as f:
-        f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
+    #with open(f"finished_run_docking.log", "a") as f:
+    #    f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
     return
 
 

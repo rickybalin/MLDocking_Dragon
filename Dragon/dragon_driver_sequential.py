@@ -262,7 +262,7 @@ if __name__ == "__main__":
         dock_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
-        os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
+        #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
         print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
 
         # Launch Training

@@ -13,55 +13,6 @@ from dragon.globalservices.api_setup import connect_to_infrastructure
 connect_to_infrastructure()
 
 
-def merge(left: list, right: list, num_return_sorted: int) -> list:
-    """This function merges two lists.
-
-    :param left: First list of tuples containing data
-    :type left: list
-    :param right: Second list of tuples containing data
-    :type right: list
-    :return: Merged data
-    :rtype: list
-    """
-    
-    # Merge by 0th element of tuples
-    # i.e. [(9.4, "asdfasd"), (3.5, "oisdjfosa"), ...]
-
-    merged_list = [None] * (len(left) + len(right))
-
-    i = 0
-    j = 0
-    k = 0
-
-    while i < len(left) and j < len(right):
-        if left[i][0] < right[j][0]:
-            merged_list[k] = left[i]
-            i = i + 1
-        else:
-            merged_list[k] = right[j]
-            j = j + 1
-        k = k + 1
-
-    # When we are done with the while loop above
-    # it is either the case that i > midpoint or
-    # that j > end but not both.
-
-    # finish up copying over the 1st list if needed
-    while i < len(left):
-        merged_list[k] = left[i]
-        i = i + 1
-        k = k + 1
-
-    # finish up copying over the 2nd list if needed
-    while j < len(right):
-        merged_list[k] = right[j]
-        j = j + 1
-        k = k + 1
-
-    # only return the last num_return_sorted elements
-    #print(f"Merged list returned {merged_list[-num_return_sorted:]}",flush=True)
-    return merged_list[-num_return_sorted:]
-
 def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict: DDict):
     MPI.Init()
     comm = MPI.COMM_WORLD
@@ -156,7 +107,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         
         if any(val["inf"]):
             try:
-                #print(f"rank {rank}: make tuple list on iter {i}",flush=True)
+                print(f"rank {rank}: make tuple list on iter {i}",flush=True)
                 this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
                 my_results.extend(this_value)
                 my_results.sort(key=lambda tup: tup[0])
@@ -167,9 +118,16 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 print(exc_type, fname, exc_tb.tb_lineno, flush=True)
                 print(e, flush=True)
                 raise(e)
-            
-    my_results.sort(key=lambda tup: tup[0])
-    my_results = my_results[-num_return_sorted:]
+    try:        
+        my_results.sort(key=lambda tup: tup[0])
+        my_results = my_results[-num_return_sorted:]
+    except Exception as e:
+        print(f"Exception {e}")
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno)
+        raise(e)
+    
     toc = perf_counter()
     print(f"Rank {rank} finished direct sort in {toc-tic} seconds; found {len(my_results)} results; starting local merge",flush=True)
             
@@ -266,8 +224,11 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         print(f"Collected sorted results on rank 0",flush=True)
         #print(f"{my_results=}")
         # put data in candidate_dict
-        top_candidates = all_results
-        num_top_candidates = len(all_results)
+        
+        #top_candidates = all_results
+        # filter out any 0 values or dummy values
+        top_candidates = [c for c in all_results if c[0] > 0 and c[1] != 'dummy']
+        num_top_candidates = len(top_candidates)
         with open("sort_controller.log", "a") as f:
             f.write(f"Collected {num_top_candidates=}\n")
         print(f"Collected {num_top_candidates=}",flush=True)
@@ -278,6 +239,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                 print(f"{ckey=}",flush=True)
                 candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
                 non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+                
                 print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
                 sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
             
