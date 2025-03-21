@@ -93,7 +93,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
                                                      args=(dd,
-                                                        num_procs,
+                                                        num_procs_pn,
                                                         proc_id, 
                                                         None, # Continue event not used in sequential wf
                                                         inf_num_limit,

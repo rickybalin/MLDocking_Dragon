@@ -96,7 +96,7 @@ if __name__ == "__main__":
         nodelists[key] = tot_nodelist[:node_counts[key]]
 
     # Use a prime number of nodes for dictionaries
-    num_dict_nodes = get_prime_number(num_tot_nodes)
+    num_dict_nodes = num_tot_nodes #get_prime_number(num_tot_nodes)
 
     # Get info on the number of files
     base_path = pathlib.Path(args.data_path)
