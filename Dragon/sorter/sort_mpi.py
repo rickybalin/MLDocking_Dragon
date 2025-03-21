@@ -63,6 +63,8 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
                     local_manager = i
                     dm = _dict.manager(i)
                     key_list.extend(dm.keys())
+                    # Filter out keys containing model or iter info
+                    key_list = [key for key in key_list if "model" not in key and "iter" not in key]
                     ktoc = perf_counter()
                     print(f"Sort rank {rank} retrieved local keys in {ktoc - ktic} seconds",flush=True)
         
@@ -95,29 +97,26 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
     # Direct sort keys assigned to this rank
     tic = perf_counter()
     my_results = []
-    for i,key in enumerate(my_key_list):
-        try:
+    try:
+        for i,key in enumerate(my_key_list):
             #print(f"Sort rank {rank} getting key {key} on iter {i}",flush=True)
             val = _dict[key]
             #print(f"Sort rank {rank} finished getting key {key} on iter {i}",flush=True)
-        except Exception as e:
-            print(f"Failed to pull {key} from dict", flush=True)
-            print(f"Exception {e}",flush=True)
-            raise(e)
-        
-        if any(val["inf"]):
-            try:
-                print(f"rank {rank}: make tuple list on iter {i}",flush=True)
+
+            # Only include this key if it has non-zero inf values
+            if any(val["inf"]):
                 this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
                 my_results.extend(this_value)
                 my_results.sort(key=lambda tup: tup[0])
                 my_results = my_results[-num_return_sorted:]
-            except Exception as e:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(exc_type, fname, exc_tb.tb_lineno, flush=True)
-                print(e, flush=True)
-                raise(e)
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno, flush=True)
+        print(e, flush=True)
+        print(f"{key=} {val=}",flush=True)
+        raise(e)
+        
     try:        
         my_results.sort(key=lambda tup: tup[0])
         my_results = my_results[-num_return_sorted:]

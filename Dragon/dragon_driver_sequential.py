@@ -16,9 +16,6 @@ from dragon.infrastructure.policy import Policy
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
 from sorter.sorter import sort_dictionary_pg
-from sorter.sort_brute_force import brute_sort
-from sorter.sort_threaded_queue import merge_sort
-from sorter.sort_threaded_pool import pool_sort
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
@@ -223,28 +220,8 @@ if __name__ == "__main__":
                                            cand_dd))
             sorter_proc.start()
             sorter_proc.join()
-        elif os.getenv("USE_QUEUE_SORT"):
-            print("Using threaded queue sort",flush=True)
-            sorter_proc = mp.Process(target=merge_sort,
-                                     args=(data_dd,
-                                           top_candidate_number,
-                                           cand_dd,
-                                           max_procs))
-            sorter_proc.start()
-            sorter_proc.join()
         else:
-            print("Using threaded pool sort",flush=True)
-            sorter_proc = mp.Process(target=pool_sort,
-                             args=(data_dd,
-                                   top_candidate_number,
-                                   cand_dd,
-                                   max_procs,
-                                   )
-                            )
-            sorter_proc.start()
-            sorter_proc.join()
-            #pool_sort(data_dd, top_candidate_number, cand_dd,args.max_procs_per_node)
-            #brute_sort(data_dd, top_candidate_number, cand_dd)
+            print("Filter sort not yet included", flush=True)
 
         toc = perf_counter()
         infer_time = toc - tic

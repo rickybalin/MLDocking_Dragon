@@ -148,6 +148,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             model_iter = dd["model_iter"]
             weights_dict = dd["model"]
             hyper_params = dd["model_hyper_params"]
+
             model = ModelArchitecture(hyper_params).call()
             # Assign the weights back to the model
             for layer_idx, layer in enumerate(model.layers):
@@ -159,8 +160,8 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
 
             if debug:
                 with open(log_file_name, "a") as f:
-                    f.write(f"Loaded model {model_iter}\n")
-                    print("Loaded model")
+                    f.write(f"Loaded model {model_iter} from dict\n")
+                    print("Loaded model from dict")
         except Exception as e:
             with open(log_file_name, "a") as f:
                 f.write(f"{e}\n")

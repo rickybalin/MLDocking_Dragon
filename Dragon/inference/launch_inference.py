@@ -81,7 +81,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    grp = ProcessGroup(restart=False, ignore_error_on_exit=False, policy=global_policy)
+    grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_inf_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):

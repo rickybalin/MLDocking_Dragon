@@ -315,7 +315,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 
 def run_docking(cdd, docking_iter, proc: int, num_procs: int):
-    print(f"Dock worker {proc} starting...")
+    print(f"Dock worker {proc} starting...", flush=True)
     debug = True
     if debug:
         myp = current_process()

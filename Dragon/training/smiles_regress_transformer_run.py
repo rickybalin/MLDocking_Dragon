@@ -112,9 +112,12 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
                             validation_data=(x_val,y_val),
                             #callbacks=callbacks,
                         )
+                print("model fitting complete",flush=True)
+            sys.stdout = sys.__stdout__
+            print("model fitting complete",flush=True)
             weights = model.get_weights()
             weights_dict = {}
-
+            
             # Iterate over the layers and their respective weights
             for layer_idx, layer in enumerate(model.layers):
                 for weight_idx, weight in enumerate(layer.get_weights()):
@@ -122,14 +125,16 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
                     wkey = f'layer_{layer_idx}_weight_{weight_idx}'
                     # Save the weight in the dictionary
                     weights_dict[wkey] = weight
-
+            with open(fine_tune_log,"a") as f:
+                f.write("got weights from model layers\n")
+            print("got weights from model layers")
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             with open(fine_tune_log,"a") as f:
                 f.write(f"model fit failed\n")
                 f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
                 f.write(f"{e}")
-       
+            raise(e)
     # Save to dictionary
     try:
         if save_model:
@@ -140,6 +145,8 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
        
         dd["model"] = weights_dict
         dd["model_iter"] = model_iter
+        with open("model_iter",'w') as f:
+            f.write("Saved fine tuned model to dictionary")
         print("Saved fine tuned model to dictionary",flush=True)
 
     except Exception as e:
