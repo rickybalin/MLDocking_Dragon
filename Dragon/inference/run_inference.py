@@ -184,9 +184,25 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 f.write(f"Loading fine tuned model\n")
 
             model_iter = dd["model_iter"]
-            weights_dict = dd["model"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Loading model iter {model_iter}\n")
             hyper_params = dd["model_hyper_params"]
-
+            with open(log_file_name, "a") as f:
+                f.write(f"Loaded hyper params\n")
+            
+            weight_keys = dd["model_weight_keys"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Got weight keys: {weight_keys} \n")
+            random.shuffle(weight_keys)
+            with open(log_file_name, "a") as f:
+                f.write(f"Shuffled weight keys: {weight_keys} \n")
+            
+            weights_dict = {}
+            for wkey in weight_keys:
+                weights_dict[wkey] = dd[wkey]
+                with open(log_file_name, "a") as f:
+                    f.write(f"...loaded {wkey} weight\n")
+            #weights_dict = dd["model"]
             with open(log_file_name, "a") as f:
                 f.write(f"Finished loading fine tuned model\n")
 
@@ -206,6 +222,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         except Exception as e:
             with open(log_file_name, "a") as f:
                 f.write(f"{e}\n")
+            raise(e)
 
     # Split keys in Dragon Dict
     try:

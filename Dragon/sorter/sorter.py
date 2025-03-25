@@ -162,7 +162,7 @@ def sort_controller(dd,
     #     ckey_max = max(ckeys)
     #     print(f"top candidates = {candidate_dict[ckey_max]}")
 
-def sort_dictionary_pg(dd: DDict, num_keys, num_return_sorted, num_procs: int, nodelist, cdd):
+def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, cdd):
    
     num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
@@ -175,7 +175,7 @@ def sort_dictionary_pg(dd: DDict, num_keys, num_return_sorted, num_procs: int, n
     print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
 
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    grp = ProcessGroup(restart=False, policy=global_policy, pmi_enabled=True, ignore_error_on_exit=True)
+    grp = ProcessGroup(policy=global_policy, pmi_enabled=True)
 
     print(f"Launching sorting process group {nodelist}", flush=True)
     for node in nodelist:

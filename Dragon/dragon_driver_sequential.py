@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {
-        "sorting": 1,
+        "sorting": num_tot_nodes,
         "training": 1,
         "inference": num_tot_nodes,
         "docking": num_tot_nodes,
@@ -213,7 +213,6 @@ if __name__ == "__main__":
             max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
             sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                      args=(data_dd,
-                                           num_keys,
                                            top_candidate_number, 
                                            max_sorter_procs, 
                                            nodelists["sorting"],
@@ -225,7 +224,7 @@ if __name__ == "__main__":
 
         toc = perf_counter()
         infer_time = toc - tic
-        print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+        print(f"Performed sorting of {num_keys} keys in {infer_time:.3f} seconds \n", flush=True)
 
         # Launch Docking Simulations
         print(f"Launched Docking Simulations", flush=True)

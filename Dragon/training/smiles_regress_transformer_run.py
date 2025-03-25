@@ -119,12 +119,25 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
             weights_dict = {}
             
             # Iterate over the layers and their respective weights
+            num_layers = 0
+            num_weights = 0
+            tot_memory = 0
+            weight_keys = []
             for layer_idx, layer in enumerate(model.layers):
+                num_layers += 1
                 for weight_idx, weight in enumerate(layer.get_weights()):
+                    num_weights += 1
                     # Create a key for each weight
-                    wkey = f'layer_{layer_idx}_weight_{weight_idx}'
+                    wkey = f'model_layer_{layer_idx}_weight_{weight_idx}'
                     # Save the weight in the dictionary
-                    weights_dict[wkey] = weight
+                    #weights_dict[wkey] = weight
+                    dd[wkey] = weight
+                    weight_keys.append(wkey)
+                    print(f"{wkey}: {weight.nbytes} bytes")
+                    tot_memory += weight.nbytes
+            print(f"{num_layers=} {num_weights=} {tot_memory=}")
+            print(f"saved keys: {weight_keys}")
+            dd["model_weight_keys"] = weight_keys
             with open(fine_tune_log,"a") as f:
                 f.write("got weights from model layers\n")
             print("got weights from model layers")
@@ -143,7 +156,7 @@ def fine_tune(dd: DDict, candidate_dict: DDict, BATCH, EPOCH, save_model=True):
             with open("model_iter",'w') as f:
                 f.write(f"{model_iter=} {model_path=}")
        
-        dd["model"] = weights_dict
+        #dd["model"] = weights_dict
         dd["model_iter"] = model_iter
         with open("model_iter",'w') as f:
             f.write("Saved fine tuned model to dictionary")
