@@ -210,7 +210,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             # Assign the weights back to the model
             for layer_idx, layer in enumerate(model.layers):
                 weights = [
-                    weights_dict[f"layer_{layer_idx}_weight_{weight_idx}"]
+                    weights_dict[f"model_layer_{layer_idx}_weight_{weight_idx}"]
                     for weight_idx in range(len(layer.get_weights()))
                 ]
                 layer.set_weights(weights)
