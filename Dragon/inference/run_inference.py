@@ -117,6 +117,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         with open(log_file_name,'a') as f:
             f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
+            f.flush()
         cuda_device = os.getenv("CUDA_VISIBLE_DEVICES")
         pvc_device = os.getenv("ZE_AFFINITY_MASK")
         device = None

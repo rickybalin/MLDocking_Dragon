@@ -12,6 +12,7 @@ from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
+from driver_functions import max_data_dict_size
 
 from data_loader.data_loader_presorted import get_files
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
@@ -43,8 +44,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     #
-    #logging.basicConfig(level=logging.INFO)
-    #logger.info("Begun dragon driver")
+ 
     # Start driver
     start_time = perf_counter()
     print("Begun dragon driver",flush=True)
@@ -75,24 +75,24 @@ if __name__ == "__main__":
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[:node_counts[key]]
 
-    # Use a prime number of nodes for dictionaries
-    num_dict_nodes = num_tot_nodes #get_prime_number(num_tot_nodes)
+    # Set the number of nodes the dictionary uses
+    num_dict_nodes = num_tot_nodes
 
     # Get info on the number of files
     base_path = pathlib.Path(args.data_path)
     files, num_files = get_files(base_path)
 
-    # mem_per_file = 12/8192
-    # tot_mem = int(min(args.mem_per_node*num_tot_nodes,
-    #               max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
-    #               ))
     tot_mem = args.mem_per_node*num_tot_nodes
-    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}")
+    print(f"There are {num_files} files")
 
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = max(int(tot_mem), num_tot_nodes)
-    candidate_dict_mem = max(int(tot_mem*(1.-args.data_dictionary_mem_fraction)), num_tot_nodes)
+    data_dict_mem, candidate_dict_mem = max_data_dict_size(num_files)
     print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
+    
+    if data_dict_mem + candidate_dict_mem > tot_mem:
+        print(f"Sum of dictionary sizes exceed total mem: {data_dict_mem=} {candidate_dict_mem=} {tot_mem=}", flush=True)
+        raise Exception("Not enough memory for DDicts")
+
     data_dict_mem *= (1024*1024*1024)
     candidate_dict_mem *= (1024*1024*1024)
 
@@ -105,7 +105,6 @@ if __name__ == "__main__":
     data_dd = DDict(args.managers_per_node, num_dict_nodes, data_dict_mem, trace=True)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_dict_nodes} nodes", flush=True)
-    print(f"{data_dd.stats=}")
     
     # Launch the data loader component
     max_procs = args.max_procs_per_node * num_tot_nodes

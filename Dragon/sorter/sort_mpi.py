@@ -69,7 +69,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
     if local_rank == 0:
         my_key_list = []
         direct_sort_num = len(key_list)//local_size
-        #print(f"Sort rank {rank} retrieved {len(key_list)} local keys",flush=True)
+        print(f"Sort rank {rank} retrieved {len(key_list)} local keys",flush=True)
         for i in range(local_size):
             min_index = i*direct_sort_num
             max_index = min(min_index + direct_sort_num, num_keys)
@@ -202,6 +202,8 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
         
         #top_candidates = all_results
         # filter out any 0 values or dummy values
+        print(f"Number of results {len(all_results)=}",flush=True)
+        #print(all_results,flush=True)
         top_candidates = [c for c in all_results if c[0] > 0 and c[1] != 'dummy']
         num_top_candidates = len(top_candidates)
         with open("sort_controller.log", "a") as f:
@@ -217,9 +219,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
         
-            save_list(candidate_dict, ckey, sort_val)
-            
-    
+            save_list(candidate_dict, ckey, sort_val)    
     #print(f"Rank {rank} done",flush=True)
     MPI.Finalize()
     

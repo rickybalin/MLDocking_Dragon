@@ -162,16 +162,21 @@ def sort_controller(dd,
     #     ckey_max = max(ckeys)
     #     print(f"top candidates = {candidate_dict[ckey_max]}")
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, cdd):
+def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodelist, cdd: DDict):
    
-    num_procs_pn = num_procs//len(nodelist)
+    max_num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
     key_list = dd.keys()
     key_list = [key for key in key_list if "iter" not in key and "model" not in key]
-    # if "inf_iter" in key_list:
-    #     key_list.remove("inf_iter")
+    
     num_keys = len(key_list)
-    direct_sort_num = max(len(key_list)//num_procs+1,1)
+
+    keys_per_node = num_keys//len(nodelist)
+    min_direct_sort_num = 4
+
+    direct_sort_num = max(num_keys//num_procs+1,min_direct_sort_num)
+    num_procs_pn = keys_per_node // direct_sort_num
+    
     print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
 
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
@@ -182,7 +187,9 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
         node_name = Node(node).hostname
         local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                             host_name=node_name, 
-                            cpu_affinity=list(range(num_procs_pn)))
+                            cpu_affinity=list(range(0, 
+                                                    max_num_procs_pn, 
+                                                    max_num_procs_pn//num_procs_pn)))
         grp.add_process(nproc=num_procs_pn, 
                             template=ProcessTemplate(target=mpi_sort, 
                                                     args=(dd, num_keys, num_return_sorted,cdd), 
@@ -194,10 +201,8 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted, num_procs: int, nodelist, c
     print(f"Starting Process Group for Sorting",flush=True)
     grp.join()
     print(f"Process Group for Sorting has joined",flush=True)
-    #dd.destroy()
-    #cdd.destroy()
     grp.close()
-    #grp.stop()
+   
 
 def create_dummy_data(_dict,num_managers):
 

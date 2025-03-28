@@ -19,35 +19,13 @@ from sorter.sorter import sort_dictionary_pg
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
-
-
-def get_prime_number(n):
-    # Use 1, 2 or 3 if that is n
-    if n <= 3:
-        return n
-    
-    # All prime numbers are odd except two
-    if not (n & 1):
-        n -= 1
-    
-    for i in range(n, 3, -2):
-        isprime = True
-        for j in range(3,n):
-            if i % j == 0:
-                isprime = False
-                break
-        if isprime:
-            return i
-    return 3
-    
+from driver_functions import max_data_dict_size
 
 
 if __name__ == "__main__":
 
     # Import command line arguments
     parser = argparse.ArgumentParser(description='Distributed dictionary example')
-    parser.add_argument('--data_dictionary_mem_fraction', type=float, default=0.7,
-                        help='fraction of memory dedicated to data dictionary')
     parser.add_argument('--managers_per_node', type=int, default=1,
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
@@ -62,9 +40,6 @@ if __name__ == "__main__":
                         help='Path to pre-sorted SMILES strings to load')
 
     args = parser.parse_args()
-    #
-    #logging.basicConfig(level=logging.INFO)
-    #logger.info("Begun dragon driver")
     # Start driver
     start_time = perf_counter()
     print("Begun dragon driver",flush=True)
@@ -95,24 +70,24 @@ if __name__ == "__main__":
     for key in node_counts.keys():
         nodelists[key] = tot_nodelist[:node_counts[key]]
 
-    # Use a prime number of nodes for dictionaries
-    num_dict_nodes = num_tot_nodes #get_prime_number(num_tot_nodes)
+    # Set the number of nodes the dictionary uses
+    num_dict_nodes = num_tot_nodes
 
     # Get info on the number of files
     base_path = pathlib.Path(args.data_path)
     files, num_files = get_files(base_path)
 
-    # mem_per_file = 12/8192
-    # tot_mem = int(min(args.mem_per_node*num_tot_nodes,
-    #               max(ceil(num_files*mem_per_file*100/args.data_dictionary_mem_fraction),2*num_tot_nodes)
-    #               ))
     tot_mem = args.mem_per_node*num_tot_nodes
-    print(f"There are {num_files} files, setting mem_per_node to {tot_mem/num_dict_nodes}")
+    print(f"There are {num_files} files")
 
     # Set up and launch the inference data DDict and top candidate DDict
-    data_dict_mem = max(int(tot_mem), num_tot_nodes)
-    candidate_dict_mem = max(int(tot_mem*(1.-args.data_dictionary_mem_fraction)), num_tot_nodes)
+    data_dict_mem, candidate_dict_mem = max_data_dict_size(num_files)
     print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
+
+    if data_dict_mem + candidate_dict_mem > tot_mem:
+        print(f"Sum of dictionary sizes exceed total mem: {data_dict_mem=} {candidate_dict_mem=} {tot_mem=}", flush=True)
+        raise Exception("Not enough memory for DDicts")
+
     data_dict_mem *= (1024*1024*1024)
     candidate_dict_mem *= (1024*1024*1024)
 
@@ -240,6 +215,9 @@ if __name__ == "__main__":
         infer_time = toc - tic
         #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
         print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
+
+        print(f"Candidate Dictionary stats:", flush=True)
+        print(cand_dd.stats)
 
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
