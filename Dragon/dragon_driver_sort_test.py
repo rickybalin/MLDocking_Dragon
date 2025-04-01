@@ -59,7 +59,6 @@ if __name__ == "__main__":
     data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_tot_nodes} nodes", flush=True)
-    print(f"{data_dd.stats=}")
 
     max_procs = args.max_procs_per_node * num_tot_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
@@ -100,7 +99,7 @@ if __name__ == "__main__":
     else:
         top_candidate_number = 5000
 
-    num_keys = data_dd.keys()
+    num_keys = len(data_dd.keys())
 
     # Sort
     print(f"Launching sorting ...", flush=True)
@@ -113,7 +112,6 @@ if __name__ == "__main__":
         #max_sorter_procs = 1*num_tot_nodes
         sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                     args=(data_dd,
-                                        num_keys,
                                         top_candidate_number, 
                                         max_sorter_procs, 
                                         tot_nodelist,
@@ -126,4 +124,4 @@ if __name__ == "__main__":
         print("No other sorting method implemented",flush=True)
     toc = perf_counter()
     infer_time = toc - tic
-    print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+    print(f"Performed sorting of {num_keys} keys in {infer_time:.3f} seconds \n", flush=True)
