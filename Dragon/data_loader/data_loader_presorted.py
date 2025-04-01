@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import gc
+import random
 
 import dragon
 import multiprocessing as mp
@@ -49,6 +50,9 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
+
+    sort_test = os.getenv("TEST_SORTING")
+
     try:
         #gc.collect()
         me = mp.current_process()
@@ -58,8 +62,6 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         file_index = file_tuple[0]
         manager_index = file_tuple[2]
         file_path = file_tuple[1]
-
-        # print("Now in read_smiles")
 
         smiles = []
         f_name = str(file_path).split("/")[-1]
@@ -76,10 +78,14 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                     smiles.append(smile)
 
         inf_results = [0.0 for i in range(len(smiles))]
+        if sort_test:
+            inf_results = [random.uniform(8.0, 14.0) for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
+        model_iters = [-1 for i in range(len(smiles))]
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
         smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
+        smiles_size += sum([sys.getsizeof(miter) for miter in model_iters])
         smiles_size += sys.getsizeof(f_name)
         smiles_size += sys.getsizeof(key)
 
@@ -92,7 +98,8 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
 
         #print(f"Now putting key {key}", flush=True)
-        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
+        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results, "model_iter": model_iters}
+
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
@@ -147,14 +154,13 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     print(f"Number of pool procs is {num_procs}", flush=True)
 
     try:
+        total_data_size = 0
         for i in range(4):
             start_time = perf_counter()
 
             num_pool_procs = num_procs
-
             pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
             print(f"Pool initialized", flush=True)
-
             print(f"Reading smiles for {num_files}", flush=True)
 
             num_files_per_pool = num_files // 4 + 1
@@ -166,19 +172,15 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
                     * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
                 ],
             )
-
-            print(f"Size of dataset is {sum(smiles_sizes)} bytes", flush=True)
+            iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+            print(f"Size of dataset is {iter_data_size} GB", flush=True)
+            total_data_size += iter_data_size
             print(f"Mapped function complete", flush=True)
             pool.close()
             print(f"Pool closed", flush=True)
             pool.join()
             print(f"Pool joined", flush=True)
-            end_time = perf_counter()
-
-            load_iter_time = end_time - start_time
-            print(f"Performed data load iteration {i} in {load_iter_time:.3f} seconds", flush=True)
-            print(f"Here are the DDict Stats after iteration {i}", flush=True)
-            print(_dict.stats)
+        print(f"Total data read in {total_data_size} GB", flush=True)
 
     except Exception as e:
         print(f"reading smiles failed")

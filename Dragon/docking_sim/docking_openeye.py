@@ -315,7 +315,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 
 def run_docking(cdd, docking_iter, proc: int, num_procs: int):
-    print(f"Dock worker {proc} starting...")
+    print(f"Dock worker {proc} starting...", flush=True)
     debug = True
     if debug:
         myp = current_process()
@@ -350,18 +350,16 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     
 
     # Remove top candidates that have already been simulated
-    if debug:
-        with open(log_file_name,"a") as f:
-            f.write(f"Found {len(top_candidates)} top candidates; there are {len(ckeys)} ckeys\n")
+    if proc == 0:
+        print(f"Found {len(top_candidates)} top candidates; there are {len(ckeys)} ckeys", flush=True)
 
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
     top_candidates = list(set(top_candidates) - set(prev_top_candidates))
     top_candidates.sort()
     num_candidates = len(top_candidates)
 
-    if debug:
-        with open(log_file_name,"a") as f:
-            f.write(f"Found {num_candidates} candidates not in previous list\n")
+    if proc == 0:
+        print(f"Found {num_candidates} candidates not in previous list", flush=True)
         
     # Partition top candidate list to get candidates for this process to simulate
     if num_procs < len(top_candidates):
@@ -372,18 +370,19 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
         else:
             my_candidates = []
 
+    if debug:
+        with open(log_file_name,"a") as f:
+            f.write(f"{datetime.datetime.now()}: Docking worker assigned {len(my_candidates)} candidates\n")
+            
     # Remove any candidates in ckeys, this may lead to load imbalance, we should replace with queue
     my_candidates = list(set(my_candidates) - set(ckeys))
 
     # check to see if we already have a sim result for this process' candidates
     ret_time = 0
     ret_size = 0
-    if debug:
-        with open(log_file_name,"a") as f:
-            f.write(f"{datetime.datetime.now()}: Docking worker simulating {len(my_candidates)} candidates\n")
 
     if debug:
-        with open(f"dock_worker_{proc}.log","a") as f:
+        with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
 
     # if there are new candidates to simulate, run sims
@@ -403,8 +402,8 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             with open(f"dock_worker_{proc}.log","a") as f:
                 f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
 
-    with open(f"finished_run_docking.log", "a") as f:
-        f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
+    #with open(f"finished_run_docking.log", "a") as f:
+    #    f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
     return
 
 
@@ -442,9 +441,9 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
 
     smiter = 0
     for smiles in candidates:
-        if debug:
-            with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"dock_cand {smiter}: {smiles}\n")
+        #if debug:
+        #    with open(f"dock_worker_{proc}.log","a") as f:
+        #        f.write(f"dock_cand {smiter}: {smiles}\n")
         try:
             try:
                 conformers = select_enantiomer(from_string(smiles))

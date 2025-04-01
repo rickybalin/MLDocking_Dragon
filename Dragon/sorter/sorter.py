@@ -1,5 +1,4 @@
 from time import perf_counter
-from typing import Tuple
 import argparse
 import os
 import random
@@ -14,10 +13,14 @@ from dragon.infrastructure.connection import Connection
 from dragon.native.machine import cpu_count, current, System, Node
 from .sort_mpi import mpi_sort
 import datetime
+
 import time
 import heapq
 import socket
 import traceback
+
+from data_loader.data_loader_presorted import load_inference_data
+
 
 MAX_BRANCHING_FACTOR = 5
 
@@ -223,7 +226,7 @@ def comparator(x, y):
     return x[0] > y[0]
 
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted):
+def sort_dictionary(dd: DDict, num_return_sorted):
 
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
     candidate_list = []
@@ -239,7 +242,50 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted):
     print(candidate_list[:10], flush=True)
 
 
-def create_dummy_data(_dict, num_managers):
+def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodelist, cdd: DDict):
+   
+    max_num_procs_pn = num_procs//len(nodelist)
+    run_dir = os.getcwd()
+    key_list = dd.keys()
+    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
+    
+    num_keys = len(key_list)
+
+    keys_per_node = num_keys//len(nodelist)
+    min_direct_sort_num = 4
+
+    direct_sort_num = max(num_keys//num_procs+1,min_direct_sort_num)
+    num_procs_pn = keys_per_node // direct_sort_num
+    
+    print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
+
+    global_policy = Policy(distribution=Policy.Distribution.BLOCK)
+    grp = ProcessGroup(policy=global_policy, pmi_enabled=True)
+
+    print(f"Launching sorting process group {nodelist}", flush=True)
+    for node in nodelist:
+        node_name = Node(node).hostname
+        local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
+                            host_name=node_name, 
+                            cpu_affinity=list(range(0, 
+                                                    max_num_procs_pn, 
+                                                    max_num_procs_pn//num_procs_pn)))
+        grp.add_process(nproc=num_procs_pn, 
+                            template=ProcessTemplate(target=mpi_sort, 
+                                                    args=(dd, num_keys, num_return_sorted,cdd), 
+                                                    policy=local_policy,
+                                                    cwd=run_dir))
+    print(f"Added processes to sorting group",flush=True)
+    grp.init()
+    grp.start()
+    print(f"Starting Process Group for Sorting",flush=True)
+    grp.join()
+    print(f"Process Group for Sorting has joined",flush=True)
+    grp.close()
+   
+
+def create_dummy_data(_dict,num_managers):
+
 
     NUMKEYS = 100
 
@@ -261,47 +307,24 @@ def create_dummy_data(_dict, num_managers):
 
 if __name__ == "__main__":
     # Import command line arguments
-    parser = argparse.ArgumentParser(description="Distributed dictionary example")
-    parser.add_argument(
-        "--num_nodes",
-        type=int,
-        default=1,
-        help="number of nodes the dictionary distributed across",
-    )
-    parser.add_argument(
-        "--managers_per_node",
-        type=int,
-        default=1,
-        help="number of managers per node for the dragon dict",
-    )
-    parser.add_argument(
-        "--mem_per_node",
-        type=int,
-        default=1,
-        help="managed memory size per node for dictionary in GB",
-    )
-    parser.add_argument(
-        "--max_procs_per_node",
-        type=int,
-        default=10,
-        help="Maximum number of processes in a Pool",
-    )
-    parser.add_argument(
-        "--dictionary_timeout",
-        type=int,
-        default=10,
-        help="Timeout for Dictionary in seconds",
-    )
-    parser.add_argument(
-        "--data_path",
-        type=str,
-        default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
-        help="Path to pre-sorted SMILES strings to load",
-    )
+
+    parser = argparse.ArgumentParser(description='Distributed dictionary example')
+    parser.add_argument('--num_nodes', type=int, default=1,
+                        help='number of nodes the dictionary distributed across')
+    parser.add_argument('--managers_per_node', type=int, default=1,
+                        help='number of managers per node for the dragon dict')
+    parser.add_argument('--mem_per_node', type=int, default=1,
+                        help='managed memory size per node for dictionary in GB')
+    parser.add_argument('--max_procs_per_node', type=int, default=32,
+                        help='Maximum number of processes in a Pool')
+    parser.add_argument('--data_path', type=str, default="/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny",
+                        help='Path to pre-sorted SMILES strings to load')
+
     args = parser.parse_args()
 
-    # Start distributed dictionary
+    
     mp.set_start_method("dragon")
+
     total_mem_size = args.mem_per_node * args.num_nodes * (1024 * 1024 * 1024)
     dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
     print("Launched Dragon Dictionary \n", flush=True)
@@ -313,7 +336,42 @@ if __name__ == "__main__":
     loader_proc.start()
     print("Process started", flush=True)
 
+
+    # Get information about the allocation
+    alloc = System()
+    num_tot_nodes = int(alloc.nnodes)
+    tot_nodelist = alloc.nodes
+
+    # Start distributed dictionary and load data
+    tot_mem = num_tot_nodes*args.mem_per_node
+    data_dictionary_mem_fraction = 0.1
+
+    data_dict_mem = max(int(tot_mem), num_tot_nodes)
+    candidate_dict_mem = max(int(tot_mem*(1.-data_dictionary_mem_fraction)), num_tot_nodes)
+    print(f"Setting data_dict size to {data_dict_mem} GB and candidate_dict size to {candidate_dict_mem} GB")
+    data_dict_mem *= (1024*1024*1024)
+    candidate_dict_mem *= (1024*1024*1024)
+
+    data_dd = DDict(args.managers_per_node, num_tot_nodes, data_dict_mem, trace=True)
+    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
+    print(f"on {num_tot_nodes} nodes", flush=True)
+    print(f"{data_dd.stats=}")
+
+    max_procs = args.max_procs_per_node * num_tot_nodes
+    print("Loading inference data into Dragon Dictionary ...", flush=True)
+    tic = perf_counter()
+    loader_proc = mp.Process(
+        target=load_inference_data,
+        args=(
+            data_dd,
+            args.data_path,
+            max_procs,
+            num_tot_nodes * args.managers_per_node,
+        ),
+    )
+    loader_proc.start()
     loader_proc.join()
+
     print("Process ended", flush=True)
 
     print(f"Number of keys in dictionary is {len(dd.keys())}", flush=True)
@@ -349,3 +407,4 @@ if __name__ == "__main__":
     # Close the dictionary
     print("Done, closing the Dragon Dictionary", flush=True)
     dd.destroy()
+

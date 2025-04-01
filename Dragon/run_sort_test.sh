@@ -1,5 +1,9 @@
 #!/bin/bash -l
 
+if [-n $PBS_O_WORKDIR]; then
+    cd ${PBS_O_WORKDIR}
+fi    
+
 # Setup
 #cd $PBS_O_WORKDIR
 NODES=$(cat $PBS_NODEFILE | wc -l)
@@ -8,28 +12,24 @@ NODES=$(cat $PBS_NODEFILE | wc -l)
 FULL_HOSTNAME=`hostname -f`
 echo "FULL_HOSTNAME="$FULL_HOSTNAME
 
+DATA_PATH=$1
+
 case "$FULL_HOSTNAME" in
     *"americas"* )
 	SUNSPOT=1
 	echo "Setting up for Sunspot run"
 	source /gila/Aurora_deployment/csimpson/hpe_dragon_collab/env.sh
 	export RECEPTOR_FILE=/gila/Aurora_deployment/dragon/receptor_files/3clpro_7bqy.oedu
-	DATA_PATH=/gila/Aurora_deployment/dragon/data/tiny
 	export DRIVER_PATH=/gila/Aurora_deployment/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/
 	;;
     *"aurora"* )
 	AURORA=1
 	echo "Setting up for Aurora run"
-	source /flare/datascience/csimpson/hpe_dragon_collab/env.sh
-	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
-	DATA_PATH=/flare/datascience/dragon/tiny
-	export DRIVER_PATH=/flare/datascience/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/
 	;;
     *"polaris"* )
 	POLARIS=1
 	echo "Setting up for Polaris run"
 	source /eagle/hpe_dragon_collab/csimpson/env.sh
-	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
 	export DRIVER_PATH=/eagle/hpe_dragon_collab/csimpson/MLDocking_Dragon/Dragon/
 	export RECEPTOR_FILE=/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu
 	;;
@@ -55,15 +55,14 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     export ITEX_LIMIT_MEMORY_SIZE_IN_MB=8192
     export ITEX_ENABLE_NEXTPLUGGABLE_DEVICE=0
     PROCS_PER_NODE=104
-    MEM_PER_NODE=256
+    MEM_PER_NODE=128
 fi
 if [[ -n $POLARIS || -n $SIRIUS ]]; then
     echo "Setting up for Nvidia GPUS"
     export GPU_DEVICES="3,2,1,0"
     export CPU_AFFINITY="list:0-7,32-39:8-15,40-47:16-23,48-55:24-31,56-63"
-    export USE_MPI_SORT=1
     PROCS_PER_NODE=32
-    MEM_PER_NODE=128
+    MEM_PER_NODE=256
 fi
 
 echo "Location of dragon:"
@@ -93,8 +92,13 @@ DEBUG_STR=
 module list
 echo $LD_LIBRARY_PATH
 #dragon-cleanup
-EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
---managers_per_node=$MANAGERS \
+
+export TEST_SORTING=1
+
+export USE_MPI_SORT=1
+#export USE_QUEUE_SORT=1
+
+EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sort_test.py \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \
 --mem_per_node=$MEM_PER_NODE"

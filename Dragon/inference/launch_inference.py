@@ -81,34 +81,29 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
 
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    grp = ProcessGroup(restart=False, ignore_error_on_exit=False, policy=global_policy)
+    grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_inf_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
             proc_id = node_num * num_procs_pn + proc
-            local_policy = Policy(
-                placement=Policy.Placement.HOST_NAME,
-                host_name=node_name,
-                # cpu_affinity=inf_cpu_bind[proc],
-                gpu_affinity=inf_gpu_bind[proc],
-            )
-            grp.add_process(
-                nproc=1,
-                template=ProcessTemplate(
-                    target=infer,
-                    args=(
-                        dd,
-                        num_procs,
-                        proc_id,
-                        None,  # Continue event not used in sequential wf
-                        inf_num_limit,
-                    ),
-                    cwd=run_dir,
-                    policy=local_policy,
-                ),
-            )
 
-    # Launch the ProcessGroup
+            local_policy = Policy(placement=Policy.Placement.HOST_NAME,
+                                  host_name=node_name, 
+                                  cpu_affinity=inf_cpu_bind[proc],
+                                  gpu_affinity=inf_gpu_bind[proc])
+            grp.add_process(nproc=1, 
+                            template=ProcessTemplate(target=infer, 
+                                                     args=(dd,
+                                                        num_procs_pn,
+                                                        proc_id, 
+                                                        None, # Continue event not used in sequential wf
+                                                        inf_num_limit,
+                                                        ), 
+                                                     cwd=run_dir,
+                                                     policy=local_policy,))
+    
+    # Launch the ProcessGroup 
+
     grp.init()
     print(f"Starting Process Group for Inference", flush=True)
     grp.start()

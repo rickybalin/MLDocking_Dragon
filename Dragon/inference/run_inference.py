@@ -12,6 +12,7 @@ import gc
 from dragon.native.process import current as current_process
 from dragon.native.machine import current
 import socket
+from dragon.utils import host_id
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_encoder import SMILES_SPE_Tokenizer
@@ -44,17 +45,31 @@ def split_dict_keys(keys: List[str], size: int, proc: int) -> List[str]:
     :rtype: List[str]
     """
     num_keys = len(keys)
+    try:
+        keys_per_proc = num_keys // size
+        remainder = num_keys % size
 
-    if num_keys / size - num_keys // size > 0:
-        num_keys_per_proc = num_keys // size + 1
-    else:
-        num_keys_per_proc = num_keys // size
-    start_ind = proc * num_keys_per_proc
-    end_ind = (proc + 1) * num_keys_per_proc
-    if proc != (size - 1):
-        split_keys = keys[start_ind:end_ind]
-    else:
-        split_keys = keys[start_ind:]
+        next_start_index = 0
+        for i in range(proc+1):
+            start_index = next_start_index
+            end_index = min(start_index + keys_per_proc + (1 if i < remainder else 0),
+                            num_keys)
+            next_start_index = end_index
+        split_keys = keys[start_index:end_index]
+    except Exception as e:
+        with open("error.out",'a') as f:
+            f.write(f"Exception {e}\n")
+
+    #if num_keys / size - num_keys // size > 0:
+    #    num_keys_per_proc = num_keys // size + 1
+    #else:
+    #    num_keys_per_proc = num_keys // size
+    #start_ind = proc * num_keys_per_proc
+    #end_ind = (proc + 1) * num_keys_per_proc
+    #if proc != (size - 1):
+    #    split_keys = keys[start_ind:end_ind]
+    #else:
+    #    split_keys = keys[start_ind:]
 
     random.shuffle(split_keys)
     return split_keys
@@ -102,6 +117,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         with open(log_file_name,'a') as f:
             f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
+            f.flush()
         cuda_device = os.getenv("CUDA_VISIBLE_DEVICES")
         pvc_device = os.getenv("ZE_AFFINITY_MASK")
         device = None
@@ -112,14 +128,37 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         hostname = socket.gethostname()
         print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
     try:
-        keys = dd.keys()
+        #keys = dd.keys()
+        # Get local keys instead
+        current_host = host_id()
+        manager_nodes = dd.manager_nodes
+        keys = []
+        print(f"{current_host=}",flush=True)
+        print(f"{manager_nodes=}",flush=True)
+        for i in range(len(manager_nodes)):
+            if manager_nodes[i].h_uid == current_host:
+                local_manager = i
+                print(f"{proc}: getting keys from local manager {local_manager}")
+                dm = dd.manager(i)
+                keys.extend(dm.keys())
+        print(f"{proc}: found {len(keys)} local keys")
     except Exception as e:
         print(f"Client raised exception on DDict assignment: {e}", flush=True)
         print(f"could not get keys in inference worker")
-        raise (e)
+        raise(e)
 
     # If there is no fine-tuned model, load pre-trained model
-    if "model" not in keys:
+
+    load_from_fs = False
+    try:
+        model_iter = dd["model_iter"]
+        print("Model in dict")
+    except:
+        print("No model iter in dict")
+        load_from_fs = True
+
+    if load_from_fs:
+    #if "model" not in keys:
         model_iter = 0
 
         # Read HyperParameters
@@ -146,36 +185,64 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 f.write(f"Loading fine tuned model\n")
 
             model_iter = dd["model_iter"]
-            weights_dict = dd["model"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Loading model iter {model_iter}\n")
             hyper_params = dd["model_hyper_params"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Loaded hyper params\n")
+            
+            weight_keys = dd["model_weight_keys"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Got weight keys: {weight_keys} \n")
+            random.shuffle(weight_keys)
+            with open(log_file_name, "a") as f:
+                f.write(f"Shuffled weight keys: {weight_keys} \n")
+            
+            weights_dict = {}
+            for wkey in weight_keys:
+                weights_dict[wkey] = dd[wkey]
+                with open(log_file_name, "a") as f:
+                    f.write(f"...loaded {wkey} weight\n")
+            #weights_dict = dd["model"]
+            with open(log_file_name, "a") as f:
+                f.write(f"Finished loading fine tuned model\n")
+
             model = ModelArchitecture(hyper_params).call()
             # Assign the weights back to the model
             for layer_idx, layer in enumerate(model.layers):
                 weights = [
-                    weights_dict[f"layer_{layer_idx}_weight_{weight_idx}"]
+                    weights_dict[f"model_layer_{layer_idx}_weight_{weight_idx}"]
                     for weight_idx in range(len(layer.get_weights()))
                 ]
                 layer.set_weights(weights)
 
             if debug:
                 with open(log_file_name, "a") as f:
-                    f.write(f"Loaded model {model_iter}\n")
-                    print("Loaded model")
+                    f.write(f"Loaded model {model_iter} from dict\n")
+                    print("Loaded model from dict")
         except Exception as e:
             with open(log_file_name, "a") as f:
                 f.write(f"{e}\n")
+            raise(e)
 
     # Split keys in Dragon Dict
-    keys = [k for k in keys if "iter" not in k and "model" not in k]
-    keys.sort()
-    if num_procs > 1:
-        split_keys = split_dict_keys(keys, num_procs, proc)
-    else:
-        split_keys = keys
-    if debug:
-        with open(log_file_name, "a") as f:
-            f.write(f"Running inference on {len(split_keys)} keys\n")
-
+    try:
+        
+        keys = [k for k in keys if "iter" not in k and "model" not in k]
+        keys.sort()
+        print(f"{proc}: splitting keys over {num_procs} local procs")
+        if num_procs > 1:
+            split_keys = split_dict_keys(keys, num_procs, proc%num_procs)
+        else:
+            split_keys = keys
+        #print(f"{proc}: {split_keys}",flush=True)
+        if debug:
+            with open(log_file_name, "a") as f:
+                f.write(f"Running inference on {len(split_keys)} keys\n")
+    except Exception as e:
+        with open("inf.error","a") as f:
+            f.write(f"Exception {e}\n")
+            raise(e)
     # Set up tokenizer
     # if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
     vocab_file = driver_path + "inference/VocabFiles/vocab_spe.txt"
