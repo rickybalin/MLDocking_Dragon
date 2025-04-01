@@ -46,39 +46,39 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
     :type num_procs: int
     """
     num_inf_nodes = len(nodelist)
-    
-    gpu_devices_string = os.getenv("GPU_DEVICES")
+
+    gpu_devices_string = os.getenv("CUDA_VISIBLE_DEVICES")
     inf_gpu_bind = []
     for g in gpu_devices_string.split(","):
         if "." in g:
             inf_gpu_bind.append([float(g)])
         else:
             inf_gpu_bind.append([int(g)])
-    num_procs_pn = len(inf_gpu_bind) # number of procs per node is number of gpus
-    
-    cpu_affinity_string = os.getenv("CPU_AFFINITY")
-    cpu_ranges = cpu_affinity_string.split(":")
-    inf_cpu_bind = []
-    for cr in cpu_ranges[1:]:
-        bind_threads = []
-        thread_ranges = cr.split(",")
-        for tr in thread_ranges:
-            t = tr.split("-")
-            if len(t) == 1:
-                bind_threads.append(int(t[0]))
-            elif len(t) == 2:
-                start_t = int(t[0])
-                end_t = int(t[1])
-                for st in range(start_t,end_t+1):
-                    bind_threads.append(st)
-        inf_cpu_bind.append(bind_threads)
-   
+    num_procs_pn = len(inf_gpu_bind)  # number of procs per node is number of gpus
+
+    # cpu_affinity_string = os.getenv("CPU_AFFINITY")
+    # cpu_ranges = cpu_affinity_string.split(":")
+    # inf_cpu_bind = []
+    # for cr in cpu_ranges[1:]:
+    #     bind_threads = []
+    #     thread_ranges = cr.split(",")
+    #     for tr in thread_ranges:
+    #         t = tr.split("-")
+    #         if len(t) == 1:
+    #             bind_threads.append(int(t[0]))
+    #         elif len(t) == 2:
+    #             start_t = int(t[0])
+    #             end_t = int(t[1])
+    #             for st in range(start_t, end_t + 1):
+    #                 bind_threads.append(st)
+    #     inf_cpu_bind.append(bind_threads)
+
     run_dir = os.getcwd()
-    print(f"{inf_cpu_bind=}")
+    # print(f"{inf_cpu_bind=}")
     print(f"{inf_gpu_bind=}")
-    if len(inf_cpu_bind) != len(inf_gpu_bind):
-        raise(Exception("Number of cpu bindings does not match the number of gpus"))
-    
+    # if len(inf_cpu_bind) != len(inf_gpu_bind):
+    #     raise (Exception("Number of cpu bindings does not match the number of gpus"))
+
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
@@ -86,6 +86,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
             proc_id = node_num * num_procs_pn + proc
+
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name, 
                                   cpu_affinity=inf_cpu_bind[proc],
@@ -102,6 +103,7 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
                                                      policy=local_policy,))
     
     # Launch the ProcessGroup 
+
     grp.init()
     print(f"Starting Process Group for Inference", flush=True)
     grp.start()

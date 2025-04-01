@@ -1,9 +1,11 @@
 import os
-#import logging
-#logger = logging.getLogger(__name__)
+
+# import logging
+# logger = logging.getLogger(__name__)
 from time import perf_counter
 import argparse
 from typing import List
+import random
 import shutil
 import pathlib
 import dragon
@@ -40,10 +42,11 @@ if __name__ == "__main__":
                         help='Path to pre-sorted SMILES strings to load')
 
     args = parser.parse_args()
+
     # Start driver
     start_time = perf_counter()
-    print("Begun dragon driver",flush=True)
-    print(f"Reading inference data from path: {args.data_path}",flush=True)
+    print("Begun dragon driver", flush=True)
+    print(f"Reading inference data from path: {args.data_path}", flush=True)
     mp.set_start_method("dragon")
 
     # Get information about the allocation
@@ -54,8 +57,13 @@ if __name__ == "__main__":
     tot_mem = args.mem_per_node * num_tot_nodes
 
     # Get info about gpus and cpus
-    gpu_devices = os.getenv("GPU_DEVICES").split(",")
-    num_gpus = len(gpu_devices)
+
+    gpu_devices = os.getenv("GPU_DEVICES")
+    if gpu_devices is not None:
+        gpu_devices = gpu_devices.split(",")
+        num_gpus = len(gpu_devices)
+    else:
+        num_gpus = 0
 
     # for this sequential loop test set inference and docking to all the nodes and sorting and training to one node
     node_counts = {
@@ -68,7 +76,7 @@ if __name__ == "__main__":
     nodelists = {}
     offset = 0
     for key in node_counts.keys():
-        nodelists[key] = tot_nodelist[:node_counts[key]]
+        nodelists[key] = tot_nodelist[: node_counts[key]]
 
     # Set the number of nodes the dictionary uses
     num_dict_nodes = num_tot_nodes
@@ -96,12 +104,15 @@ if __name__ == "__main__":
     # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
     #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
     #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-   
-    data_dd = DDict(args.managers_per_node, num_dict_nodes, data_dict_mem, trace=True)
-    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
-    print(f"on {num_dict_nodes} nodes", flush=True)
-    print(f"{data_dd.stats=}")
-    
+    data_dd = DDict(
+        args.managers_per_node, num_tot_nodes, data_dict_mem
+    )  # , trace=True)
+    print(
+        f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}",
+        flush=True,
+    )
+    print(f"on {num_tot_nodes} nodes", flush=True)
+
     # Launch the data loader component
     max_procs = args.max_procs_per_node * num_tot_nodes
     print("Loading inference data into Dragon Dictionary ...", flush=True)
@@ -196,6 +207,17 @@ if __name__ == "__main__":
             sorter_proc.join()
         else:
             print("Filter sort not yet included", flush=True)
+            sorter_proc = mp.Process(target=sort_dictionary_pg,
+                                      args=(
+                                            data_dd,
+                                            top_candidate_number,
+                                            ),
+                                      )
+            sorter_proc.start()
+            sorter_proc.join()
+            toc = perf_counter()
+            infer_time = toc - tic
+            print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
 
         toc = perf_counter()
         infer_time = toc - tic
@@ -244,9 +266,10 @@ if __name__ == "__main__":
         )
         iter += 1
 
+
     # Close the dictionary
     print("Closing the Dragon Dictionary and exiting ...", flush=True)
-    cand_dd.destroy()
+    # cand_dd.destroy()
     data_dd.destroy()
     end_time = perf_counter()
-    print(f"Total time {end_time - start_time} s", flush=True)
+    print(f"Total time {end_time - start_time} seconds", flush=True)

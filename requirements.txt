@@ -3,7 +3,7 @@ pandas
 tensorflow
 smilespe
 transformers
-#export MPI4PY_BUILD_MPICC=/opt/cray/pe/craype/2.7.30/bin/cc
+export MPI4PY_BUILD_MPICC=/opt/cray/pe/craype/2.7.34/bin/cc
 mpi4py
 pydantic_settings
 

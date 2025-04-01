@@ -99,6 +99,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
         #print(f"Now putting key {key}", flush=True)
         data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results, "model_iter": model_iters}
+
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
@@ -109,7 +110,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     except Exception as e:
         try:
             tb = traceback.format_exc()
-            msg = "Could not receive message because underlying memory was destroyed:\n%s\n Traceback:\n%s"%(e, tb)
+            msg = "Error while reading smiles data:\n%s\n Traceback:\n%s"%(e, tb)
             outfiles_path = "smiles_sizes"
             if not os.path.exists(outfiles_path):
                 os.mkdir(outfiles_path)
@@ -117,7 +118,8 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                 f.write(f"key is {key}")
                 f.write(f"Worker located on {current().hostname}\n")
                 f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
-                f.write(f"Exception was: %s\n"%msg)
+                f.write("Exception was: %s\n"%msg)
+                f.write("Pool Stats:\n%s\n"%data_dict.stats)
             raise Exception(e)
         except Exception as ex:
             print("GOT EXCEPTION IN EXCEPTION")
@@ -154,6 +156,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     try:
         total_data_size = 0
         for i in range(4):
+            start_time = perf_counter()
 
             num_pool_procs = num_procs
             pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
@@ -178,6 +181,7 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
             pool.join()
             print(f"Pool joined", flush=True)
         print(f"Total data read in {total_data_size} GB", flush=True)
+
     except Exception as e:
         print(f"reading smiles failed")
         pool.terminate()
@@ -222,7 +226,7 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024 * 1024 * 1024)
-    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size, trace=True)
     print("Launched Dragon Dictionary \n", flush=True)
 
     # Launch the data loader
