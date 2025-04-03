@@ -203,7 +203,7 @@ def get_largest(dd, out_queue, num_return_sorted):
 
         for key in keys:
             val = dd[key]
-            this_value.extend(zip(val["inf"], val["smiles"], val["model_iter"))
+            this_value.extend(zip(val["inf"], val["smiles"], val["model_iter"]))
             this_value = heapq.nlargest(
                 num_return_sorted, this_value, key=lambda x: x[0]
             )
