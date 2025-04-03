@@ -17,7 +17,7 @@ from dragon.infrastructure.policy import Policy
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
-from sorter.sorter import sort_dictionary_pg
+from sorter.sorter import sort_dictionary_pg, sort_dictionary
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
@@ -206,8 +206,8 @@ if __name__ == "__main__":
             sorter_proc.start()
             sorter_proc.join()
         else:
-            print("Filter sort not yet included", flush=True)
-            sorter_proc = mp.Process(target=sort_dictionary_pg,
+            print("Using filter sort", flush=True)
+            sorter_proc = mp.Process(target=sort_dictionary,
                                       args=(
                                             data_dd,
                                             top_candidate_number,

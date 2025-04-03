@@ -198,11 +198,12 @@ def get_largest(dd, out_queue, num_return_sorted):
     # subset of a ddict).
     try:
         keys = dd.keys()
+        keys = [k for k in keys if "model" not in k and "iter" not in k]
         this_value = []
 
         for key in keys:
             val = dd[key]
-            this_value.extend(zip(val["inf"], val["smiles"]))
+            this_value.extend(zip(val["inf"], val["smiles"], val["model_iter"))
             this_value = heapq.nlargest(
                 num_return_sorted, this_value, key=lambda x: x[0]
             )
@@ -226,7 +227,7 @@ def comparator(x, y):
     return x[0] > y[0]
 
 
-def sort_dictionary(dd: DDict, num_return_sorted):
+def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
 
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
     candidate_list = []
@@ -241,6 +242,17 @@ def sort_dictionary(dd: DDict, num_return_sorted):
     print("******************************************", flush=True)
     print(candidate_list[:10], flush=True)
 
+    last_list_key = candidate_dict["max_sort_iter"]
+    ckey = str(int(last_list_key) + 1)
+
+    candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+    non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+    sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+    cdd[ckey] = sort_val
+    cdd["sort_iter"] = int(ckey)
+    cdd["max_sort_iter"] = ckey
+    
+    
 
 def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodelist, cdd: DDict):
    
