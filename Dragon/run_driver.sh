@@ -20,10 +20,10 @@ case "$FULL_HOSTNAME" in
     *"aurora"* )
 	AURORA=1
 	echo "Setting up for Aurora run"
-	source /flare/datascience/csimpson/hpe_dragon_collab/env.sh
+	source /flare/hpe_dragon_collab/csimpson/env.sh
 	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
 	DATA_PATH=/flare/datascience/dragon/tiny
-	export DRIVER_PATH=/flare/datascience/csimpson/hpe_dragon_collab/MLDocking_Dragon/Dragon/
+	export DRIVER_PATH=/flare/hpe_dragon_collab/csimpson/MLDocking_Dragon/Dragon/
 	;;
     *"polaris"* )
 	POLARIS=1
@@ -46,7 +46,7 @@ echo "Setting hardware affinities"
 if [[ -n $SUNSPOT || -n $AURORA ]]; then
     echo "Setting up for Intel GPUS"
     export GPU_DEVICES="0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1"
-    export CPU_AFFINITY="list:0-7,104-111:8-15,112-119:16-23,120-127:24-31,128-135:32-39,136-143:40-47,144-151:52-59,156-163:60-67,164-171:68-75,172-179:76-83,180-187:84-91,188-195:92-99,196-203"
+    export CPU_AFFINITY="list:1-7,105-111:8-15,112-119:16-23,120-127:24-31,128-135:32-39,136-143:40-47,144-151:53-59,157-163:60-67,164-171:68-75,172-179:76-83,180-187:84-91,188-195:92-99,196-203"
     export ZEX_NUMBER_OF_CCS=0:1,1:1,2:1,3:1,4:1,5:1
     # Other machine specific env vars
     # Some env vars from Archit's script
@@ -70,11 +70,7 @@ echo "Location of dragon:"
 which dragon
 
 # Dragon env vars
-#export FI_MR_CACHE_MAX_COUNT=0
-export FI_CXI_ODP=1
-export DRAGON_HSTA_NO_NET_CONFIG=1
-export DRAGON_DEFAULT_SEG_SZ=34359738368
-
+# None
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
 MANAGERS=1
