@@ -24,12 +24,23 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     num_procs_pn = num_procs//num_nodes
     run_dir = os.getcwd()
 
+    skip_threads = os.getenv("SKIP_THREADS")
+    if skip_threads:
+        print(f"skipping threads {skip_threads}",flush=True)
+        skip_threads = skip_threads.split(',')
+        skip_threads = [int(t) for t in skip_threads]
+    else:
+        skip_threads = []
+        
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
+            if proc in skip_threads:
+                continue
+            print(f"adding proc to docking sim group {proc=}")
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name,
@@ -42,7 +53,8 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy,
-                                                        ))
+                                                        )
+                            )
 
     # Launch the ProcessGroup
     grp.init()

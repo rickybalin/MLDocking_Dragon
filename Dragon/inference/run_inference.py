@@ -21,6 +21,8 @@ from training.ST_funcs.smiles_regress_transformer_funcs import *
 
 import keras
 import tensorflow as tf
+tf.get_logger().setLevel('ERROR')
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 

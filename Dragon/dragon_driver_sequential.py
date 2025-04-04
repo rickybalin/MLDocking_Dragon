@@ -1,5 +1,5 @@
 import os
-
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 # import logging
 # logger = logging.getLogger(__name__)
 from time import perf_counter
@@ -49,10 +49,16 @@ if __name__ == "__main__":
     print(f"Reading inference data from path: {args.data_path}", flush=True)
     mp.set_start_method("dragon")
 
+    with open("driver_times.log", "w") as f:
+        f.write(f"# {args.data_path}\n")
+
     # Get information about the allocation
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
+
+    with open("driver_times.log", "a") as f:
+        f.write(f"# {num_tot_nodes=}\n")
 
     tot_mem = args.mem_per_node * num_tot_nodes
 
@@ -135,6 +141,9 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
+    with open("driver_times.log", "a") as f:
+        f.write(f"# {load_time=}\n")
+
     tic = perf_counter()
     print("Here are the stats after data loading...")
     print("++++++++++++++++++++++++++++++++++++++++")
@@ -143,6 +152,9 @@ if __name__ == "__main__":
     load_time = toc - tic
     print(f"Retrieved dictionary stats in {load_time:.3f} seconds", flush=True)
     num_keys = len(data_dd.keys())
+
+    with open("driver_times.log", "a") as f:
+        f.write(f"# {num_keys=}\n")
     
     cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
@@ -156,6 +168,8 @@ if __name__ == "__main__":
 
     max_iter = args.max_iter
     iter = 0
+    with open("driver_times.log", "a") as f:
+            f.write(f"# iter  infer_time  sort_time  dock_time  train_time \n")
     while iter < max_iter:
         print(f"*** Start loop iter {iter} ***")
         #print(f"{data_dd.stats=}")
@@ -211,6 +225,7 @@ if __name__ == "__main__":
                                       args=(
                                             data_dd,
                                             top_candidate_number,
+                                            cand_dd,
                                             ),
                                       )
             sorter_proc.start()
@@ -218,10 +233,12 @@ if __name__ == "__main__":
             toc = perf_counter()
             infer_time = toc - tic
             print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
+        if sorter_proc.exitcode != 0:
+            raise Exception("Sorting failed\n")
 
         toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Performed sorting of {num_keys} keys in {infer_time:.3f} seconds \n", flush=True)
+        sort_time = toc - tic
+        print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
 
         # Launch Docking Simulations
         print(f"Launched Docking Simulations", flush=True)
@@ -234,12 +251,14 @@ if __name__ == "__main__":
         dock_proc.start()
         dock_proc.join()
         toc = perf_counter()
-        infer_time = toc - tic
+        dock_time = toc - tic
         #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
-        print(f"Performed docking in {infer_time:.3f} seconds \n", flush=True)
-
+        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
+        
         print(f"Candidate Dictionary stats:", flush=True)
         print(cand_dd.stats)
+        if dock_proc.exitcode != 0:
+            raise Exception("Docking sims failed\n")
 
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
@@ -259,11 +278,18 @@ if __name__ == "__main__":
         train_proc.start()
         train_proc.join()
         toc = perf_counter()
-        print(f"Performed training in {toc-tic} seconds \n", flush=True)
+        train_time = toc - tic
+        print(f"Performed training in {train_time} seconds \n", flush=True)
+        if train_proc.exitcode != 0:
+            raise Exception("Training failed\n")
         iter_end = perf_counter()
+        iter_time = iter_end - iter_start
         print(
-            f"Performed iter {iter} in {iter_end - iter_start} seconds \n", flush=True
+            f"Performed iter {iter} in {iter_time} seconds \n", flush=True
         )
+        with open("driver_times.log", "a") as f:
+            f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
+
         iter += 1
 
 
