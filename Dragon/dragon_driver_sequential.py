@@ -230,9 +230,6 @@ if __name__ == "__main__":
                                       )
             sorter_proc.start()
             sorter_proc.join()
-            toc = perf_counter()
-            infer_time = toc - tic
-            print(f"Performed sorting in {infer_time:.3f} seconds \n", flush=True)
         if sorter_proc.exitcode != 0:
             raise Exception("Sorting failed\n")
 
