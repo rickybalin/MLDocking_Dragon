@@ -1,8 +1,35 @@
-def max_data_dict_size(num_keys, 
+from dragon.data.ddict import DDict
+from dragon.native.machine import System
+
+
+def output_sims(cdd: DDict):
+
+    keys = cdd.keys()
+    last_list_key = cdd["max_sort_iter"]
+    candidate_list = cdd[last_list_key]
+    top_smiles = candidate_list['smiles']
+    top_inf = candidate_list['inf']
+    with open(f'top_candidates_{last_list_key}.out','w') as f:
+        f.write("# smiles  inference_score  docking_scores\n")
+        for i in range(len(top_smiles)):
+            smiles = top_smiles[i]
+            inference_score = top_inf[i]
+            try:
+                docking_score = cdd[smiles]
+                f.write(f"{smiles}    {inference_score}    {docking_score}\n")
+            except:
+                print(f"Missing smiles {smiles} from candidate dict")
+                f.write(f"{smiles}    {inference_score}    0\n")
+
+def max_data_dict_size(num_keys: int, 
                        model_size=33, 
                        smiles_key_val_size=14.6, 
                        canidate_sim_size_per_iter=1.5, 
                        max_pool_frac=0.8):
+
+    # Get information about the allocation
+    alloc = System()
+    num_tot_nodes = int(alloc.nnodes)
     
     # Two sources of data in data dictionary
     # Smiles data: approx 14.6 MB per file
@@ -20,8 +47,9 @@ def max_data_dict_size(num_keys,
     cand_dict_size /= 1024
     data_dict_size /= 1024
 
-    cand_dict_size = max(cand_dict_size, 1)
-    data_dict_size = max(data_dict_size, 10)
+    # Ensure there is a minimum of 1 GB per node
+    cand_dict_size = max(cand_dict_size, num_tot_nodes)
+    data_dict_size = max(data_dict_size, num_tot_nodes)
 
     return int(data_dict_size), int(cand_dict_size)
 

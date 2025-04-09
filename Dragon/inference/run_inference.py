@@ -136,11 +136,12 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         manager_nodes = dd.manager_nodes
         keys = []
         print(f"{current_host=}",flush=True)
-        print(f"{manager_nodes=}",flush=True)
+        if proc == 0:
+            print(f"{manager_nodes=}",flush=True)
         for i in range(len(manager_nodes)):
             if manager_nodes[i].h_uid == current_host:
                 local_manager = i
-                print(f"{proc}: getting keys from local manager {local_manager}")
+                #print(f"{proc}: getting keys from local manager {local_manager}")
                 dm = dd.manager(i)
                 keys.extend(dm.keys())
         print(f"{proc}: found {len(keys)} local keys")
@@ -232,7 +233,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
         
         keys = [k for k in keys if "iter" not in k and "model" not in k]
         keys.sort()
-        print(f"{proc}: splitting keys over {num_procs} local procs")
+        #print(f"{proc}: splitting keys over {num_procs} local procs")
         if num_procs > 1:
             split_keys = split_dict_keys(keys, num_procs, proc%num_procs)
         else:
@@ -261,32 +262,30 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
     try:
+        print(f"worker {proc} processing {num_run} keys",flush=True)
         # for key in split_keys:
         for ikey in range(num_run):
             if debug:
-                print(f"worker {proc} on key iter {ikey}", flush=True)
+                if ikey%8 == 0:
+                    print(f"...worker {proc} has completed {ikey} keys out of {num_run}", flush=True)
             if check_model_iter(
                 dd, model_iter, continue_event
             ):  # this check is to stop inference in async wf when model is retrained
                 ktic = perf_counter()
                 key = split_keys[ikey]
                 dict_tic = perf_counter()
-                try:
-                    print(f"worker {proc}: getting val from dd",flush=True)
-                    val = dd[key]
-                    print(f"worker {proc}: finished getting val from dd",flush=True)
-                except:
-                    print(
-                        f"Client raised exception on pulling from DDict: {e}",
-                        flush=True,
-                    )
+                
+                # print(f"worker {proc}: getting val from dd",flush=True)
+                val = dd[key]
+                # print(f"worker {proc}: finished getting val from dd",flush=True)
+                
                 dict_toc = perf_counter()
                 key_dictionary_time = dict_toc - dict_tic
-                if debug:
-                    print(
-                        f"worker {proc} pulled key {key} in {key_dictionary_time}s",
-                        flush=True,
-                    )
+                #if debug:
+                #    print(
+                #        f"worker {proc} pulled key {key} in {key_dictionary_time}s",
+                #        flush=True,
+                #    )
 
                 for kkey in val.keys():
                     key_data_moved_size = sys.getsizeof(kkey)
@@ -299,8 +298,8 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 output = model.predict(
                     x_inference, batch_size=BATCH, verbose=0
                 ).flatten()
-                if debug:
-                    print(f"worker {proc} inference on key {key}", flush=True)
+                #if debug:
+                #    print(f"worker {proc} inference on key {key}", flush=True)
 
                 sort_index = np.flip(np.argsort(output)).tolist()
                 smiles_sorted = [smiles_raw[i] for i in sort_index]
@@ -318,19 +317,15 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                 val["model_iter"] = [model_iter for i in range(len(smiles_sorted))]
 
                 dict_tic = perf_counter()
-                try:
-                    dd[key] = val
-                except:
-                    print(
-                        f"Client raised exception on DDict assignment: {e}", flush=True
-                    )
+                dd[key] = val
                 dict_toc = perf_counter()
                 key_dictionary_time += dict_toc - dict_tic
-                if debug:
-                    print(
-                        f"worker {proc} put key {key} in {key_dictionary_time}s",
-                        flush=True,
-                    )
+
+                #if debug:
+                #    print(
+                #        f"worker {proc} put key {key} in {key_dictionary_time}s",
+                #        flush=True,
+                #    )
 
                 for kkey in val.keys():
                     key_data_moved_size += sys.getsizeof(kkey)
@@ -348,10 +343,10 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
                         f.write(
                             f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n"
                         )
-                    print(
-                        f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}",
-                        flush=True,
-                    )
+                    #print(
+                    #    f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}",
+                     #   flush=True,
+                    #)
             else:
                 break
 

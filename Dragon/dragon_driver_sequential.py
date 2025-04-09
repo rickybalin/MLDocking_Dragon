@@ -21,7 +21,7 @@ from sorter.sorter import sort_dictionary_pg, sort_dictionary
 from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
-from driver_functions import max_data_dict_size
+from driver_functions import max_data_dict_size, output_sims
 
 
 if __name__ == "__main__":
@@ -287,6 +287,10 @@ if __name__ == "__main__":
         with open("driver_times.log", "a") as f:
             f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
+        tic = perf_counter()
+        output_sims(cand_dd)
+        toc = perf_counter()
+        print(f"Output candidates in {toc -tic} seconds",flush=True)
         iter += 1
 
 

@@ -350,7 +350,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     
 
     # Remove top candidates that have already been simulated
-    if proc == 0:
+    if proc == 1:
         print(f"Found {len(top_candidates)} top candidates; there are {len(ckeys)} ckeys", flush=True)
 
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
@@ -358,7 +358,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     top_candidates.sort()
     num_candidates = len(top_candidates)
 
-    if proc == 0:
+    if proc == 1:
         print(f"Found {num_candidates} candidates not in previous list", flush=True)
         
     # Partition top candidate list to get candidates for this process to simulate
