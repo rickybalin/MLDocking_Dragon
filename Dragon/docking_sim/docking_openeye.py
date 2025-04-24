@@ -326,8 +326,10 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
         with open(log_file_name,"a") as f:
             f.write(f"Launching infer for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}\n")
     
+    # Get keys
     ckeys = cdd.keys()
 
+    # Get key of most recent sorted list
     if "max_sort_iter" in ckeys:
         ckey_max = cdd["max_sort_iter"]
     else:
@@ -340,6 +342,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     # most recent sorted list
     top_candidates = cdd[ckey_max]["smiles"]
 
+    # If random compounds were selected, add them to the candidates list
     if "random_compound_sample" in ckeys:
         top_candidates += cdd['random_compound_sample']['smiles']
 

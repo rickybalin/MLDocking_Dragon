@@ -280,9 +280,7 @@ def make_random_compound_selection(num_return_sorted):
         irand = [random.randint(0, len(key_list)-1) for _ in range(num_random_per_node)]
         
         for i,k in enumerate(key_list):
-            #print(f"{i}: Key {k} on {current_host}", flush=True)
             frequency = irand.count(i)
-            print(f"{i}: Key {k} getting {frequency} smiles", flush=True)
             if frequency > 0:
                 val = dd[k]
                 smiles = val['smiles']
