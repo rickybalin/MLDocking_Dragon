@@ -5,7 +5,6 @@ from typing import Tuple
 import argparse
 import os
 import sys
-import gc
 import random
 
 import dragon
@@ -54,7 +53,6 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     sort_test = os.getenv("TEST_SORTING")
 
     try:
-        #gc.collect()
         me = mp.current_process()
 
         data_dict = me.stash["ddict"]
@@ -153,40 +151,35 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}", flush=True)
 
-    try:
-        total_data_size = 0
-        for i in range(4):
-            start_time = perf_counter()
+    
+    total_data_size = 0
+    for i in range(4):
+        start_time = perf_counter()
 
-            num_pool_procs = num_procs
-            pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
-            print(f"Pool initialized", flush=True)
-            print(f"Reading smiles for {num_files}", flush=True)
+        num_pool_procs = num_procs
+        pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
+        print(f"Pool initialized", flush=True)
+        print(f"Reading smiles for {num_files}", flush=True)
 
-            num_files_per_pool = num_files // 4 + 1
-            print(f"{num_pool_procs=} {num_files_per_pool=}")
-            smiles_sizes = pool.imap_unordered(
-                read_smiles,
-                file_tuples[
-                    i
-                    * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
-                ],
-            )
-            iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
-            print(f"Size of dataset is {iter_data_size} GB", flush=True)
-            total_data_size += iter_data_size
-            print(f"Mapped function complete", flush=True)
-            pool.close()
-            print(f"Pool closed", flush=True)
-            pool.join()
-            print(f"Pool joined", flush=True)
-        print(f"Total data read in {total_data_size} GB", flush=True)
-
-    except Exception as e:
-        print(f"reading smiles failed")
-        pool.terminate()
-        raise Exception(e)
-
+        num_files_per_pool = num_files // 4 + 1
+        print(f"{num_pool_procs=} {num_files_per_pool=}")
+        smiles_sizes = pool.imap_unordered(
+            read_smiles,
+            file_tuples[
+                i
+                * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
+            ],
+        )
+        iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+        print(f"Size of dataset is {iter_data_size} GB", flush=True)
+        total_data_size += iter_data_size
+        print(f"Mapped function complete", flush=True)
+        pool.close()
+        print(f"Pool closed", flush=True)
+        pool.join()
+        print(f"Pool joined", flush=True)
+    print(f"Total data read in {total_data_size} GB", flush=True)
+    
 
 if __name__ == "__main__":
     # Import command line arguments

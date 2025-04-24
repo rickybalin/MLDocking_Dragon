@@ -182,10 +182,12 @@ def assemble_docking_data_top(candidate_dict):
     try:
         # Retrieve simulation results for all candidates in top list
         ckeys = candidate_dict.keys()
-        max_ckey = candidate_dict["max_sort_iter"]
-        top_val = candidate_dict[max_ckey]
+        # max_ckey = candidate_dict["max_sort_iter"]
+        # top_val = candidate_dict[max_ckey]
+        # top_smiles = top_val["smiles"]
 
-        top_smiles = top_val["smiles"]
+        # Here grab all simulated smiles instead of just top ones
+        top_smiles = candidate_dict['simulated_compounds']
 
         train_smiles = []
         train_scores = []

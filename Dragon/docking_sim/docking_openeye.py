@@ -315,7 +315,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 
 def run_docking(cdd, docking_iter, proc: int, num_procs: int):
-    print(f"Dock worker {proc} starting...", flush=True)
+    #print(f"Dock worker {proc} starting...", flush=True)
     debug = True
     if debug:
         myp = current_process()
@@ -333,8 +333,6 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     else:
         ckey_max = '-1'
 
-    ckey_prev = str(int(ckey_max) - 1)
-
     if debug:
         with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
@@ -342,19 +340,24 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     # most recent sorted list
     top_candidates = cdd[ckey_max]["smiles"]
 
+    if "random_compound_sample" in ckeys:
+        top_candidates += cdd['random_compound_sample']['smiles']
 
-    # previous sorted list
-    prev_top_candidates = []
-    if int(ckey_prev) >= 0:
-        prev_top_candidates = cdd[ckey_prev]["smiles"]
-    
+    # # previous sorted list
+    # ckey_prev = str(int(ckey_max) - 1)
+    # prev_top_candidates = []
+    # if int(ckey_prev) >= 0:
+    #     prev_top_candidates = cdd[ckey_prev]["smiles"]
+
+    # All previously simulated compounds
+    simulated_compounds = cdd["simulated_compounds"]
 
     # Remove top candidates that have already been simulated
     if proc == 1:
         print(f"Found {len(top_candidates)} top candidates; there are {len(ckeys)} ckeys", flush=True)
 
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
-    top_candidates = list(set(top_candidates) - set(prev_top_candidates))
+    top_candidates = list(set(top_candidates) - set(simulated_compounds))
     top_candidates.sort()
     num_candidates = len(top_candidates)
 
@@ -376,10 +379,6 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             
     # Remove any candidates in ckeys, this may lead to load imbalance, we should replace with queue
     my_candidates = list(set(my_candidates) - set(ckeys))
-
-    # check to see if we already have a sim result for this process' candidates
-    ret_time = 0
-    ret_size = 0
 
     if debug:
         with open(log_file_name,"a") as f:

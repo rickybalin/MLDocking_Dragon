@@ -1,9 +1,10 @@
 matplotlib
 pandas
-tensorflow
+tensorflow==2.15.1
 smilespe
 transformers
-export MPI4PY_BUILD_MPICC=/opt/cray/pe/craype/2.7.34/bin/cc
-mpi4py
 pydantic_settings
-
+dragonhpc
+SmilesPE
+MDAnalysis
+rdkit

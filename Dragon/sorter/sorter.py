@@ -11,6 +11,7 @@ from dragon.infrastructure.policy import Policy
 from dragon.native.process import Process, ProcessTemplate, MSG_PIPE, MSG_DEVNULL
 from dragon.infrastructure.connection import Connection
 from dragon.native.machine import cpu_count, current, System, Node
+from dragon.utils import host_id
 from .sort_mpi import mpi_sort
 import datetime
 
@@ -19,7 +20,7 @@ import heapq
 import socket
 import traceback
 
-from data_loader.data_loader_presorted import load_inference_data
+from data_loader.data_loader_presorted import load_inference_data, initialize_worker
 
 
 MAX_BRANCHING_FACTOR = 5
@@ -252,7 +253,49 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     cdd["sort_iter"] = int(ckey)
     cdd["max_sort_iter"] = ckey
     
+
+def make_random_compound_selection(num_return_sorted):
+    try:
+        
+        me = mp.current_process()
+        dd = me.stash["ddict"]
+
+        alloc = System()
+        num_tot_nodes = int(alloc.nnodes) 
+        num_random_per_node = max(int(0.1*num_return_sorted/num_tot_nodes), 1)
+
+        random_selection = []
+
+        # Select num_random_per_node random keys
+        current_host = host_id()
+        manager_nodes = dd.manager_nodes
+        key_list = []
+        for i in range(len(manager_nodes)):
+            if manager_nodes[i].h_uid == current_host:
+                dm = dd.manager(i)
+                key_list.extend(dm.keys())
+                # Filter out keys containing model or iter info
+                key_list = [key for key in key_list if "model" not in key and "iter" not in key]
+       
+        irand = [random.randint(0, len(key_list)-1) for _ in range(num_random_per_node)]
+        
+        for i,k in enumerate(key_list):
+            #print(f"{i}: Key {k} on {current_host}", flush=True)
+            frequency = irand.count(i)
+            print(f"{i}: Key {k} getting {frequency} smiles", flush=True)
+            if frequency > 0:
+                val = dd[k]
+                smiles = val['smiles']
+                inf_val = val['inf']
+                for f in range(frequency):
+                    jrand = random.randint(0,len(smiles)-1)
+                    random_selection.append((smiles[jrand],inf_val[jrand]))
+    except Exception as e:
+        print(f"Pool worker failed with this error {e}",flush=True)
+        raise Exception(e)
     
+    return random_selection
+
 
 def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodelist, cdd: DDict):
    
@@ -294,6 +337,31 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodeli
     grp.join()
     print(f"Process Group for Sorting has joined",flush=True)
     grp.close()
+
+    print("Getting random compounds",flush=True)
+    # Grab random compounds from each node
+
+    alloc = System()
+    num_nodes = min(int(alloc.nnodes), int(0.1*num_return_sorted))
+    pool = mp.Pool(num_nodes, 
+                   initializer=initialize_worker, 
+                   initargs=(dd,), 
+                   )
+    out = pool.imap_unordered(make_random_compound_selection, 
+                            [num_return_sorted for _ in range(num_nodes)])
+
+    random_smiles = []
+    random_inf = []
+    for result in out:
+        for r in result:
+            sm,sc = r
+            random_smiles.append(sm)
+            random_inf.append(sc)
+    pool.close()
+    pool.join()
+    print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
+    cdd['random_compound_sample'] = {'smiles': random_smiles,
+                                     'inf': random_inf}
    
 
 def create_dummy_data(_dict,num_managers):
