@@ -32,6 +32,7 @@ from dragon.data.ddict import DDict
 from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 from inference.run_inference import split_dict_keys
+from dragon.utils import host_id
 
 from pathlib import Path
 from typing import Any, Optional, Type, TypeVar, Union
@@ -340,12 +341,23 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
 
     # most recent sorted list
-    top_candidates = cdd[ckey_max]["smiles"]
-
-    # If random compounds were selected, add them to the candidates list
+    top_candidates = cdd[ckey_max]
+    top_candidates_list = list(zip(top_candidates['smiles'], top_candidates['inf'], top_candidates['model_iter']))
+    if proc == 1: print(f"Sorted list has {len(top_candidates_list)} candidates", flush=True)
+    
+    # add random samples to sorted candidates if available
     if "random_compound_sample" in ckeys:
-        top_candidates += cdd['random_compound_sample']['smiles']
+        random_candidates = cdd['random_compound_sample']
+        random_candidates_list = list(zip(random_candidates['smiles'],random_candidates['inf'],random_candidates['model_iter']))
+        if proc == 1: print(f"Random candidate list has {len(random_candidates_list)} candidates", flush=True)
+        top_candidates_list += random_candidates_list
+                             
+    top_candidates_dict = {}
+    for i in range(len(top_candidates_list)):
+        cand = top_candidates_list[i]
+        top_candidates_dict[cand[0]] = (cand[1],cand[2])
 
+    top_candidates_smiles = list(top_candidates_dict.keys())
     # # previous sorted list
     # ckey_prev = str(int(ckey_max) - 1)
     # prev_top_candidates = []
@@ -357,22 +369,25 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
 
     # Remove top candidates that have already been simulated
     if proc == 1:
-        print(f"Found {len(top_candidates)} top candidates; there are {len(ckeys)} ckeys", flush=True)
+        print(f"Found {len(top_candidates_smiles)} top candidates; there are {len(ckeys)} ckeys", flush=True)
+
+    top_candidate_smiles = []
 
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
-    top_candidates = list(set(top_candidates) - set(simulated_compounds))
-    top_candidates.sort()
-    num_candidates = len(top_candidates)
+    top_candidates_smiles = list(set(top_candidates_smiles) - set(simulated_compounds))
+    top_candidates_smiles.sort()
+    num_candidates = len(top_candidates_smiles)
 
     if proc == 1:
         print(f"Found {num_candidates} candidates not in previous list", flush=True)
         
+
     # Partition top candidate list to get candidates for this process to simulate
-    if num_procs < len(top_candidates):
-        my_candidates = split_dict_keys(top_candidates, num_procs, proc)
+    if num_procs < num_candidates:
+        my_candidates = split_dict_keys(top_candidates_smiles, num_procs, proc)
     else:
-        if proc < len(top_candidates):
-            my_candidates = [top_candidates[proc]]
+        if proc < len(top_candidates_smiles):
+            my_candidates = [top_candidates_smiles[proc]]
         else:
             my_candidates = []
 
@@ -380,8 +395,8 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
         with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker assigned {len(my_candidates)} candidates\n")
             
-    # Remove any candidates in ckeys, this may lead to load imbalance, we should replace with queue
-    my_candidates = list(set(my_candidates) - set(ckeys))
+    ## Remove any candidates in ckeys, this may lead to load imbalance, we should replace with queue
+    #my_candidates = list(set(my_candidates) - set(ckeys))
 
     if debug:
         with open(log_file_name,"a") as f:
@@ -391,9 +406,9 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     if len(my_candidates) > 0:
         tic = perf_counter()
         if not os.getenv("DOCKING_SIM_DUMMY"):
-            sim_metrics = dock(cdd, my_candidates, proc, debug=debug) 
+            sim_metrics = dock(cdd, my_candidates, top_candidates_dict, proc, debug=debug) 
         else:
-            sim_metrics = dummy_dock(cdd, my_candidates, proc, debug=debug) 
+            sim_metrics = dummy_dock(cdd, my_candidates, top_candidates_dict, proc, debug=debug) 
 
         toc = perf_counter()
         if debug:
@@ -404,12 +419,36 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
             with open(f"dock_worker_{proc}.log","a") as f:
                 f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
 
+    # Get previously simulated candidates and update inference results
+    prev_simulated_candidates = list(set(simulated_compounds) - set(top_candidates_smiles))
+
+    # Get local keys
+    current_host = host_id()
+    manager_nodes = cdd.manager_nodes
+    ckeys = []
+    for i in range(len(manager_nodes)):
+        if manager_nodes[i].h_uid == current_host:
+            #print(f"{proc}: getting keys from local manager {local_manager}")
+            dm = cdd.manager(i)
+            ckeys.extend(dm.keys())
+
+    # Update local compounds inference results
+    local_prev_simulated_candidates = [cand for cand in prev_simulated_candidates if cand in ckeys]
+    print(f"Found {len(local_prev_simulated_candidates)} previously simulated candidates on local node to update")
+    for cand in local_prev_simulated_candidates:
+        val = cdd[cand]
+        inf_results = val['inf_results']
+        inf_results.append(top_candidates_dict[cand])
+        val['inf_results'] = inf_results
+        cdd[cand] = val
+
+
     #with open(f"finished_run_docking.log", "a") as f:
     #    f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
     return
 
 
-def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
+def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
 
     Parameters
@@ -478,7 +517,7 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
             dock_score = 0
         dock_scores.append(dock_score)
         dtic = perf_counter()    
-        cdd[smiles] = dock_score
+        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':[top_candidates_dict[smiles]]}
         dtoc = perf_counter()
         data_store_time += dtic-dtoc
         data_store_size += sys.getsizeof(smiles) + sys.getsizeof(dock_score)
@@ -516,7 +555,7 @@ def dock(cdd: DDict, candidates: List[str], proc: int, debug=False):
 
 
 
-def dummy_dock(cdd, candidates, proc: int, debug=False):
+def dummy_dock(cdd, candidates, top_candidates_dict, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
 
     Parameters
@@ -555,7 +594,7 @@ def dummy_dock(cdd, candidates, proc: int, debug=False):
 
 
         dtic = perf_counter()
-        cdd[smiles] = dock_score
+        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':[top_candidates_dict[smiles]]}
         dtoc = perf_counter()
         data_store_time += dtic-dtoc
         data_store_size += sys.getsizeof(smiles) + sys.getsizeof(dock_score)

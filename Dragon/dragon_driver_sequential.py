@@ -295,7 +295,7 @@ if __name__ == "__main__":
             f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
         tic = perf_counter()
-        output_sims(cand_dd)
+        output_sims(cand_dd, iter=iter)
         toc = perf_counter()
         print(f"Output candidates in {toc -tic} seconds",flush=True)
         iter += 1

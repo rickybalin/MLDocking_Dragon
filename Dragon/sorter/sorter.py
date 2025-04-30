@@ -285,9 +285,10 @@ def make_random_compound_selection(num_return_sorted):
                 val = dd[k]
                 smiles = val['smiles']
                 inf_val = val['inf']
+                model_iter = val['model_iter']
                 for f in range(frequency):
                     jrand = random.randint(0,len(smiles)-1)
-                    random_selection.append((smiles[jrand],inf_val[jrand]))
+                    random_selection.append((smiles[jrand],inf_val[jrand], model_iter[jrand]))
     except Exception as e:
         print(f"Pool worker failed with this error {e}",flush=True)
         raise Exception(e)
@@ -350,16 +351,19 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodeli
 
     random_smiles = []
     random_inf = []
+    random_model = []
     for result in out:
         for r in result:
-            sm,sc = r
+            sm,sc,mi = r
             random_smiles.append(sm)
             random_inf.append(sc)
+            random_model.append(mi)
     pool.close()
     pool.join()
     print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
     cdd['random_compound_sample'] = {'smiles': random_smiles,
-                                     'inf': random_inf}
+                                     'inf': random_inf,
+                                     'model_iter': random_model,}
    
 
 def create_dummy_data(_dict,num_managers):

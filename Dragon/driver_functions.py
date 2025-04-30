@@ -2,24 +2,32 @@ from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
 
 
-def output_sims(cdd: DDict):
+def output_sims(cdd: DDict, iter=0):
 
-    keys = cdd.keys()
-    last_list_key = cdd["max_sort_iter"]
-    candidate_list = cdd[last_list_key]
-    top_smiles = candidate_list['smiles']
-    top_inf = candidate_list['inf']
-    with open(f'top_candidates_{last_list_key}.out','w') as f:
-        f.write("# smiles  inference_score  docking_scores\n")
-        for i in range(len(top_smiles)):
-            smiles = top_smiles[i]
-            inference_score = top_inf[i]
-            try:
-                docking_score = cdd[smiles]
-                f.write(f"{smiles}    {inference_score}    {docking_score}\n")
-            except:
-                print(f"Missing smiles {smiles} from candidate dict")
-                f.write(f"{smiles}    {inference_score}    0\n")
+    #keys = cdd.keys()
+    #last_list_key = cdd["max_sort_iter"]
+    #candidate_list = cdd[last_list_key]
+    candidate_list = cdd['simulated_compounds']
+
+    with open(f'top_candidates_{iter}.out','w') as f:
+        f.write("# smiles  docking_score  inf_scores(score model_iter) \n")
+        for i in range(len(candidate_list)):
+            smiles = candidate_list[i]
+            results = cdd[smiles]
+            inference_scores = results['inf_scores']
+            docking_score = results['dock_score']
+            line = f"{smiles}    {docking_score}    "
+            for inf_result in inference_scores:
+                sc = inf_result[0] # inference score
+                mi = inf_result[1] # corresponding model iter
+                line += f'{sc}    {mi}    '
+            # try:
+            #     docking_score = cdd[smiles]
+            #     f.write(f"{smiles}    {inference_score}    {docking_score}\n")
+            # except:
+            #     print(f"Missing smiles {smiles} from candidate dict")
+            #     f.write(f"{smiles}    {inference_score}    0\n")
+            f.write(line+"\n")
 
 def max_data_dict_size(num_keys: int, 
                        model_size=33, 

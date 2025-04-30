@@ -10,16 +10,10 @@ from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
 from dragon.infrastructure.policy import Policy
 
-from data_loader.data_loader_presorted import load_inference_data
-from inference.launch_inference import launch_inference
+from data_loader.data_loader_presorted import load_inference_data, get_files
+from data_loader.model_loader import load_pretrained_model
+from training.launch_training import launch_training
 from driver_functions import max_data_dict_size
-
-from data_loader.data_loader_presorted import get_files
-from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
-from inference.utils_encoder import SMILES_SPE_Tokenizer
-from training.ST_funcs.clr_callback import *
-from training.ST_funcs.smiles_regress_transformer_funcs import *
-
 
 driver_path = os.getenv("DRIVER_PATH")
 
@@ -43,8 +37,7 @@ if __name__ == "__main__":
                         help='Path to pre-sorted SMILES strings to load')
 
     args = parser.parse_args()
-    #
- 
+    
     # Start driver
     start_time = perf_counter()
     print("Begun dragon driver",flush=True)
@@ -55,7 +48,6 @@ if __name__ == "__main__":
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
     tot_nodelist = alloc.nodes
-
     tot_mem = args.mem_per_node * num_tot_nodes
 
     # Get info about gpus and cpus
@@ -96,12 +88,6 @@ if __name__ == "__main__":
     data_dict_mem *= (1024*1024*1024)
     candidate_dict_mem *= (1024*1024*1024)
 
-    # Start distributed dictionary used for inference
-    # inf_dd_policy = Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(inf_dd_nodelist).hostname)
-    # Note: the host name based policy, as far as I can tell, only takes in a single node, not a list
-    #       so at the moment we can't specify to the inf_dd to run on a list of nodes.
-    #       But by setting inf_dd_nodes < num_tot_nodes, we can make it run on the first inf_dd_nodes nodes only
-   
     data_dd = DDict(args.managers_per_node, num_dict_nodes, data_dict_mem, trace=True)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_dict_nodes} nodes", flush=True)
@@ -137,79 +123,51 @@ if __name__ == "__main__":
     print(f"Retrieved dictionary stats in {load_time:.3f} seconds", flush=True)
     num_keys = len(data_dd.keys())
     
+    # Load pretrained model
+    load_pretrained_model(data_dd)
+
     cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
     print(f"on {num_dict_nodes} nodes", flush=True)
+    cand_dd['simulated_compounds'] = []
+
+    # Load test simulation data
+    with open("training/training_test.data", "r") as f:
+        lines = f.readlines()
+        if line[0] == "#": continue
+        simulated_compounds = []
+        for line in lines:
+            smiles, inf_score, dock_score = line.split()
+            cand_dd[smiles] = dock_score
+            simulated_compounds.append(smiles)
+        cand_dd['simulated_compounds'] = simulated_compounds
     
-    # Number of top candidates to produce
-    if num_tot_nodes < 3:
-        top_candidate_number = 1000
-    else:
-        top_candidate_number = 5000
-
-    max_iter = args.max_iter
-    iter = 0
-
-    # Load model from disk and save to dictionary
-    # Read HyperParameters
-    print("Loading pre-trained model from disk", flush=True)
-    json_file = driver_path + "inference/config.json"
-    hyper_params = ParamsJson(json_file)
-
-    # Load model and weights
-    model = ModelArchitecture(hyper_params).call()
-    model.load_weights(
-        driver_path + f"inference/smile_regress.autosave.model.h5"
-    )
-    print("Loaded pretrained model", flush=True)
-    
-    # Iterate over the layers and their respective weights
-    num_layers = 0
-    num_weights = 0
-    tot_memory = 0
-    weight_keys = []
-    for layer_idx, layer in enumerate(model.layers):
-        num_layers += 1
-        for weight_idx, weight in enumerate(layer.get_weights()):
-            num_weights += 1
-            # Create a key for each weight
-            wkey = f'model_layer_{layer_idx}_weight_{weight_idx}'
-            # Save the weight in the dictionary
-            #weights_dict[wkey] = weight
-            data_dd[wkey] = weight
-            weight_keys.append(wkey)
-            print(f"{wkey}: {weight.nbytes} bytes")
-            tot_memory += weight.nbytes
-    print(f"{num_layers=} {num_weights=} {tot_memory=}")
-    print(f"saved keys: {weight_keys}")
-    data_dd["model_weight_keys"] = weight_keys
-    data_dd["model_iter"] = 1
-    data_dd["model_hyper_params"] = hyper_params
-
-    # Launch inference
-    num_procs = num_gpus*node_counts["inference"]
-
-    print(f"Launching inference with {num_procs} processes ...", flush=True)
-    if num_tot_nodes < 3:
-        inf_num_limit = 8
-        print(
-            f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker"
+    # Run training module
+    print(f"Launched Fine Tune Training", flush=True)
+        tic = perf_counter()
+        BATCH = 64
+        EPOCH = 500
+        train_proc = mp.Process(
+            target=launch_training,
+            args=(
+                data_dd,
+                nodelists["training"][0],  # training is always 1 node
+                cand_dd,
+                BATCH,
+                EPOCH,
+            ),
         )
-    else:
-        inf_num_limit = None
+        train_proc.start()
+        train_proc.join()
+        toc = perf_counter()
+        train_time = toc - tic
+        print(f"Performed training in {train_time} seconds \n", flush=True)
+        if train_proc.exitcode != 0:
+            raise Exception("Training failed\n")
+        iter_end = perf_counter()
+        iter_time = iter_end - iter_start
+        print(
+            f"Performed iter {iter} in {iter_time} seconds \n", flush=True
+        )
 
-    tic = perf_counter()
-    inf_proc = mp.Process(
-        target=launch_inference,
-        args=(
-            data_dd,
-            nodelists["inference"],
-            num_procs,
-            inf_num_limit,
-        ),
-    )
-    inf_proc.start()
-    inf_proc.join()
-    toc = perf_counter()
-    infer_time = toc - tic
-    print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+    

@@ -199,7 +199,8 @@ def assemble_docking_data_top(candidate_dict):
                 with open("train_switch.log", "a") as f:
                     f.write(f"Could not find top candidate in keys: {sm}\n")
                 continue
-            sc = candidate_dict[sm]
+            val = candidate_dict[sm]
+            sc = val["dock_score"]
             if sc > 0:
                 train_smiles.append(sm)
                 train_scores.append(sc)

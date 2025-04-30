@@ -8,6 +8,7 @@ from time import perf_counter
 import random
 import gc
 import socket
+from tqdm import tqdm
 from dragon.utils import host_id
 
 #from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
