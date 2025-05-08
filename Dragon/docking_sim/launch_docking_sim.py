@@ -11,21 +11,6 @@ from dragon.native.machine import Node
 
 from .docking_openeye import run_docking
 
-def work_finished(nproc,file="docking_switch.log"):
-
-    nfinished = 0
-    if os.path.isfile(file):
-        with open(file,"r") as f:
-            lines = f.readlines()
-
-            for line in lines:
-                if "Finished docking sims" in line:
-                    nfinished += 1
-    if nfinished < nproc:
-        return False
-    else:
-        return True
-
 
 def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     """Launch docking simulations
@@ -39,12 +24,22 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     num_procs_pn = num_procs//num_nodes
     run_dir = os.getcwd()
 
+    skip_threads = os.getenv("SKIP_THREADS")
+    if skip_threads:
+        print(f"skipping threads {skip_threads}",flush=True)
+        skip_threads = skip_threads.split(',')
+        skip_threads = [int(t) for t in skip_threads]
+    else:
+        skip_threads = []
+        
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    grp = ProcessGroup(restart=False, ignore_error_on_exit=True, policy=global_policy)
+    grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
+            if proc in skip_threads:
+                continue
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name,
@@ -57,36 +52,25 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy,
-                                                        ))
+                                                        )
+                            )
 
     # Launch the ProcessGroup
     grp.init()
     grp.start()
     print(f"Starting Process Group for Docking Sims on {num_procs} procs", flush=True)
-    group_procs = [Process(None, ident=puid) for puid in grp.puids]
+    grp.join()
+    print(f"Joined Process Group for Docking Sims",flush=True)
+    grp.close()
 
-    #for proc in group_procs:
-    #    if proc.stdout_conn:
-    #        std_out = read_output(proc.stdout_conn)
-    #        print(std_out, flush=True)
-    #    if proc.stderr_conn:
-    #        std_err = read_error(proc.stderr_conn)
-    #        print(std_err, flush=True)
+    # Collect candidate keys and save them to simulated keys
+    # Lists will have a key that is a digit
+    # Non-smiles keys that are not digits are -1, max_sort_iter and simulated_compounds
+    simulated_compounds = [k for k in cdd.keys() if not k.isdigit() and 
+                                                    k != '-1' and 
+                                                    "iter" not in k and
+                                                    k != "simulated_compounds" and 
+                                                    k != "random_compound_sample"]
+    cdd['simulated_compounds'] = simulated_compounds
+    
 
-    #grp.join()
-    while not work_finished(num_procs,file="finished_run_docking.log"):
-        try:
-            grp.join(timeout=10)
-        except TimeoutError:
-            continue
-    print(f"Docking workers finished")
-    grp.stop()
-    #print(f"candidate keys {cdd.keys()}")
-    total_sims = 0
-    ckeys = cdd.keys()
-    print(f"docking sims complete")
-    for key in cdd.keys():
-        if key[:9] == 'dock_iter':
-            #print(f"{key=} {cdd[key]=}\n")
-            total_sims += len(cdd[key]["smiles"])
-    print(f"{total_sims=}")

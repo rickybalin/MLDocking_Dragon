@@ -5,12 +5,12 @@ from typing import Tuple
 import argparse
 import os
 import sys
-import gc
+import random
 
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict import DDict
-from dragon.native.machine import current
+from dragon.native.machine import current, System
 import traceback
 
 from functools import partial
@@ -49,8 +49,10 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     :param file_path: file path to open
     :type file_path: pathlib.PosixPath
     """
+
+    sort_test = os.getenv("TEST_SORTING")
+
     try:
-        #gc.collect()
         me = mp.current_process()
 
         data_dict = me.stash["ddict"]
@@ -74,6 +76,8 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                     smiles.append(smile)
 
         inf_results = [0.0 for i in range(len(smiles))]
+        if sort_test:
+            inf_results = [random.uniform(8.0, 14.0) for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
@@ -90,7 +94,11 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
 
         #print(f"Now putting key {key}", flush=True)
-        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results}
+        data_dict[key] = {"f_name": f_name, 
+                          "smiles": smiles, 
+                          "inf": inf_results, 
+                          "model_iter": -1}
+
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
         # with open(f"{outfiles_path}/{logname}.out",'a') as f:
@@ -101,7 +109,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
     except Exception as e:
         try:
             tb = traceback.format_exc()
-            msg = "Could not receive message because underlying memory was destroyed:\n%s\n Traceback:\n%s"%(e, tb)
+            msg = "Error while reading smiles data:\n%s\n Traceback:\n%s"%(e, tb)
             outfiles_path = "smiles_sizes"
             if not os.path.exists(outfiles_path):
                 os.mkdir(outfiles_path)
@@ -109,7 +117,8 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                 f.write(f"key is {key}")
                 f.write(f"Worker located on {current().hostname}\n")
                 f.write(f"Read smiles from {f_name}, smiles size is {smiles_size}\n")
-                f.write(f"Exception was: %s\n"%msg)
+                f.write("Exception was: %s\n"%msg)
+                f.write("Pool Stats:\n%s\n"%data_dict.stats)
             raise Exception(e)
         except Exception as ex:
             print("GOT EXCEPTION IN EXCEPTION")
@@ -138,43 +147,54 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
+
+    # alloc = System()
+    # num_nodes = int(alloc.nnodes)
+    # if num_nodes <= 2:
+    #     gpu_devices = os.getenv("GPU_DEVICES")
+    #     if gpu_devices is not None:
+    #         gpu_devices = gpu_devices.split(",")
+    #         num_gpus = len(gpu_devices)
+    #     else:
+    #         num_gpus = 0
+    #     num_files = num_nodes*num_gpus*8 # 8 files per gpu
+    #     files = files[0:num_files]
+    #     print(f"Only loading {num_files} files for {num_nodes} node test")
+
     file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}", flush=True)
 
-    try:
-        total_data_size = 0
-        for i in range(4):
+    
+    total_data_size = 0
+    for i in range(4):
+        start_time = perf_counter()
 
-            num_pool_procs = num_procs
-            pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
-            print(f"Pool initialized", flush=True)
-            print(f"Reading smiles for {num_files}", flush=True)
+        num_pool_procs = num_procs
+        pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
+        print(f"Pool initialized", flush=True)
+        print(f"Reading smiles for {num_files}", flush=True)
 
-            num_files_per_pool = num_files // 4 + 1
-            print(f"{num_pool_procs=} {num_files_per_pool=}")
-            smiles_sizes = pool.imap_unordered(
-                read_smiles,
-                file_tuples[
-                    i
-                    * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
-                ],
-            )
-
-            print(f"Size of dataset is {sum(smiles_sizes)/(1024.*1024.*1024.)} GB", flush=True)
-            total_data_size += sum(smiles_sizes)
-            print(f"Mapped function complete", flush=True)
-            pool.close()
-            print(f"Pool closed", flush=True)
-            pool.join()
-            print(f"Pool joined", flush=True)
-        print(f"Total data read in {total_data_size/(1024.*1024.*1024.)} GB", flush=True)
-    except Exception as e:
-        print(f"reading smiles failed")
-        pool.terminate()
-        raise Exception(e)
-
+        num_files_per_pool = num_files // 4 + 1
+        print(f"{num_pool_procs=} {num_files_per_pool=}")
+        smiles_sizes = pool.imap_unordered(
+            read_smiles,
+            file_tuples[
+                i
+                * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
+            ],
+        )
+        iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+        print(f"Size of dataset is {iter_data_size} GB", flush=True)
+        total_data_size += iter_data_size
+        print(f"Mapped function complete", flush=True)
+        pool.close()
+        print(f"Pool closed", flush=True)
+        pool.join()
+        print(f"Pool joined", flush=True)
+    print(f"Total data read in {total_data_size} GB", flush=True)
+    
 
 if __name__ == "__main__":
     # Import command line arguments
@@ -214,7 +234,7 @@ if __name__ == "__main__":
     # Start distributed dictionary
     mp.set_start_method("dragon")
     total_mem_size = args.total_mem_size * (1024 * 1024 * 1024)
-    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size)
+    dd = DDict(args.managers_per_node, args.num_nodes, total_mem_size, trace=True)
     print("Launched Dragon Dictionary \n", flush=True)
 
     # Launch the data loader

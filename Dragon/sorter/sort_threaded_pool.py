@@ -1,4 +1,3 @@
-import math
 from time import perf_counter
 import dragon
 import multiprocessing as mp

@@ -179,39 +179,34 @@ def filter_candidate_keys(ckeys: list, key_string: str):
     return ckeys
 
 def assemble_docking_data_top(candidate_dict):
-    try:
-        # Retrieve simulation results for all candidates in top list
-        ckeys = candidate_dict.keys()
-        max_ckey = candidate_dict["max_sort_iter"]
-        top_val = candidate_dict[max_ckey]
+    # Retrieve simulation results for all candidates in top list
+    ckeys = candidate_dict.keys()
+    # max_ckey = candidate_dict["max_sort_iter"]
+    # top_val = candidate_dict[max_ckey]
+    # top_smiles = top_val["smiles"]
 
-        top_smiles = top_val["smiles"]
+    # Here grab all simulated smiles instead of just top ones
+    top_smiles = candidate_dict['simulated_compounds']
 
-        train_smiles = []
-        train_scores = []
-        num_skipped = 0
-        
-        for sm in top_smiles:
-            if sm not in ckeys:
-                num_skipped += 1
-                with open("train_switch.log", "a") as f:
-                    f.write(f"Could not find top candidate in keys: {sm}\n")
-                continue
-            sc = candidate_dict[sm]
-            if sc > 0:
-                train_smiles.append(sm)
-                train_scores.append(sc)
-        print(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training",flush=True)
-        print(f"Missing {num_skipped} candidates from dictionary",flush=True)
-        print(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates",flush=True) 
-        return train_smiles, train_scores
-    except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-
-        with open("train_switch.log", "a") as f:
-            f.write("Exception in assembling data\n")
-            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
-            f.write(f"{e}\n")
+    train_smiles = []
+    train_scores = []
+    num_skipped = 0
+    
+    for sm in top_smiles:
+        if sm not in ckeys:
+            num_skipped += 1
+            with open("training.log", "a") as f:
+                f.write(f"Could not find top candidate in keys: {sm}\n")
+            continue
+        val = candidate_dict[sm]
+        sc = float(val["dock_score"])
+        if sc > 0:
+            train_smiles.append(sm)
+            train_scores.append(sc)
+    print(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training",flush=True)
+    print(f"Missing {num_skipped} candidates from dictionary",flush=True)
+    print(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates",flush=True) 
+    return train_smiles, train_scores
     
 
 def assemble_docking_data(candidate_dict):
@@ -244,68 +239,62 @@ def assemble_docking_data(candidate_dict):
     return train_smiles, train_scores
 
 def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
-    try:
-        train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
-        train_data = list(zip(train_smiles,train_scores))
-        random.shuffle(train_data)
-        train_smiles,train_scores = zip(*train_data)
-        num_train = len(train_smiles)
-        num_val = int(num_train*validation_fraction)
-        val_smiles = train_smiles[0:num_val]
-        val_scores = train_scores[0:num_val]
+  
+    train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
+    train_data = list(zip(train_smiles,train_scores))
+    random.shuffle(train_data)
+    train_smiles,train_scores = zip(*train_data)
+    num_train = len(train_smiles)
+    num_val = int(num_train*validation_fraction)
+    val_smiles = train_smiles[0:num_val]
+    val_scores = train_scores[0:num_val]
 
 
-        train_scores = pd.DataFrame(train_scores)
-        val_scores = pd.DataFrame(val_scores)
+    train_scores = pd.DataFrame(train_scores)
+    val_scores = pd.DataFrame(val_scores)
+    
+    if len(train_smiles) > 0:
+        # data_train.head()
+        # # Dataset has type and smiles as the two fields
+        # # reshaping: y formatted as [[y_1],[y_2],...] with floats
+        x_smiles_train = train_smiles
+        x_smiles_val = val_smiles
+        #y_train = np.array(train_scores) #
+
+        #if fine_tuned:
+        #    y_train = train_scores.values.reshape(-1, 1) #* 1.0 
+        #else:
+        y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
+        y_val = val_scores.values.reshape(-1, 1, 1) #* 1.0 
         
-        if len(train_smiles) > 0:
-            # data_train.head()
-            # # Dataset has type and smiles as the two fields
-            # # reshaping: y formatted as [[y_1],[y_2],...] with floats
-            x_smiles_train = train_smiles
-            x_smiles_val = val_smiles
-            #y_train = np.array(train_scores) #
+        vocab_size = 3132
+        maxlen = 45
 
-            #if fine_tuned:
-            #    y_train = train_scores.values.reshape(-1, 1) #* 1.0 
-            #else:
-            y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
-            y_val = val_scores.values.reshape(-1, 1, 1) #* 1.0 
-            
-            vocab_size = 3132
-            maxlen = 45
+        tokenizer_params = {
+                "category": "smilespair",
+                "spe_file": os.path.join(driver_path,"inference/VocabFiles/SPE_ChEMBL.txt"),
+                "vocab_file": os.path.join(driver_path, "inference/VocabFiles/vocab_spe.txt")}
+        vocab_file = tokenizer_params['vocab_file'] 
+        spe_file = tokenizer_params['spe_file'] 
+    
+        # Replace this section to be like the inference routine
+        spe_file = tokenizer_params['spe_file']
+        vocab_file = tokenizer_params['vocab_file']
+        x_train = preprocess_smiles_pair_encoding(x_smiles_train,
+                                                    maxlen,
+                                                    vocab_file,
+                                                    spe_file)
 
-            tokenizer_params = {
-                    "category": "smilespair",
-                    "spe_file": os.path.join(driver_path,"inference/VocabFiles/SPE_ChEMBL.txt"),
-                    "vocab_file": os.path.join(driver_path, "inference/VocabFiles/vocab_spe.txt")}
-            vocab_file = tokenizer_params['vocab_file'] 
-            spe_file = tokenizer_params['spe_file'] 
-        
-            # Replace this section to be like the inference routine
-            spe_file = tokenizer_params['spe_file']
-            vocab_file = tokenizer_params['vocab_file']
-            x_train = preprocess_smiles_pair_encoding(x_smiles_train,
-                                                        maxlen,
+        x_val = preprocess_smiles_pair_encoding(x_smiles_val,
+                                                    maxlen,
                                                         vocab_file,
                                                         spe_file)
-
-            x_val = preprocess_smiles_pair_encoding(x_smiles_val,
-                                                       maxlen,
-                                                         vocab_file,
-                                                         spe_file)
-            #print(f"xtrain: {x_train}",flush=True)
-            
-            return x_train, y_train, x_val, y_val
-        else:
-            return [],[]
-    except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        with open("train_switch.log","a") as f:
-            f.write("Exception in creating training data\n")
-            f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
-            f.write(f"{e}\n")
-            raise(e)
+        #print(f"xtrain: {x_train}",flush=True)
+        
+        return x_train, y_train, x_val, y_val
+    else:
+        return [],[]
+  
 
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
