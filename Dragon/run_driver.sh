@@ -47,6 +47,7 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     echo "Setting up for Intel GPUS"
     export GPU_DEVICES="0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1"
     export CPU_AFFINITY="list:1-7,105-111:8-15,112-119:16-23,120-127:24-31,128-135:32-39,136-143:40-47,144-151:53-59,157-163:60-67,164-171:68-75,172-179:76-83,180-187:84-91,188-195:92-99,196-203"
+    export SKIP_THREADS="0,52,104,156"
     export ZEX_NUMBER_OF_CCS=0:1,1:1,2:1,3:1,4:1,5:1
     # Other machine specific env vars
     # Some env vars from Archit's script
@@ -71,6 +72,11 @@ which dragon
 
 # Dragon env vars
 # None
+
+# Other env vars
+# for tensorflow reporting
+export TF_CPP_MIN_LOG_LEVEL=2
+export OMP_NUM_THREADS=1
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
 MANAGERS=1
