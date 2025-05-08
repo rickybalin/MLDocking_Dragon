@@ -10,7 +10,7 @@ from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
 from dragon.infrastructure.policy import Policy
 
-from data_loader.data_loader_presorted import load_inference_data, get_files
+from data_loader.data_loader_presorted import get_files
 from data_loader.model_loader import load_pretrained_model
 from training.launch_training import launch_training
 from driver_functions import max_data_dict_size
@@ -92,36 +92,6 @@ if __name__ == "__main__":
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem}", flush=True)
     print(f"on {num_dict_nodes} nodes", flush=True)
     
-    # Launch the data loader component
-    max_procs = args.max_procs_per_node * num_tot_nodes
-    print("Loading inference data into Dragon Dictionary ...", flush=True)
-    tic = perf_counter()
-    loader_proc = mp.Process(
-        target=load_inference_data,
-        args=(
-            data_dd,
-            args.data_path,
-            max_procs,
-            num_tot_nodes * args.managers_per_node,
-        ),
-    )
-    loader_proc.start()
-    loader_proc.join()
-    toc = perf_counter()
-    load_time = toc - tic
-    if loader_proc.exitcode == 0:
-        print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
-    else:
-        raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
-
-    tic = perf_counter()
-    print("Here are the stats after data loading...")
-    print("++++++++++++++++++++++++++++++++++++++++")
-    print(data_dd.stats)
-    toc = perf_counter()
-    load_time = toc - tic
-    print(f"Retrieved dictionary stats in {load_time:.3f} seconds", flush=True)
-    num_keys = len(data_dd.keys())
     
     # Load pretrained model
     load_pretrained_model(data_dd)
@@ -132,42 +102,41 @@ if __name__ == "__main__":
     cand_dd['simulated_compounds'] = []
 
     # Load test simulation data
-    with open("training/training_test.data", "r") as f:
+    with open(f"{driver_path}/training/training_test.data", "r") as f:
         lines = f.readlines()
-        if line[0] == "#": continue
+        
         simulated_compounds = []
         for line in lines:
-            smiles, inf_score, dock_score = line.split()
-            cand_dd[smiles] = dock_score
+            print(line)
+            if line[0] == "#": 
+                continue
+            line_list = line.split()
+            smiles = line_list[0]
+            dock_score = float(line_list[1])
+            cand_dd[smiles] = {'dock_score': dock_score}
             simulated_compounds.append(smiles)
         cand_dd['simulated_compounds'] = simulated_compounds
     
     # Run training module
     print(f"Launched Fine Tune Training", flush=True)
-        tic = perf_counter()
-        BATCH = 64
-        EPOCH = 500
-        train_proc = mp.Process(
-            target=launch_training,
-            args=(
-                data_dd,
-                nodelists["training"][0],  # training is always 1 node
-                cand_dd,
-                BATCH,
-                EPOCH,
-            ),
-        )
-        train_proc.start()
-        train_proc.join()
-        toc = perf_counter()
-        train_time = toc - tic
-        print(f"Performed training in {train_time} seconds \n", flush=True)
-        if train_proc.exitcode != 0:
-            raise Exception("Training failed\n")
-        iter_end = perf_counter()
-        iter_time = iter_end - iter_start
-        print(
-            f"Performed iter {iter} in {iter_time} seconds \n", flush=True
-        )
-
-    
+    tic = perf_counter()
+    BATCH = 64
+    EPOCH = 500
+    train_proc = mp.Process(
+        target=launch_training,
+        args=(
+            data_dd,
+            nodelists["training"][0],  # training is always 1 node
+            cand_dd,
+            BATCH,
+            EPOCH,
+        ),
+    )
+    train_proc.start()
+    train_proc.join()
+    toc = perf_counter()
+    train_time = toc - tic
+    print(f"Performed training in {train_time} seconds \n", flush=True)
+    if train_proc.exitcode != 0:
+        raise Exception("Training failed\n")
+    print(f"Training completed successfully", flush=True)

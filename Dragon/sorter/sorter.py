@@ -204,7 +204,10 @@ def get_largest(dd, out_queue, num_return_sorted):
 
         for key in keys:
             val = dd[key]
-            this_value.extend(zip(val["inf"], val["smiles"], val["model_iter"]))
+            num_smiles = len(val['inf'])
+            this_value.extend(zip(val["inf"], 
+                                  val["smiles"], 
+                                  [val['model_iter'] for _ in range(num_smiles)]))
             this_value = heapq.nlargest(
                 num_return_sorted, this_value, key=lambda x: x[0]
             )
@@ -248,13 +251,15 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
 
     candidate_inf,candidate_smiles,candidate_model_iter = zip(*candidate_list)
     non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
-    sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+    sort_val = {"inf": list(candidate_inf), 
+                "smiles": list(candidate_smiles), 
+                "model_iter": list(candidate_model_iter)}
     cdd[ckey] = sort_val
     cdd["sort_iter"] = int(ckey)
     cdd["max_sort_iter"] = ckey
     
 
-def make_random_compound_selection(num_return_sorted):
+def make_random_compound_selection(random_number):
     try:
         
         me = mp.current_process()
@@ -262,7 +267,7 @@ def make_random_compound_selection(num_return_sorted):
 
         alloc = System()
         num_tot_nodes = int(alloc.nnodes) 
-        num_random_per_node = max(int(0.1*num_return_sorted/num_tot_nodes), 1)
+        num_random_per_node = max(int(random_number/num_tot_nodes), 1)
 
         random_selection = []
 
@@ -288,7 +293,7 @@ def make_random_compound_selection(num_return_sorted):
                 model_iter = val['model_iter']
                 for f in range(frequency):
                     jrand = random.randint(0,len(smiles)-1)
-                    random_selection.append((smiles[jrand],inf_val[jrand], model_iter[jrand]))
+                    random_selection.append((smiles[jrand],inf_val[jrand], model_iter))
     except Exception as e:
         print(f"Pool worker failed with this error {e}",flush=True)
         raise Exception(e)
@@ -296,7 +301,11 @@ def make_random_compound_selection(num_return_sorted):
     return random_selection
 
 
-def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodelist, cdd: DDict):
+def sort_dictionary_pg(dd: DDict, 
+                       num_return_sorted: int, 
+                       num_procs: int, 
+                       nodelist, cdd: DDict, 
+                       random_number):
    
     max_num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
@@ -340,34 +349,34 @@ def sort_dictionary_pg(dd: DDict, num_return_sorted: int, num_procs: int, nodeli
     print("Getting random compounds",flush=True)
     # Grab random compounds from each node
 
-    alloc = System()
-    num_nodes = min(int(alloc.nnodes), int(0.1*num_return_sorted))
-    pool = mp.Pool(num_nodes, 
-                   initializer=initialize_worker, 
-                   initargs=(dd,), 
-                   )
-    out = pool.imap_unordered(make_random_compound_selection, 
-                            [num_return_sorted for _ in range(num_nodes)])
+    if random_number > 0:
+        alloc = System()
+        num_nodes = min(int(alloc.nnodes), random_number)
+        pool = mp.Pool(num_nodes, 
+                    initializer=initialize_worker, 
+                    initargs=(dd,), 
+                    )
+        out = pool.imap_unordered(make_random_compound_selection, 
+                                [random_number for _ in range(num_nodes)])
 
-    random_smiles = []
-    random_inf = []
-    random_model = []
-    for result in out:
-        for r in result:
-            sm,sc,mi = r
-            random_smiles.append(sm)
-            random_inf.append(sc)
-            random_model.append(mi)
-    pool.close()
-    pool.join()
-    print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
-    cdd['random_compound_sample'] = {'smiles': random_smiles,
-                                     'inf': random_inf,
-                                     'model_iter': random_model,}
+        random_smiles = []
+        random_inf = []
+        random_model = []
+        for result in out:
+            for r in result:
+                sm,sc,mi = r
+                random_smiles.append(sm)
+                random_inf.append(sc)
+                random_model.append(mi)
+        pool.close()
+        pool.join()
+        print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
+        cdd['random_compound_sample'] = {'smiles': random_smiles,
+                                        'inf': random_inf,
+                                        'model_iter': random_model,}
    
 
 def create_dummy_data(_dict,num_managers):
-
 
     NUMKEYS = 100
 

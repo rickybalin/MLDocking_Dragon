@@ -10,7 +10,7 @@ import random
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict import DDict
-from dragon.native.machine import current
+from dragon.native.machine import current, System
 import traceback
 
 from functools import partial
@@ -79,11 +79,9 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         if sort_test:
             inf_results = [random.uniform(8.0, 14.0) for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
-        model_iters = [-1 for i in range(len(smiles))]
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
         smiles_size += sum([sys.getsizeof(infr) for infr in inf_results])
-        smiles_size += sum([sys.getsizeof(miter) for miter in model_iters])
         smiles_size += sys.getsizeof(f_name)
         smiles_size += sys.getsizeof(key)
 
@@ -96,7 +94,10 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
 
         #print(f"Now putting key {key}", flush=True)
-        data_dict[key] = {"f_name": f_name, "smiles": smiles, "inf": inf_results, "model_iter": model_iters}
+        data_dict[key] = {"f_name": f_name, 
+                          "smiles": smiles, 
+                          "inf": inf_results, 
+                          "model_iter": -1}
 
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
@@ -146,6 +147,20 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     base_path = pathlib.Path(data_path)
     files, num_files = get_files(base_path)
     print(f"{num_files=}", flush=True)
+
+    # alloc = System()
+    # num_nodes = int(alloc.nnodes)
+    # if num_nodes <= 2:
+    #     gpu_devices = os.getenv("GPU_DEVICES")
+    #     if gpu_devices is not None:
+    #         gpu_devices = gpu_devices.split(",")
+    #         num_gpus = len(gpu_devices)
+    #     else:
+    #         num_gpus = 0
+    #     num_files = num_nodes*num_gpus*8 # 8 files per gpu
+    #     files = files[0:num_files]
+    #     print(f"Only loading {num_files} files for {num_nodes} node test")
+
     file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)

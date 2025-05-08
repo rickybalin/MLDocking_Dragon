@@ -184,9 +184,7 @@ if __name__ == "__main__":
         print(f"Launching inference with {num_procs} processes ...", flush=True)
         if num_tot_nodes < 3:
             inf_num_limit = 8
-            print(
-                f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker"
-            )
+            print(f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker")
         else:
             inf_num_limit = None
 
@@ -215,15 +213,20 @@ if __name__ == "__main__":
         if iter == 0:
             cand_dd["max_sort_iter"] = "-1"
 
+        random_number = int(0.1*top_candidate_number)
+        print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)
             max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
             sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                      args=(data_dd,
-                                           top_candidate_number, 
+                                           top_candidate_number,
                                            max_sorter_procs, 
                                            nodelists["sorting"],
-                                           cand_dd))
+                                           cand_dd,
+                                           random_number,
+                                           ),
+                                    )
             sorter_proc.start()
             sorter_proc.join()
         else:

@@ -174,20 +174,17 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     dictionary_time = 0
     data_moved_size = 0
     num_run = len(split_keys)
-    if limit is not None:
-        num_run = limit
+    #if limit is not None:
+    #    num_run = min(limit, num_run)
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
     print(f"worker {proc} processing {num_run} keys",flush=True)
 
-    log_counter = perf_counter()
     for ikey in range(num_run):
-        
-        # Print progress to stdout every 60 seconds
-        if ikey == 0 or perf_counter() - log_counter > 60.:
-            log_counter = perf_counter()
-            print(f"...worker {proc} has completed {ikey} keys out of {num_run}", flush=True)
+        # Print progress to stdout every 8 iters
+        if ikey%8 == 0:
+           print(f"...worker {proc} has completed {ikey} keys out of {num_run} with model {model_iter}", flush=True)
         if check_model_iter(dd, model_iter, continue_event):  # this check is to stop inference in async wf when model is retrained
             ktic = perf_counter()
             key = split_keys[ikey]
@@ -199,56 +196,45 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
             
             dict_toc = perf_counter()
             key_dictionary_time = dict_toc - dict_tic
-            #if debug:
-            #    print(
-            #        f"worker {proc} pulled key {key} in {key_dictionary_time}s",
-            #        flush=True,
-            #    )
 
+            key_data_moved_size = 0.
             for kkey in val.keys():
-                key_data_moved_size = sys.getsizeof(kkey)
-                key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
+                key_data_moved_size += sys.getsizeof(kkey)
+                if type(val[kkey]) == list:
+                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
+                else:
+                    key_data_moved_size += sys.getsizeof(val[kkey])          
 
             smiles_raw = val["smiles"]
-            x_inference = process_inference_data(
-                hyper_params, tokenizer, smiles_raw
-            )
-            output = model.predict(
-                x_inference, batch_size=BATCH, verbose=0
-            ).flatten()
-            #if debug:
-            #    print(f"worker {proc} inference on key {key}", flush=True)
+            x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+            output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
 
             sort_index = np.flip(np.argsort(output)).tolist()
             smiles_sorted = [smiles_raw[i] for i in sort_index]
             pred_sorted = [
                 (
-                    output[sort_index[i]].item()
-                    if output[sort_index[i]] > cutoff
+                    output[i].item()
+                    if output[i] > cutoff
                     else 0.0
                 )
-                for i in range(len(sort_index))
+                for i in sort_index
             ]
-
             val["smiles"] = smiles_sorted
             val["inf"] = pred_sorted
-            val["model_iter"] = [model_iter for i in range(len(smiles_sorted))]
+            val["model_iter"] = model_iter
 
             dict_tic = perf_counter()
             dd[key] = val
             dict_toc = perf_counter()
             key_dictionary_time += dict_toc - dict_tic
 
-            #if debug:
-            #    print(
-            #        f"worker {proc} put key {key} in {key_dictionary_time}s",
-            #        flush=True,
-            #    )
-
             for kkey in val.keys():
                 key_data_moved_size += sys.getsizeof(kkey)
-                key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]])
-
+                if type(val[kkey]) == list:
+                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
+                else:
+                    key_data_moved_size += sys.getsizeof(val[kkey]) 
+                    
             num_smiles += len(smiles_sorted)
 
             ktoc = perf_counter()

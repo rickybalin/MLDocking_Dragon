@@ -371,8 +371,6 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     if proc == 1:
         print(f"Found {len(top_candidates_smiles)} top candidates; there are {len(ckeys)} ckeys", flush=True)
 
-    top_candidate_smiles = []
-
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
     top_candidates_smiles = list(set(top_candidates_smiles) - set(simulated_compounds))
     top_candidates_smiles.sort()
@@ -420,27 +418,33 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
                 f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
 
     # Get previously simulated candidates and update inference results
-    prev_simulated_candidates = list(set(simulated_compounds) - set(top_candidates_smiles))
+    prev_simulated_candidates = simulated_compounds #list(set(simulated_compounds) - set(top_candidates_smiles))
 
     # Get local keys
     current_host = host_id()
     manager_nodes = cdd.manager_nodes
-    ckeys = []
-    for i in range(len(manager_nodes)):
-        if manager_nodes[i].h_uid == current_host:
-            #print(f"{proc}: getting keys from local manager {local_manager}")
-            dm = cdd.manager(i)
-            ckeys.extend(dm.keys())
+    procs_per_node = num_procs//len(manager_nodes)
+    if proc%procs_per_node == 0:
+        ckeys = []
+        for i in range(len(manager_nodes)):
+            if manager_nodes[i].h_uid == current_host:
+                #print(f"{proc}: getting keys from local manager {local_manager}")
+                dm = cdd.manager(i)
+                ckeys.extend(dm.keys())
 
-    # Update local compounds inference results
-    local_prev_simulated_candidates = [cand for cand in prev_simulated_candidates if cand in ckeys]
-    print(f"Found {len(local_prev_simulated_candidates)} previously simulated candidates on local node to update")
-    for cand in local_prev_simulated_candidates:
-        val = cdd[cand]
-        inf_results = val['inf_results']
-        inf_results.append(top_candidates_dict[cand])
-        val['inf_results'] = inf_results
-        cdd[cand] = val
+        # Update local compounds inference results
+        local_prev_simulated_candidates = [cand for cand in prev_simulated_candidates if cand in ckeys and cand in top_candidates_dict.keys()]
+        print(f"Found {len(local_prev_simulated_candidates)} previously simulated candidates on local node to update with proc {proc}")
+        for cand in local_prev_simulated_candidates:
+            val = cdd[cand]
+            inf_results = val['inf_scores']
+            recorded_models = [r[1] for r in inf_results]
+            current_model = top_candidates_dict[cand][1]
+            if current_model not in recorded_models:
+                inf_results.append(top_candidates_dict[cand])
+                # print(f"{cand}: {inf_results}")
+                val['inf_scores'] = inf_results
+                cdd[cand] = val
 
 
     #with open(f"finished_run_docking.log", "a") as f:
@@ -516,14 +520,14 @@ def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
             simulated_smiles.append(smiles)
             dock_score = 0
         dock_scores.append(dock_score)
-        dtic = perf_counter()    
-        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':[top_candidates_dict[smiles]]}
+        dtic = perf_counter()
+        inf_scores = [top_candidates_dict[smiles]]
+        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':inf_scores}
+        # with open(f"dock_worker_{proc}.log","a") as f:
+        #     f.write(f"{smiles=} {dock_score=} {inf_scores=}\n")
         dtoc = perf_counter()
         data_store_time += dtic-dtoc
         data_store_size += sys.getsizeof(smiles) + sys.getsizeof(dock_score)
-        #if debug:
-        #    with open(f"dock_worker_{proc}.log","a") as f:
-        #        f.write(f"{smiter}/{num_cand}: Docking data stored in candidate dictionary in {dtoc-dtic} seconds\n")
         smiter += 1
         
     toc = perf_counter()

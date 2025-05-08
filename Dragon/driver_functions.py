@@ -4,9 +4,6 @@ from dragon.native.machine import System, Node
 
 def output_sims(cdd: DDict, iter=0):
 
-    #keys = cdd.keys()
-    #last_list_key = cdd["max_sort_iter"]
-    #candidate_list = cdd[last_list_key]
     candidate_list = cdd['simulated_compounds']
 
     with open(f'top_candidates_{iter}.out','w') as f:
@@ -15,18 +12,13 @@ def output_sims(cdd: DDict, iter=0):
             smiles = candidate_list[i]
             results = cdd[smiles]
             inference_scores = results['inf_scores']
+            #print(inference_scores,flush=True)
             docking_score = results['dock_score']
             line = f"{smiles}    {docking_score}    "
             for inf_result in inference_scores:
                 sc = inf_result[0] # inference score
                 mi = inf_result[1] # corresponding model iter
                 line += f'{sc}    {mi}    '
-            # try:
-            #     docking_score = cdd[smiles]
-            #     f.write(f"{smiles}    {inference_score}    {docking_score}\n")
-            # except:
-            #     print(f"Missing smiles {smiles} from candidate dict")
-            #     f.write(f"{smiles}    {inference_score}    0\n")
             f.write(line+"\n")
 
 def max_data_dict_size(num_keys: int, 
