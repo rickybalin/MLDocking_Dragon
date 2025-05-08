@@ -196,11 +196,11 @@ def assemble_docking_data_top(candidate_dict):
         for sm in top_smiles:
             if sm not in ckeys:
                 num_skipped += 1
-                with open("train_switch.log", "a") as f:
+                with open("training.log", "a") as f:
                     f.write(f"Could not find top candidate in keys: {sm}\n")
                 continue
             val = candidate_dict[sm]
-            sc = val["dock_score"]
+            sc = float(val["dock_score"])
             if sc > 0:
                 train_smiles.append(sm)
                 train_scores.append(sc)
@@ -211,7 +211,7 @@ def assemble_docking_data_top(candidate_dict):
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
 
-        with open("train_switch.log", "a") as f:
+        with open("training.log", "a") as f:
             f.write("Exception in assembling data\n")
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
@@ -304,7 +304,7 @@ def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
             return [],[]
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-        with open("train_switch.log","a") as f:
+        with open("training.log","a") as f:
             f.write("Exception in creating training data\n")
             f.write(f"{exc_type=}, {exc_tb.tb_lineno=}\n")
             f.write(f"{e}\n")
