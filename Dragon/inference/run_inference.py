@@ -174,8 +174,8 @@ def infer(dd, num_procs, proc, continue_event, limit=None):
     dictionary_time = 0
     data_moved_size = 0
     num_run = len(split_keys)
-    #if limit is not None:
-    #    num_run = min(limit, num_run)
+    if limit is not None:
+        num_run = min(limit, num_run)
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
