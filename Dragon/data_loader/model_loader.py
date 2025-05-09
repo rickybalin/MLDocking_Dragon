@@ -27,19 +27,25 @@ def save_model_weights(dd: Union[DDict, dict], model, model_iter: int, verbose =
     print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
 
     # Future version will use broadcast put to send model to every manager
-    #dd.bput('model', weights_dict)
-    #dd.bput('model_iter', model_iter)
+    dd.bput('model', weights_dict)
+    dd.bput('model_iter', model_iter)
 
-    dd['model'] = weights_dict
-    dd['model_iter'] = model_iter
+    #dd['model'] = weights_dict
+    #dd['model_iter'] = model_iter
 
     print(f"Saved model {model_iter} to dictionary", flush=True)
 
 def retrieve_model_from_dict(dd: Union[DDict, dict]):
 
-    weights_dict = dd["model"]
-    model_iter = dd["model_iter"]
-    hyper_params = dd["model_hyper_params"]
+    #weights_dict = dd["model"]
+    #model_iter = dd["model_iter"]
+    #hyper_params = dd["model_hyper_params"]
+
+    weights_dict = dd.bget('model')
+    model_iter = dd.bget("model_iter")
+    hyper_params = dd.bget("model_hyper_params")
+
+
     try:
         model = ModelArchitecture(hyper_params).call()
     except Exception as e:
@@ -61,8 +67,8 @@ def load_pretrained_model(dd: Union[DDict, dict]):
     json_file = os.path.join(driver_path, "inference/config.json")
     hyper_params = ParamsJson(json_file)
 
-    #dd.bput('model_hyper_params', hyper_params)
-    dd['model_hyper_params'] = hyper_params
+    dd.bput('model_hyper_params', hyper_params)
+    #dd['model_hyper_params'] = hyper_params
 
     print(f"Loaded hyper params: {hyper_params}", flush=True)
     # Load model and weights
