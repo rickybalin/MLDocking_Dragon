@@ -24,12 +24,22 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     num_procs_pn = num_procs//num_nodes
     run_dir = os.getcwd()
 
+    skip_threads = os.getenv("SKIP_THREADS")
+    if skip_threads:
+        print(f"skipping threads {skip_threads}",flush=True)
+        skip_threads = skip_threads.split(',')
+        skip_threads = [int(t) for t in skip_threads]
+    else:
+        skip_threads = []
+        
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
         node_name = Node(nodelist[node_num]).hostname
         for proc in range(num_procs_pn):
+            if proc in skip_threads:
+                continue
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name,
@@ -42,7 +52,8 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy,
-                                                        ))
+                                                        )
+                            )
 
     # Launch the ProcessGroup
     grp.init()
@@ -51,3 +62,15 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     grp.join()
     print(f"Joined Process Group for Docking Sims",flush=True)
     grp.close()
+
+    # Collect candidate keys and save them to simulated keys
+    # Lists will have a key that is a digit
+    # Non-smiles keys that are not digits are -1, max_sort_iter and simulated_compounds
+    simulated_compounds = [k for k in cdd.keys() if not k.isdigit() and 
+                                                    k != '-1' and 
+                                                    "iter" not in k and
+                                                    k != "simulated_compounds" and 
+                                                    k != "random_compound_sample"]
+    cdd['simulated_compounds'] = simulated_compounds
+    
+

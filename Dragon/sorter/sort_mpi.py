@@ -101,7 +101,10 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
 
         # Only include this key if it has non-zero inf values
         if any(val["inf"]):
-            this_value = list(zip(val["inf"],val["smiles"],val["model_iter"]))
+            num_smiles = len(val['inf'])
+            this_value = list(zip(val["inf"],
+                                  val["smiles"],
+                                  [val["model_iter"] for _ in range(num_smiles)]))
             my_results.extend(this_value)
             my_results.sort(key=lambda tup: tup[0])
             my_results = my_results[-num_return_sorted:]
