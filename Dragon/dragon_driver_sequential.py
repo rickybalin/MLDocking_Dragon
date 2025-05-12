@@ -131,6 +131,7 @@ if __name__ == "__main__":
             args.data_path,
             max_procs,
             num_tot_nodes * args.managers_per_node,
+            num_files
         ),
     )
     loader_proc.start()

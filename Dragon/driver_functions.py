@@ -27,6 +27,8 @@ def max_data_dict_size(num_keys: int,
                        canidate_sim_size_per_iter=1.5, 
                        max_pool_frac=0.8):
 
+    print(f"Estimating dictionary sizes with a maximum data pool utiliztion of {max_pool_frac*100} per cent", flush=True)
+
     # Get information about the allocation
     alloc = System()
     num_tot_nodes = int(alloc.nnodes)
@@ -40,7 +42,7 @@ def max_data_dict_size(num_keys: int,
     # Assume we want to store 10 top cand lists and associated simulation results
     min_cand_dict_size = 10.*canidate_sim_size_per_iter
 
-    # Assume you need 20 per cent overhead in data dictionary
+    # Assume you need 1-max_pool_frac per cent overhead in data dictionary
     data_dict_size = min_data_req/(max_pool_frac)
     cand_dict_size = min_cand_dict_size/(max_pool_frac)
 
@@ -57,7 +59,7 @@ def max_data_dict_size(num_keys: int,
     print(f"Memory available for ddicts: {max_mem} GB")
 
     if cand_dict_size + data_dict_size > max_mem:
-        raise Exception(f"Not enough mem for dictionaries: {max_mem=} {data_dict_size=} {cand_dict_size=}")
+        raise Exception(f"Not enough mem for dictionaries: {max_mem=} {max_pool_frac=} {data_dict_size=} {cand_dict_size=}")
 
     return int(data_dict_size), int(cand_dict_size)
 

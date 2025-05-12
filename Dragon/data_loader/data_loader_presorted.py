@@ -133,7 +133,11 @@ def initialize_worker(the_ddict):
         me.stash = {}
         me.stash["ddict"] = the_ddict
 
-def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int):
+def load_inference_data(_dict: DDict, 
+                        data_path: str, 
+                        max_procs: int, 
+                        num_managers: int, 
+                        num_files: int = None):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
@@ -145,8 +149,13 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
     """
     # Get list of files to read
     base_path = pathlib.Path(data_path)
-    files, num_files = get_files(base_path)
-    print(f"{num_files=}", flush=True)
+    files, num_files_in_dir = get_files(base_path)
+    print(f"{num_files_in_dir=}", flush=True)
+    if num_files is None:
+        num_files = num_files_in_dir
+    else:
+        files = files[0:num_files]
+    print(f"Number of files to read is {num_files}", flush=True)
 
     # alloc = System()
     # num_nodes = int(alloc.nnodes)
@@ -165,7 +174,6 @@ def load_inference_data(_dict, data_path: str, max_procs: int, num_managers: int
 
     num_procs = min(max_procs, num_files)
     print(f"Number of pool procs is {num_procs}", flush=True)
-
     
     total_data_size = 0
     for i in range(4):
