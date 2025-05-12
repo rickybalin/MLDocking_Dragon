@@ -186,7 +186,7 @@ def assemble_docking_data_top(candidate_dict):
     # top_smiles = top_val["smiles"]
 
     # Here grab all simulated smiles instead of just top ones
-    top_smiles = candidate_dict['simulated_compounds']
+    top_smiles = candidate_dict.bget('simulated_compounds')
 
     train_smiles = []
     train_scores = []
@@ -209,34 +209,6 @@ def assemble_docking_data_top(candidate_dict):
     return train_smiles, train_scores
     
 
-def assemble_docking_data(candidate_dict):
-    # Retrieve simulation results for only most recently simulated candidates
-
-    ckeys = candidate_dict.keys()
-
-    if "last_training_docking_iter" in ckeys:
-        last_training_docking_iter = candidate_dict["last_training_docking_iter"] + 1
-    else:
-        last_training_docking_iter = 0
-    ckeys = filter_candidate_keys(ckeys,f"dock_iter{last_training_docking_iter}")
-
-    train_smiles = []
-    train_scores = []
-
-    if len(ckeys) > 0:
-        for key in ckeys:
-            cval = candidate_dict[key]
-            smiles = cval["smiles"]
-            scores = cval["docking_scores"]
-            for sm,sc in zip(smiles,scores):
-                # only train with docking scores that are non-zero
-                if sc > 0:
-                    train_smiles.append(sm)
-                    train_scores.append([[sc]])
-    with open("sample_train_data.out",'w') as f:
-        for sm,sc in zip(train_smiles,train_scores):
-            f.write(f"{sm},{sc[0]}\n")
-    return train_smiles, train_scores
 
 def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
   

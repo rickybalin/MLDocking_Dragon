@@ -104,11 +104,10 @@ def check_model_iter(dd, model_iter, continue_event):
     return test_match
 
 
-def infer(dd, num_procs, proc, continue_event, limit=None):
+def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
     """Run inference reading from and writing data to the Dragon Dictionary"""
     gc.collect()
     # !!! DEBUG !!!
-    debug = True
     if debug:
         p = psutil.Process()
         core_list = p.cpu_affinity()

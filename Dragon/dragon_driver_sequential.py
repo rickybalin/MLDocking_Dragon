@@ -160,7 +160,9 @@ if __name__ == "__main__":
     
     # Create candidate dictionary
     cand_dd = DDict(args.managers_per_node, num_dict_nodes, candidate_dict_mem, policy=None, trace=True)
-    cand_dd['simulated_compounds'] = []
+    cand_dd.bput('simulated_compounds', [])
+    cand_dd.bput('current_sort_iter', -1)
+    
     print(f"Launched Dragon Dictionary for top candidates with total memory size {candidate_dict_mem}", flush=True)
     print(f"on {num_dict_nodes} nodes", flush=True)
     
@@ -251,6 +253,7 @@ if __name__ == "__main__":
         print(f"Launched Docking Simulations", flush=True)
         tic = perf_counter()
         num_procs = args.max_procs_per_node * node_counts["docking"]
+        num_procs = min(num_procs, top_candidate_number//4)
         dock_proc = mp.Process(
             target=launch_docking_sim,
             args=(cand_dd, iter, num_procs, nodelists["docking"]),

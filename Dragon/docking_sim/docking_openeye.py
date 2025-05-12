@@ -317,7 +317,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     #print(f"Dock worker {proc} starting...", flush=True)
-    debug = True
+    debug = False
     if debug:
         myp = current_process()
         p = psutil.Process()
@@ -330,18 +330,13 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     # Get keys
     ckeys = cdd.keys()
 
-    # Get key of most recent sorted list
-    if "max_sort_iter" in ckeys:
-        ckey_max = cdd["max_sort_iter"]
-    else:
-        ckey_max = '-1'
-
+    
     if debug:
         with open(log_file_name,"a") as f:
             f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
 
     # most recent sorted list
-    top_candidates = cdd[ckey_max]
+    top_candidates = cdd.bget("current_sort_list")
     top_candidates_list = list(zip(top_candidates['smiles'], top_candidates['inf'], top_candidates['model_iter']))
     if proc == 1: print(f"Sorted list has {len(top_candidates_list)} candidates", flush=True)
     
@@ -365,7 +360,8 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     #     prev_top_candidates = cdd[ckey_prev]["smiles"]
 
     # All previously simulated compounds
-    simulated_compounds = cdd["simulated_compounds"]
+    #simulated_compounds = cdd["simulated_compounds"]
+    simulated_compounds = cdd.bget("simulated_compounds")
 
     # Remove top candidates that have already been simulated
     if proc == 1:
@@ -555,6 +551,8 @@ def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
             f.write(f"{dock_scores=}\n")
             f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}\n")
 
+    with open(f"docking.log","a") as f:
+        f.write(f"Simulated {num_cand} candidates in {toc-tic} s on worker {proc}, {time_per_cand=}\n")
     return metrics
 
 

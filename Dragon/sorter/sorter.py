@@ -246,17 +246,24 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     print("******************************************", flush=True)
     print(candidate_list[:10], flush=True)
 
-    last_list_key = cdd["max_sort_iter"]
-    ckey = str(int(last_list_key) + 1)
-
     candidate_inf,candidate_smiles,candidate_model_iter = zip(*candidate_list)
     non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
     sort_val = {"inf": list(candidate_inf), 
                 "smiles": list(candidate_smiles), 
                 "model_iter": list(candidate_model_iter)}
-    cdd[ckey] = sort_val
-    cdd["sort_iter"] = int(ckey)
-    cdd["max_sort_iter"] = ckey
+
+    current_sort_iter = cdd.bget("current_sort_iter")
+    if current_sort_iter > -1:
+        current_sort_list = cdd.bget("current_sort_list")
+        cdd[str(current_sort_iter)] = current_sort_list 
+
+    new_sort_iter = int(current_sort_iter + 1)
+    cdd.bput("current_sort_iter", new_sort_iter)
+    cdd.bput("current_sort_list", sort_val)
+
+    #cdd[ckey] = sort_val
+    #cdd["sort_iter"] = int(ckey)
+    #cdd["max_sort_iter"] = ckey
     
 
 def make_random_compound_selection(random_number):

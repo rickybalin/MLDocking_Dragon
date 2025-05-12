@@ -213,8 +213,11 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             f.write(f"Collected {num_top_candidates=}\n")
         print(f"Collected {num_top_candidates=}",flush=True)
         if num_top_candidates > 0:
-            last_list_key = candidate_dict["max_sort_iter"]
-            ckey = str(int(last_list_key) + 1)
+            
+            current_sort_iter = candidate_dict.bget("current_sort_iter")
+            if current_sort_iter > -1:
+                current_sort_list = candidate_dict.bget("current_sort_list")
+                candidate_dict[str(current_sort_iter)] = current_sort_list
             
             candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
             non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
@@ -222,16 +225,15 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
         
-            save_list(candidate_dict, ckey, sort_val)    
+            save_list(candidate_dict, current_sort_iter+1, sort_val)    
     #print(f"Rank {rank} done",flush=True)
     MPI.Finalize()
     
     return
 
 def save_list(candidate_dict, ckey, sort_val):
-    candidate_dict[ckey] = sort_val
-    candidate_dict["sort_iter"] = int(ckey)
-    candidate_dict["max_sort_iter"] = ckey
+    candidate_dict.bput("current_sort_list", sort_val)
+    candidate_dict.bput("current_sort_iter", ckey)
     print(f"candidate dictionary on iter {int(ckey)} and saved",flush=True)
 
 

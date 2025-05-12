@@ -69,8 +69,9 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
     simulated_compounds = [k for k in cdd.keys() if not k.isdigit() and 
                                                     k != '-1' and 
                                                     "iter" not in k and
+                                                    "current" not in k and
                                                     k != "simulated_compounds" and 
                                                     k != "random_compound_sample"]
-    cdd['simulated_compounds'] = simulated_compounds
+    cdd.bput('simulated_compounds', simulated_compounds)
     
 
