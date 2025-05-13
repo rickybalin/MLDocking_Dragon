@@ -37,7 +37,7 @@ def load_pretrained_model(dd: DDict):
             f.write(f"{e}")
 
 
-def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
+def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: int, inf_num_limit):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -94,7 +94,8 @@ def launch_inference(dd: DDict, nodelist, num_procs: int, inf_num_limit):
                                   gpu_affinity=inf_gpu_bind[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
-                                                     args=(dd,
+                                                     args=(data_dd,
+                                                        model_list_dd,
                                                         num_procs_pn,
                                                         proc_id, 
                                                         None, # Continue event not used in sequential wf

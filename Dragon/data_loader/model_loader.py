@@ -5,7 +5,7 @@ from training.ST_funcs.smiles_regress_transformer_funcs import ModelArchitecture
 
 driver_path = os.getenv("DRIVER_PATH")
 
-def save_model_weights(dd: Union[DDict, dict], model, model_iter: int, verbose = False):
+def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
 
     weights_dict = {}
     num_layers = 0
@@ -28,12 +28,13 @@ def save_model_weights(dd: Union[DDict, dict], model, model_iter: int, verbose =
 
     # Future version will use broadcast put to send model to every manager
     dd.bput('model', weights_dict)
-    dd.bput('model_iter', model_iter)
 
     #dd['model'] = weights_dict
     #dd['model_iter'] = model_iter
 
-    print(f"Saved model {model_iter} to dictionary", flush=True)
+    # Checkpoint here?
+
+    print(f"Saved model to dictionary", flush=True)
 
 def retrieve_model_from_dict(dd: Union[DDict, dict]):
 
@@ -42,9 +43,7 @@ def retrieve_model_from_dict(dd: Union[DDict, dict]):
     #hyper_params = dd["model_hyper_params"]
 
     weights_dict = dd.bget('model')
-    model_iter = dd.bget("model_iter")
     hyper_params = dd.bget("model_hyper_params")
-
 
     try:
         model = ModelArchitecture(hyper_params).call()
@@ -58,7 +57,7 @@ def retrieve_model_from_dict(dd: Union[DDict, dict]):
         layer.set_weights(weights)
 
     print(f"Finished loading model from dictionary\n")
-    return model, model_iter, hyper_params
+    return model, hyper_params
 
 def load_pretrained_model(dd: Union[DDict, dict]):
 
@@ -75,12 +74,12 @@ def load_pretrained_model(dd: Union[DDict, dict]):
     model = ModelArchitecture(hyper_params).call()
     model.load_weights(os.path.join(driver_path,"inference/smile_regress.autosave.model.h5"))
     print(f"Loaded pretrained model weights from disk", flush=True)
-    save_model_weights(dd, model, model_iter=0, verbose=True)
+    save_model_weights(dd, model, verbose=True)
 
     print(f"Loaded pretrained model into dictionary", flush=True)
 
 if __name__ == "__main__":
     dd = {}
     load_pretrained_model(dd)
-    model,model_iter,hyper_params = retrieve_model_from_dict(dd)
-    print(f"{model=} {model_iter=} {hyper_params=}")
+    model,hyper_params = retrieve_model_from_dict(dd)
+    print(f"{model=} {hyper_params=}")

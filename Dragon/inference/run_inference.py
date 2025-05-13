@@ -95,16 +95,13 @@ def process_inference_data(hyper_params: dict, tokenizer, smiles_raw: List[str])
     return x_inference
 
 
-def check_model_iter(dd, model_iter, continue_event):
-    test_match = True
-    if continue_event is not None:
-        if "model_iter" in dd.keys():
-            if model_iter != dd["model_iter"]:
-                test_match = False
-    return test_match
+def check_model_iter(continue_event):
+    return True
 
 
-def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
+def infer(data_dd, 
+          model_list_dd, 
+          num_procs, proc, continue_event, limit=None, debug=True):
     """Run inference reading from and writing data to the Dragon Dictionary"""
     gc.collect()
     # !!! DEBUG !!!
@@ -130,7 +127,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
     
     # Get local keys
     current_host = host_id()
-    manager_nodes = dd.manager_nodes
+    manager_nodes = data_dd.manager_nodes
     keys = []
     print(f"{current_host=}",flush=True)
     if proc == 0:
@@ -139,16 +136,24 @@ def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
         if manager_nodes[i].h_uid == current_host:
             local_manager = i
             #print(f"{proc}: getting keys from local manager {local_manager}")
-            dm = dd.manager(i)
+            dm = data_dd.manager(i)
             keys.extend(dm.keys())
     print(f"{proc}: found {len(keys)} local keys")
     
     # Load model from dictionary
-    model,model_iter,hyper_params = retrieve_model_from_dict(dd)
+    if debug:
+        with open(log_file_name, "a") as f:
+            f.write(f"{model_list_dd.current_checkpoint_id=}\n")
+    model_list_dd.sync_to_newest_checkpoint()
+    if debug:
+        with open(log_file_name, "a") as f:
+            f.write(f"{model_list_dd.current_checkpoint_id=}\n")
+    model,hyper_params = retrieve_model_from_dict(model_list_dd)
+    model_iter = model_list_dd.current_checkpoint_id
     
     if debug:
         with open(log_file_name, "a") as f:
-            f.write(f"Loaded model {model_iter} from dict\n")
+            f.write(f"Loaded model from checkpoint {model_iter}\n")
 
     # Split keys in Dragon Dict    
     keys = [k for k in keys if "iter" not in k and "model" not in k]
@@ -184,13 +189,13 @@ def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
         # Print progress to stdout every 8 iters
         if ikey%8 == 0:
            print(f"...worker {proc} has completed {ikey} keys out of {num_run} with model {model_iter}", flush=True)
-        if check_model_iter(dd, model_iter, continue_event):  # this check is to stop inference in async wf when model is retrained
+        if check_model_iter(continue_event):  # this check is to stop inference in async wf when model is retrained
             ktic = perf_counter()
             key = split_keys[ikey]
             dict_tic = perf_counter()
             
             # print(f"worker {proc}: getting val from dd",flush=True)
-            val = dd[key]
+            val = data_dd[key]
             # print(f"worker {proc}: finished getting val from dd",flush=True)
             
             dict_toc = perf_counter()
@@ -223,7 +228,7 @@ def infer(dd, num_procs, proc, continue_event, limit=None, debug=True):
             val["model_iter"] = model_iter
 
             dict_tic = perf_counter()
-            dd[key] = val
+            data_dd[key] = val
             dict_toc = perf_counter()
             key_dictionary_time += dict_toc - dict_tic
 

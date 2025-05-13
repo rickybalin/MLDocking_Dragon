@@ -37,31 +37,36 @@ def max_data_dict_size(num_keys: int,
     # Smiles data: approx 14.6 MB per file
     # Trained model: approximately 33 MB, broadcast one copy to each node
     # Data needed is 33 MB*num_nodes + num_keys*14.6
-    min_data_req = model_size*num_tot_nodes + smiles_key_val_size*num_keys
+    min_data_req = smiles_key_val_size*num_keys
 
     # Assume we want to store 10 top cand lists and associated simulation results
-    min_cand_dict_size = 10.*canidate_sim_size_per_iter
+    min_sim_dict_size = 10.*canidate_sim_size_per_iter
+
+    min_model_dict_size = model_size*num_tot_nodes
 
     # Assume you need 1-max_pool_frac per cent overhead in data dictionary
     data_dict_size = min_data_req/(max_pool_frac)
-    cand_dict_size = min_cand_dict_size/(max_pool_frac)
+    sim_dict_size = min_sim_dict_size/(max_pool_frac)
+    model_dict_size = min_model_dict_size/(max_pool_frac)
 
     # Convert from MB to GB
-    cand_dict_size /= 1024
+    sim_dict_size /= 1024
     data_dict_size /= 1024
+    model_dict_size /= 1024
 
     # Ensure there is a minimum of 1 GB per node
-    cand_dict_size = max(cand_dict_size, num_tot_nodes)
+    sim_dict_size = max(sim_dict_size, num_tot_nodes)
     data_dict_size = max(data_dict_size, num_tot_nodes)
+    model_dict_size = max(model_dict_size, num_tot_nodes)
 
     max_mem = ddict_mem_check()
 
     print(f"Memory available for ddicts: {max_mem} GB")
 
-    if cand_dict_size + data_dict_size > max_mem:
+    if sim_dict_size + data_dict_size + model_dict_size > max_mem:
         raise Exception(f"Not enough mem for dictionaries: {max_mem=} {max_pool_frac=} {data_dict_size=} {cand_dict_size=}")
 
-    return int(data_dict_size), int(cand_dict_size)
+    return int(data_dict_size), int(sim_dict_size), int(model_dict_size)
 
 
 def ddict_mem_check(mem_fraction=0.5):
