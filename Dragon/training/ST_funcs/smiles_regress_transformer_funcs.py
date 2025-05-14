@@ -214,7 +214,7 @@ def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
   
     train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
     train_data = list(zip(train_smiles,train_scores))
-    random.shuffle(train_data)
+    #random.shuffle(train_data)
     train_smiles,train_scores = zip(*train_data)
     num_train = len(train_smiles)
     num_val = int(num_train*validation_fraction)

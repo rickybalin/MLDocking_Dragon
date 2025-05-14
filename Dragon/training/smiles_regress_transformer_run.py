@@ -42,7 +42,7 @@ def fine_tune(dd: DDict,
         if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
             layer.trainable = False
 
-    with open(fine_tune_log, 'a') as f:
+    with open(fine_tune_log, 'w') as f:
         f.write(f"Create training data\n")
     ########Create training and validation data##### 
     x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
@@ -61,6 +61,8 @@ def fine_tune(dd: DDict,
                 f.write(f"{x_val[n]}  {y_val[n]}\n")
         
         with open(fine_tune_log, 'a') as sys.stdout:
+            output = model.predict(x_train[:10], batch_size=10, verbose=0).flatten()
+            print(output)
             history = model.fit(
                         x_train,
                         y_train,

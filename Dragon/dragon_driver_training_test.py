@@ -107,7 +107,7 @@ if __name__ == "__main__":
         
         simulated_compounds = []
         for line in lines:
-            print(line)
+            #print(line)
             if line[0] == "#": 
                 continue
             line_list = line.split()
