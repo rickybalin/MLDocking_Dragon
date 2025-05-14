@@ -26,6 +26,16 @@ from dragon.data.ddict.ddict import DDict
 #tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
+class LearningRatePrinter(tf.keras.callbacks.Callback):
+    def on_epoch_begin(self, epoch, logs=None):
+        lr = self.model.optimizer.learning_rate
+        # In case lr is a schedule, evaluate it
+        if isinstance(lr, tf.keras.optimizers.schedules.LearningRateSchedule):
+            lr_value = lr(self.model.optimizer.iterations)
+        else:
+            lr_value = lr
+        print(f"Epoch {epoch+1}: Learning rate is {tf.keras.backend.get_value(lr_value):.6f}")
+
 class LossCallback(tf.keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs=None):
         # logs contain the loss and any other metrics
@@ -94,11 +104,11 @@ def fine_tune(dd: DDict,
                         x_train[:64],
                         y_train[:64],
                         batch_size=64,
-                        epochs=1,
+                        epochs=2,
                         verbose=2,
                         validation_data=(x_train[:64],y_train[:64]),
                         shuffle=False,
-                        callbacks=[DebugCallback(),LossCallback()],
+                        callbacks=[LearningRatePrinter()],
                     )
             print("model fitting complete",flush=True)
             output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
