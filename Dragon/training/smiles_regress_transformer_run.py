@@ -8,7 +8,9 @@
 #     ModelCheckpoint,
 #     ReduceLROnPlateau,
 # )
-
+import numpy as np
+import random
+import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
 
@@ -24,12 +26,25 @@ from dragon.data.ddict.ddict import DDict
 #tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
+class DebugCallback(tf.keras.callbacks.Callback):
+    def on_train_batch_end(self, batch, logs=None):
+        weights = self.model.trainable_weights
+        print(f"\nBatch {batch}:")
+        for w in weights:
+            print(f"{w.name} mean={tf.reduce_mean(w).numpy():.6f}")
+
 
 def fine_tune(dd: DDict, 
                 candidate_dict: DDict, 
                 BATCH: int, 
                 EPOCH: int, 
                 save_model=True):
+
+    tf.random.set_seed(42)
+    np.random.seed(42)
+    random.seed(42)
+
+    tf.keras.mixed_precision.set_global_policy('float32')
 
     fine_tune_log = "training.log"
 
@@ -64,13 +79,14 @@ def fine_tune(dd: DDict,
             output = model.predict(x_train[:10], batch_size=10, verbose=0).flatten()
             print(output)
             history = model.fit(
-                        x_train,
-                        y_train,
+                        x_train[:64],
+                        y_train[:64],
                         batch_size=BATCH,
                         epochs=EPOCH,
                         verbose=2,
-                        validation_data=(x_val,y_val),
-                        #callbacks=callbacks,
+                        validation_data=(x_val[:64],y_val[:64]),
+                        shuffle=True,
+                        callbacks=[DebugCallback()],
                     )
             print("model fitting complete",flush=True)
         sys.stdout = sys.__stdout__
