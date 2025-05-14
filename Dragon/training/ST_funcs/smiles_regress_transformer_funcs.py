@@ -425,19 +425,19 @@ class ModelArchitecture(layers.Layer):
 
         x = self.reshape(x)
 
-        x = self.dropout1(x)
+        x = self.dropout1(x, training=False)
         x = self.dense1(x)
 
-        x = self.dropout2(x)
+        x = self.dropout2(x, training=False)
         x = self.dense2(x)
 
-        x = self.dropout3(x)
+        x = self.dropout3(x, training=False)
         x = self.dense3(x)
         
-        x = self.dropout4(x)
+        x = self.dropout4(x, training=False)
         x = self.dense4(x)
         
-        x = self.dropout5(x)
+        x = self.dropout5(x, training=False)
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)

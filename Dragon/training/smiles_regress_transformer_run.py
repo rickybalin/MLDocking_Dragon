@@ -48,6 +48,7 @@ def fine_tune(dd: DDict,
     tf.random.set_seed(42)
     np.random.seed(42)
     random.seed(42)
+    os.environ["TF_DETERMINISTIC_OPS"] = "1"
 
     tf.keras.mixed_precision.set_global_policy('float32')
 
