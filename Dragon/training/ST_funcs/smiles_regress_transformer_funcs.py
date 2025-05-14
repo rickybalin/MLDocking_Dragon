@@ -382,7 +382,7 @@ class ModelArchitecture(layers.Layer):
         dropout1 = arch_params['transformer_block']['drop_mha']
 
         self.num_tb = arch_params['transformer_block']['num_blocks']
-        self.loss_fn = hyper_params['general']['loss_fn']
+        self.loss_fn = "mean_squared_error" #hyper_params['general']['loss_fn']
 
         self.inputs = layers.Input(shape=(maxlen,))
         self.embedding_layer = TokenAndPositionEmbedding(maxlen,
@@ -399,11 +399,11 @@ class ModelArchitecture(layers.Layer):
         self.reshape = layers.Reshape((1, maxlen * embed_dim),
                                         input_shape=(maxlen, embed_dim,))         
 
-        self.dropout1 = layers.Dropout(DR_ff)
-        self.dropout2 = layers.Dropout(DR_ff)
-        self.dropout3 = layers.Dropout(DR_ff)
-        self.dropout4 = layers.Dropout(DR_ff)
-        self.dropout5 = layers.Dropout(DR_ff)
+        #self.dropout1 = layers.Dropout(DR_ff)
+        #self.dropout2 = layers.Dropout(DR_ff)
+        #self.dropout3 = layers.Dropout(DR_ff)
+        #self.dropout4 = layers.Dropout(DR_ff)
+        #self.dropout5 = layers.Dropout(DR_ff)
 
         self.dense1 = layers.Dense(1024, activation=activation_regressor)
         self.dense2 = layers.Dense(256, activation=activation_regressor)
@@ -425,19 +425,19 @@ class ModelArchitecture(layers.Layer):
 
         x = self.reshape(x)
 
-        x = self.dropout1(x)
+        #x = self.dropout1(x)
         x = self.dense1(x)
 
-        x = self.dropout2(x)
+        #x = self.dropout2(x)
         x = self.dense2(x)
 
-        x = self.dropout3(x)
+        #x = self.dropout3(x)
         x = self.dense3(x)
         
-        x = self.dropout4(x)
+        #x = self.dropout4(x)
         x = self.dense4(x)
         
-        x = self.dropout5(x)
+        #x = self.dropout5(x)
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)

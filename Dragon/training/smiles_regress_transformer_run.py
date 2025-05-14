@@ -88,14 +88,17 @@ def fine_tune(dd: DDict,
             history = model.fit(
                         x_train[:64],
                         y_train[:64],
-                        batch_size=BATCH,
-                        epochs=EPOCH,
+                        batch_size=64,
+                        epochs=2,
                         verbose=2,
-                        validation_data=(x_val[:64],y_val[:64]),
-                        shuffle=True,
+                        validation_data=(x_train[:64],y_train[:64]),
+                        shuffle=False,
                         callbacks=[DebugCallback(),LossCallback()],
                     )
             print("model fitting complete",flush=True)
+            output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
+            print('predictions: ',output)
+            print('mse: ',np.mean(np.square(output - y_train[:64].flatten())))
         sys.stdout = sys.__stdout__
         print("model fitting complete",flush=True)
         
