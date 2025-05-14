@@ -26,6 +26,11 @@ from dragon.data.ddict.ddict import DDict
 #tf.config.run_functions_eagerly(True)
 #tf.enable_eager_execution()
 
+class LossCallback(tf.keras.callbacks.Callback):
+    def on_train_batch_end(self, batch, logs=None):
+        # logs contain the loss and any other metrics
+        print(f"\nBatch {batch} - Loss: {logs.get('loss'):.4f}")
+
 class DebugCallback(tf.keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs=None):
         weights = self.model.trainable_weights
@@ -69,15 +74,17 @@ def fine_tune(dd: DDict,
         with open(fine_tune_log, 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
             f.write("\n\nTRAINING DATA\n")
-            for n in range(len(x_train)):
+            for n in range(64):
                 f.write(f"{x_train[n]}  {y_train[n]}\n")
             f.write("\n\nVALIDATION DATA\n")
-            for n in range(len(x_val)):
+            for n in range(64):
                 f.write(f"{x_val[n]}  {y_val[n]}\n")
         
         with open(fine_tune_log, 'a') as sys.stdout:
-            output = model.predict(x_train[:10], batch_size=10, verbose=0).flatten()
-            print(output)
+            output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
+            print('predictions: ',output)
+            print('truth: ',y_train[:64].flatten())
+            print('mse: ',np.mean(np.square(output - y_train[:64].flatten())))
             history = model.fit(
                         x_train[:64],
                         y_train[:64],
@@ -86,7 +93,7 @@ def fine_tune(dd: DDict,
                         verbose=2,
                         validation_data=(x_val[:64],y_val[:64]),
                         shuffle=True,
-                        callbacks=[DebugCallback()],
+                        callbacks=[DebugCallback(),LossCallback()],
                     )
             print("model fitting complete",flush=True)
         sys.stdout = sys.__stdout__
