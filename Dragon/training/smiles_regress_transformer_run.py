@@ -81,15 +81,19 @@ def fine_tune(dd: DDict,
                 f.write(f"{x_val[n]}  {y_val[n]}\n")
         
         with open(fine_tune_log, 'a') as sys.stdout:
-            output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
+            #output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
+            output = model(x_train[:64], training=True).numpy().flatten()
             print('predictions: ',output)
             print('truth: ',y_train[:64].flatten())
-            print('mse: ',np.mean(np.square(output - y_train[:64].flatten())))
+            print('mse Train=True (should be same as model.fit() loss): ',np.mean(np.square(output - y_train[:64].flatten())))
+            output = model(x_train[:64], training=False).numpy().flatten()
+            print('predictions: ',output)
+            print('mse Train=False (same as model.predict()): ',np.mean(np.square(output - y_train[:64].flatten())))
             history = model.fit(
                         x_train[:64],
                         y_train[:64],
                         batch_size=64,
-                        epochs=2,
+                        epochs=1,
                         verbose=2,
                         validation_data=(x_train[:64],y_train[:64]),
                         shuffle=False,

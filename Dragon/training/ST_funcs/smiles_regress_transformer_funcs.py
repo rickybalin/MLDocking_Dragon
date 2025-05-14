@@ -399,11 +399,11 @@ class ModelArchitecture(layers.Layer):
         self.reshape = layers.Reshape((1, maxlen * embed_dim),
                                         input_shape=(maxlen, embed_dim,))         
 
-        #self.dropout1 = layers.Dropout(DR_ff)
-        #self.dropout2 = layers.Dropout(DR_ff)
-        #self.dropout3 = layers.Dropout(DR_ff)
-        #self.dropout4 = layers.Dropout(DR_ff)
-        #self.dropout5 = layers.Dropout(DR_ff)
+        self.dropout1 = layers.Dropout(DR_ff)
+        self.dropout2 = layers.Dropout(DR_ff)
+        self.dropout3 = layers.Dropout(DR_ff)
+        self.dropout4 = layers.Dropout(DR_ff)
+        self.dropout5 = layers.Dropout(DR_ff)
 
         self.dense1 = layers.Dense(1024, activation=activation_regressor)
         self.dense2 = layers.Dense(256, activation=activation_regressor)
@@ -411,12 +411,12 @@ class ModelArchitecture(layers.Layer):
         self.dense4 = layers.Dense(16, activation=activation_regressor)
         self.dense5 = layers.Dense(1, activation=activation_regressor)
 
-        if hvd_switch:
-            lr = lr * hvd.size()
-            self.opt = Adam(learning_rate=lr) 
-            self.opt = hvd.DistributedOptimizer(self.opt)
-        else:
-            self.opt = Adam(learning_rate=lr)
+        #if hvd_switch:
+        #    lr = lr * hvd.size()
+        #    self.opt = Adam(learning_rate=lr) 
+        #    self.opt = hvd.DistributedOptimizer(self.opt)
+        #else:
+        self.opt = Adam(learning_rate=lr)
     
     def call(self):
         x = self.embedding_layer(self.inputs)
@@ -425,19 +425,19 @@ class ModelArchitecture(layers.Layer):
 
         x = self.reshape(x)
 
-        #x = self.dropout1(x)
+        x = self.dropout1(x)
         x = self.dense1(x)
 
-        #x = self.dropout2(x)
+        x = self.dropout2(x)
         x = self.dense2(x)
 
-        #x = self.dropout3(x)
+        x = self.dropout3(x)
         x = self.dense3(x)
         
-        #x = self.dropout4(x)
+        x = self.dropout4(x)
         x = self.dense4(x)
         
-        #x = self.dropout5(x)
+        x = self.dropout5(x)
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)
