@@ -39,6 +39,15 @@ case "$FULL_HOSTNAME" in
 	# TODO: add other paths and environment
 	export RECEPTOR_FILE=/home/csimpson/openeye/3clpro_7bqy.oedu
 	;;
+    *"sophia"* )
+	SOPHIA=1
+	echo "Setting up for Sophia run"
+	source /eagle/hpe_dragon_collab/balin/Sophia/env.sh
+	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
+	export DRIVER_PATH=/eagle/hpe_dragon_collab/balin/Sophia/MLDocking_Dragon/Dragon/
+	export RECEPTOR_FILE=/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu
+	DRAGON_FLAGS="-s"
+        ;;
 esac
 
 echo "Setting hardware affinities"
@@ -58,7 +67,7 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     PROCS_PER_NODE=104
     MEM_PER_NODE=256
 fi
-if [[ -n $POLARIS || -n $SIRIUS ]]; then
+if [[ -n $POLARIS || -n $SIRIUS || -n $SOPHIA ]]; then
     echo "Setting up for Nvidia GPUS"
     export GPU_DEVICES="3,2,1,0"
     export CPU_AFFINITY="list:0-7,32-39:8-15,40-47:16-23,48-55:24-31,56-63"
@@ -95,7 +104,7 @@ DEBUG_STR=
 module list
 echo $LD_LIBRARY_PATH
 #dragon-cleanup
-EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_training_test.py \
+EXE="dragon $DRAGON_FLAGS $DEBUG_STR ${DRIVER_PATH}/dragon_driver_training_test.py \
 --managers_per_node=$MANAGERS \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \

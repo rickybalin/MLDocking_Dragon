@@ -53,6 +53,12 @@ def fine_tune(dd: DDict,
     if len(x_train) > 0:
         with open(fine_tune_log, 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
+            f.write("\n\nTRAINING DATA\n")
+            for n in range(len(x_train)):
+                f.write(f"{x_train[n]}  {y_train[n]}\n")
+            f.write("\n\nVALIDATION DATA\n")
+            for n in range(len(x_val)):
+                f.write(f"{x_val[n]}  {y_val[n]}\n")
         
         with open(fine_tune_log, 'a') as sys.stdout:
             history = model.fit(
