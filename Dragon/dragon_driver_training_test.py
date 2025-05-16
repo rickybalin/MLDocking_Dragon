@@ -121,7 +121,7 @@ if __name__ == "__main__":
     print(f"Launched Fine Tune Training", flush=True)
     tic = perf_counter()
     BATCH = 64
-    EPOCH = 10
+    EPOCH = 250
     train_proc = mp.Process(
         target=launch_training,
         args=(

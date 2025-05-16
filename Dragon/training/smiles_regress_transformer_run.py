@@ -15,7 +15,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
 
 #from .ST_funcs.clr_callback import *
-from .ST_funcs.smiles_regress_transformer_funcs import train_val_data
+from .ST_funcs.smiles_regress_transformer_funcs import train_val_data, assemble_callbacks
 from data_loader.model_loader import retrieve_model_from_dict, save_model_weights
 import sys
 import os
@@ -73,47 +73,51 @@ def fine_tune(dd: DDict,
         if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
             layer.trainable = False
 
+    ######## Create training and validation data##### 
     with open(fine_tune_log, 'w') as f:
         f.write(f"Create training data\n")
-    ########Create training and validation data##### 
     x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
     with open(fine_tune_log, 'a') as f:
         f.write(f"Finished creating training data\n")
-    
+ 
+    ######## Create callbacks #######
+    callbacks = assemble_callbacks(hyper_params)
+ 
+    ######## Train #######
     # Only train if there is new data
     if len(x_train) > 0:
         with open(fine_tune_log, 'a') as f:
             f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
-            f.write("\n\nTRAINING DATA\n")
-            for n in range(64):
-                f.write(f"{x_train[n]}  {y_train[n]}\n")
-            f.write("\n\nVALIDATION DATA\n")
-            for n in range(64):
-                f.write(f"{x_val[n]}  {y_val[n]}\n")
+            #f.write("\n\nTRAINING DATA\n")
+            #for n in range(64):
+            #    f.write(f"{x_train[n]}  {y_train[n]}\n")
+            #f.write("\n\nVALIDATION DATA\n")
+            #for n in range(64):
+            #    f.write(f"{x_val[n]}  {y_val[n]}\n")
         
         with open(fine_tune_log, 'a') as sys.stdout:
             #output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
-            output = model(x_train[:64], training=True).numpy().flatten()
-            print('predictions: ',output)
-            print('truth: ',y_train[:64].flatten())
-            print('mse Train=True (should be same as model.fit() loss): ',np.mean(np.square(output - y_train[:64].flatten())))
-            output = model(x_train[:64], training=False).numpy().flatten()
-            print('predictions: ',output)
-            print('mse Train=False (same as model.predict()): ',np.mean(np.square(output - y_train[:64].flatten())))
+            #output = model(x_train[:64], training=True).numpy().flatten()
+            #print('predictions: ',output)
+            #print('truth: ',y_train[:64].flatten())
+            #print('mse Train=True (should be same as model.fit() loss): ',np.mean(np.square(output - y_train[:64].flatten())))
+            #output = model(x_train[:64], training=False).numpy().flatten()
+            #print('predictions: ',output)
+            #print('mse Train=False (same as model.predict()): ',np.mean(np.square(output - y_train[:64].flatten())))
             history = model.fit(
-                        x_train[:64],
-                        y_train[:64],
-                        batch_size=64,
-                        epochs=2,
+                        x_train,
+                        y_train,
+                        batch_size=BATCH,
+                        epochs=EPOCH,
                         verbose=2,
-                        validation_data=(x_train[:64],y_train[:64]),
-                        shuffle=False,
-                        callbacks=[LearningRatePrinter()],
+                        validation_data=(x_val,y_val),
+                        shuffle=True,
+                        callbacks=callbacks,
                     )
-            print("model fitting complete",flush=True)
-            output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
-            print('predictions: ',output)
-            print('mse: ',np.mean(np.square(output - y_train[:64].flatten())))
+            #print("model fitting complete",flush=True)
+            #output = model.predict(x_train[:64], batch_size=64, verbose=0).flatten()
+            #print('predictions: ',output)
+            #print('mse: ',np.mean(np.square(output - y_train[:64].flatten())))
         sys.stdout = sys.__stdout__
         print("model fitting complete",flush=True)
         

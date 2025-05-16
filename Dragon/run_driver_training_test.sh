@@ -28,9 +28,9 @@ case "$FULL_HOSTNAME" in
     *"polaris"* )
 	POLARIS=1
 	echo "Setting up for Polaris run"
-	source /eagle/hpe_dragon_collab/balin/env.sh
-	DATA_PATH=/eagle/hpe_dragon_collab/balin/ZINC-22-presorted/tiny
-	export DRIVER_PATH=/eagle/hpe_dragon_collab/balin/MLDocking_Dragon/Dragon/
+	source /eagle/hpe_dragon_collab/balin/Polaris/env.sh
+	DATA_PATH=/eagle/hpe_dragon_collab/csimpson/ZINC-22-presorted/tiny
+	export DRIVER_PATH=/eagle/hpe_dragon_collab/balin/Polaris/MLDocking_Dragon/Dragon/
 	export RECEPTOR_FILE=/eagle/hpe_dragon_collab/avasan/3clpro_7bqy.oedu
 	;;
     *"sirius"* )

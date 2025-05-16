@@ -24,7 +24,7 @@ import codecs
 from SmilesPE.tokenizer import *
 #from SmilesPE.spe2vec import *
 from .smiles_pair_encoders_functions import *
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.preprocessing import sequence, text
 #import horovod.keras as hvd ### importing horovod to use data parallelization in another step
 from .clr_callback import *
@@ -210,16 +210,19 @@ def assemble_docking_data_top(candidate_dict):
     
 
 
-def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
+def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.15):
   
-    train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
-    train_data = list(zip(train_smiles,train_scores))
-    #random.shuffle(train_data)
-    train_smiles,train_scores = zip(*train_data)
-    num_train = len(train_smiles)
-    num_val = int(num_train*validation_fraction)
-    val_smiles = train_smiles[0:num_val]
-    val_scores = train_scores[0:num_val]
+    smiles, scores = assemble_docking_data_top(candidate_dict)
+    data = list(zip(smiles,scores))
+    random.shuffle(data)
+    smiles,scores = zip(*data)
+    num_samples = len(smiles)
+    num_val = int(num_samples*validation_fraction)
+    num_train = num_samples - num_val
+    train_smiles = smiles[:num_train]
+    train_scores = scores[:num_train]
+    val_smiles = smiles[num_train:]
+    val_scores = scores[num_train:]
 
 
     train_scores = pd.DataFrame(train_scores)
@@ -416,7 +419,8 @@ class ModelArchitecture(layers.Layer):
         #    self.opt = Adam(learning_rate=lr) 
         #    self.opt = hvd.DistributedOptimizer(self.opt)
         #else:
-        self.opt = Adam(learning_rate=lr)
+        self.opt = Adam(learning_rate=lr*5.7)
+        #self.opt = SGD(learning_rate=lr*5.7)
     
     def call(self):
         x = self.embedding_layer(self.inputs)
@@ -425,28 +429,54 @@ class ModelArchitecture(layers.Layer):
 
         x = self.reshape(x)
 
-        #x = self.dropout1(x, training=False)
+        #x = self.dropout1(x)
         x = self.dense1(x)
 
-        #x = self.dropout2(x, training=False)
+        #x = self.dropout2(x)
         x = self.dense2(x)
 
-        #x = self.dropout3(x, training=False)
+        #x = self.dropout3(x)
         x = self.dense3(x)
         
-        #x = self.dropout4(x, training=False)
+        #x = self.dropout4(x)
         x = self.dense4(x)
         
-        #x = self.dropout5(x, training=False)
+        #x = self.dropout5(x)
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)
 
         model.compile(
-            loss=self.loss_fn, optimizer=self.opt, metrics=["mse", r2] #, steps_per_execution=100
+            loss=self.loss_fn, optimizer=self.opt, metrics=["mse", "mae", r2], #steps_per_execution=100
         )
         
         return model
+
+def assemble_callbacks(hyper_params):
+    lr = hyper_params['general']['lr']
+    patience_red_lr = hyper_params['callbacks']['patience_red_lr']
+    patience_early_stop = hyper_params['callbacks']['patience_early_stop']
+    
+    clr = CyclicLR(base_lr = lr, max_lr = 5*lr, step_size=2000.)
+
+    reduce_lr = ReduceLROnPlateau(
+            monitor="val_loss",
+            factor=0.75,
+            patience=patience_red_lr,
+            verbose=1,
+            mode="auto",
+            epsilon=0.0001,
+            cooldown=3,
+            min_lr=0.000000001,
+    )
+
+    early_stop = EarlyStopping(
+            monitor="val_loss",
+            patience=patience_early_stop,
+            verbose=1,
+            mode="auto",
+    )
+    return [reduce_lr] 
 
 class TrainingAndCallbacks:
     #def __init__(self, hvd_switch, checkpt_file, lr, csv_file, patience_red_lr, patience_early_stop):
