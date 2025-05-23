@@ -15,7 +15,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing import sequence, text
 
 #from .ST_funcs.clr_callback import *
-from .ST_funcs.smiles_regress_transformer_funcs import train_val_data, assemble_callbacks
+from .ST_funcs.smiles_regress_transformer_funcs import train_val_data, assemble_callbacks, train_val_data_archit
 from data_loader.model_loader import retrieve_model_from_dict, save_model_weights
 import sys
 import os
@@ -76,7 +76,8 @@ def fine_tune(dd: DDict,
     ######## Create training and validation data##### 
     with open(fine_tune_log, 'w') as f:
         f.write(f"Create training data\n")
-    x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
+    x_train, y_train, x_val, y_val = train_val_data(candidate_dict)    
+    x_train, y_train, x_val, y_val = train_val_data_archit('/flare/hpe_dragon_collab/balin/archit_fine_tune')    
     with open(fine_tune_log, 'a') as f:
         f.write(f"Finished creating training data\n")
  

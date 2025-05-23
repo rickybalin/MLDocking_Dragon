@@ -208,6 +208,67 @@ def assemble_docking_data_top(candidate_dict):
     print(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates",flush=True) 
     return train_smiles, train_scores
     
+def train_val_data_archit(path,fine_tuned=False,validation_fraction=0.15):
+    train_smiles = []
+    train_scores = []
+    val_smiles = []
+    val_scores = []
+    with open(path+'/data.train','r') as fh:
+        for l in fh:
+            data = l.split(',')
+            train_smiles.append(data[0])
+            train_scores.append(float(data[1]))
+    with open(path+'/data.val','r') as fh:
+        for l in fh:
+            data = l.split(',')
+            val_smiles.append(data[0])
+            val_scores.append(float(data[1]))
+
+    train_scores = pd.DataFrame(train_scores)
+    val_scores = pd.DataFrame(val_scores)
+    
+    if len(train_smiles) > 0:
+        # data_train.head()
+        # # Dataset has type and smiles as the two fields
+        # # reshaping: y formatted as [[y_1],[y_2],...] with floats
+        x_smiles_train = train_smiles
+        x_smiles_val = val_smiles
+        #y_train = np.array(train_scores) #
+
+        #if fine_tuned:
+        #    y_train = train_scores.values.reshape(-1, 1) #* 1.0 
+        #else:
+        y_train = train_scores.values.reshape(-1, 1, 1) #* 1.0 
+        y_val = val_scores.values.reshape(-1, 1, 1) #* 1.0 
+        
+        vocab_size = 3132
+        maxlen = 45
+
+        tokenizer_params = {
+                "category": "smilespair",
+                "spe_file": os.path.join(driver_path,"inference/VocabFiles/SPE_ChEMBL.txt"),
+                "vocab_file": os.path.join(driver_path, "inference/VocabFiles/vocab_spe.txt")}
+        vocab_file = tokenizer_params['vocab_file'] 
+        spe_file = tokenizer_params['spe_file'] 
+    
+        # Replace this section to be like the inference routine
+        spe_file = tokenizer_params['spe_file']
+        vocab_file = tokenizer_params['vocab_file']
+        x_train = preprocess_smiles_pair_encoding(x_smiles_train,
+                                                    maxlen,
+                                                    vocab_file,
+                                                    spe_file)
+
+        x_val = preprocess_smiles_pair_encoding(x_smiles_val,
+                                                    maxlen,
+                                                        vocab_file,
+                                                        spe_file)
+        #print(f"xtrain: {x_train}",flush=True)
+        
+        return x_train, y_train, x_val, y_val
+    else:
+        return [],[]
+
 
 
 def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.15):
@@ -223,7 +284,6 @@ def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.15):
     train_scores = scores[:num_train]
     val_smiles = smiles[num_train:]
     val_scores = scores[num_train:]
-
 
     train_scores = pd.DataFrame(train_scores)
     val_scores = pd.DataFrame(val_scores)
@@ -356,11 +416,11 @@ class TransformerBlock(layers.Layer):
     # call: building simple transformer architecture
     def call(self, inputs, training):
         attn_output = self.att(inputs, inputs)
-        #if self.drop_chck:
-        #    attn_output = self.dropout1(attn_output, training=False)
+        if self.drop_chck:
+            attn_output = self.dropout1(attn_output,training=training)
         out1 = self.layernorm1(inputs + attn_output)
         ffn_output = self.ffn(out1)
-        #ffn_output = self.dropout2(ffn_output, training=False)
+        ffn_output = self.dropout2(ffn_output,training=training)
 
         return self.layernorm2(out1 + ffn_output)
 
@@ -419,8 +479,7 @@ class ModelArchitecture(layers.Layer):
         #    self.opt = Adam(learning_rate=lr) 
         #    self.opt = hvd.DistributedOptimizer(self.opt)
         #else:
-        self.opt = Adam(learning_rate=lr*5.7)
-        #self.opt = SGD(learning_rate=lr*5.7)
+        self.opt = Adam(learning_rate=lr)
     
     def call(self):
         x = self.embedding_layer(self.inputs)
@@ -429,19 +488,19 @@ class ModelArchitecture(layers.Layer):
 
         x = self.reshape(x)
 
-        #x = self.dropout1(x)
+        x = self.dropout1(x)
         x = self.dense1(x)
 
-        #x = self.dropout2(x)
+        x = self.dropout2(x)
         x = self.dense2(x)
 
-        #x = self.dropout3(x)
+        x = self.dropout3(x)
         x = self.dense3(x)
         
-        #x = self.dropout4(x)
+        x = self.dropout4(x)
         x = self.dense4(x)
         
-        #x = self.dropout5(x)
+        x = self.dropout5(x)
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)
@@ -476,7 +535,7 @@ def assemble_callbacks(hyper_params):
             verbose=1,
             mode="auto",
     )
-    return [reduce_lr] 
+    return [clr, reduce_lr] 
 
 class TrainingAndCallbacks:
     #def __init__(self, hvd_switch, checkpt_file, lr, csv_file, patience_red_lr, patience_early_stop):
