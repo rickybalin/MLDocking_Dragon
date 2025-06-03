@@ -178,15 +178,15 @@ def filter_candidate_keys(ckeys: list, key_string: str):
     ckeys = [key for key in ckeys if key[:str_len] == key_string]
     return ckeys
 
-def assemble_docking_data_top(candidate_dict):
+def assemble_docking_data_top(sim_dd):
     # Retrieve simulation results for all candidates in top list
-    ckeys = candidate_dict.keys()
+    ckeys = sim_dd.keys()
     # max_ckey = candidate_dict["max_sort_iter"]
     # top_val = candidate_dict[max_ckey]
     # top_smiles = top_val["smiles"]
 
     # Here grab all simulated smiles instead of just top ones
-    top_smiles = candidate_dict.bget('simulated_compounds')
+    top_smiles = sim_dd.bget('simulated_compounds')
 
     train_smiles = []
     train_scores = []
@@ -198,7 +198,7 @@ def assemble_docking_data_top(candidate_dict):
             with open("training.log", "a") as f:
                 f.write(f"Could not find top candidate in keys: {sm}\n")
             continue
-        val = candidate_dict[sm]
+        val = sim_dd[sm]
         sc = float(val["dock_score"])
         if sc > 0:
             train_smiles.append(sm)
@@ -210,9 +210,9 @@ def assemble_docking_data_top(candidate_dict):
     
 
 
-def train_val_data(candidate_dict,fine_tuned=False,validation_fraction=0.2):
+def train_val_data(sim_dd,fine_tuned=False,validation_fraction=0.2):
   
-    train_smiles, train_scores = assemble_docking_data_top(candidate_dict)
+    train_smiles, train_scores = assemble_docking_data_top(sim_dd)
     train_data = list(zip(train_smiles,train_scores))
     random.shuffle(train_data)
     train_smiles,train_scores = zip(*train_data)

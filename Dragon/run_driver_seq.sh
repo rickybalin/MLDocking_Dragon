@@ -20,10 +20,10 @@ case "$FULL_HOSTNAME" in
     *"aurora"* )
 	AURORA=1
 	echo "Setting up for Aurora run"
-	source /flare/hpe_dragon_collab/csimpson/env.sh
+	source /flare/hpe_dragon_collab/balin/PASC25/env.sh
 	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
 	DATA_PATH=/flare/datascience/dragon/tiny
-	export DRIVER_PATH=/flare/hpe_dragon_collab/csimpson/MLDocking_Dragon/Dragon/
+	export DRIVER_PATH=/flare/hpe_dragon_collab/balin/PASC25/MLDocking_Dragon/Dragon/
 	;;
     *"polaris"* )
 	POLARIS=1

@@ -35,7 +35,7 @@ if __name__ == "__main__":
                         help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
-    parser.add_argument('--max_iter', type=int, default=10,
+    parser.add_argument('--max_iter', type=int, default=1,
                         help='Maximum number of iterations')
     parser.add_argument('--dictionary_timeout', type=int, default=10,
                         help='Timeout for Dictionary in seconds')
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # Get info on the number of files
     base_path = pathlib.Path(args.data_path)
     files, num_files = get_files(base_path)
-    num_files = 128
+    num_files = 24
 
     tot_mem = args.mem_per_node*num_tot_nodes
     print(f"There are {num_files} files")
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         print(f"*** Start loop iter {iter} ***")
         iter_start = perf_counter()
 
-        print(f"Current checkpoint: {model_list_dd.current_checkpoint_id}", flush=True)
+        print(f"Current checkpoint: {model_list_dd.checkpoint_id}", flush=True)
 
         # Launch the data inference component
         num_procs = num_gpus*node_counts["inference"]
@@ -224,101 +224,102 @@ if __name__ == "__main__":
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
         
-    #     # Launch data sorter component
-    #     print(f"Launching sorting ...", flush=True)
-    #     tic = perf_counter()
-    #     if iter == 0:
-    #         cand_dd["max_sort_iter"] = "-1"
+        # Launch data sorter component
+        print(f"Launching sorting ...", flush=True)
+        tic = perf_counter()
+        if iter == 0:
+            model_list_dd.bput("max_sort_iter",-1)
+            model_list_dd.bput('current_sort_iter', -1)
 
-    #     random_number = int(0.1*top_candidate_number)
-    #     print(f"Adding {random_number} random candidates to training", flush=True)
-    #     if os.getenv("USE_MPI_SORT"):
-    #         print("Using MPI sort",flush=True)
-    #         max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
-    #         sorter_proc = mp.Process(target=sort_dictionary_pg, 
-    #                                  args=(data_dd,
-    #                                        top_candidate_number,
-    #                                        max_sorter_procs, 
-    #                                        nodelists["sorting"],
-    #                                        cand_dd,
-    #                                        random_number,
-    #                                        ),
-    #                                 )
-    #         sorter_proc.start()
-    #         sorter_proc.join()
-    #     else:
-    #         print("Using filter sort", flush=True)
-    #         sorter_proc = mp.Process(target=sort_dictionary,
-    #                                   args=(
-    #                                         data_dd,
-    #                                         top_candidate_number,
-    #                                         cand_dd,
-    #                                         ),
-    #                                   )
-    #         sorter_proc.start()
-    #         sorter_proc.join()
-    #     if sorter_proc.exitcode != 0:
-    #         raise Exception("Sorting failed\n")
+        random_number = int(0.1*top_candidate_number)
+        print(f"Adding {random_number} random candidates to training", flush=True)
+        if os.getenv("USE_MPI_SORT"):
+            print("Using MPI sort",flush=True)
+            max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+            sorter_proc = mp.Process(target=sort_dictionary_pg, 
+                                     args=(data_dd,
+                                           top_candidate_number,
+                                           max_sorter_procs, 
+                                           nodelists["sorting"],
+                                           model_list_dd,
+                                           random_number,
+                                           ),
+                                    )
+            sorter_proc.start()
+            sorter_proc.join()
+        else:
+            print("Using filter sort", flush=True)
+            sorter_proc = mp.Process(target=sort_dictionary,
+                                      args=(
+                                            data_dd,
+                                            top_candidate_number,
+                                            model_list_dd,
+                                            ),
+                                      )
+            sorter_proc.start()
+            sorter_proc.join()
+        if sorter_proc.exitcode != 0:
+            raise Exception("Sorting failed\n")
 
-    #     toc = perf_counter()
-    #     sort_time = toc - tic
-    #     print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
+        toc = perf_counter()
+        sort_time = toc - tic
+        print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
 
-    #     # Launch Docking Simulations
-    #     print(f"Launched Docking Simulations", flush=True)
-    #     tic = perf_counter()
-    #     num_procs = args.max_procs_per_node * node_counts["docking"]
-    #     num_procs = min(num_procs, top_candidate_number//4)
-    #     dock_proc = mp.Process(
-    #         target=launch_docking_sim,
-    #         args=(cand_dd, iter, num_procs, nodelists["docking"]),
-    #     )
-    #     dock_proc.start()
-    #     dock_proc.join()
-    #     toc = perf_counter()
-    #     dock_time = toc - tic
-    #     #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
-    #     print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
+        # Launch Docking Simulations
+        print(f"Launched Docking Simulations", flush=True)
+        tic = perf_counter()
+        num_procs = args.max_procs_per_node * node_counts["docking"]
+        num_procs = min(num_procs, top_candidate_number//4)
+        dock_proc = mp.Process(
+            target=launch_docking_sim,
+            args=(model_list_dd, sim_dd, iter, num_procs, nodelists["docking"]),
+        )
+        dock_proc.start()
+        dock_proc.join()
+        toc = perf_counter()
+        dock_time = toc - tic
+        #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
+        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
         
     #     print(f"Candidate Dictionary stats:", flush=True)
     #     print(cand_dd.stats)
-    #     if dock_proc.exitcode != 0:
-    #         raise Exception("Docking sims failed\n")
+        if dock_proc.exitcode != 0:
+            raise Exception("Docking sims failed\n")
 
-    #     # Launch Training
-    #     print(f"Launched Fine Tune Training", flush=True)
-    #     tic = perf_counter()
-    #     BATCH = 64
-    #     EPOCH = 500
-    #     train_proc = mp.Process(
-    #         target=launch_training,
-    #         args=(
-    #             data_dd,
-    #             nodelists["training"][0],  # training is always 1 node
-    #             cand_dd,
-    #             BATCH,
-    #             EPOCH,
-    #         ),
-    #     )
-    #     train_proc.start()
-    #     train_proc.join()
-    #     toc = perf_counter()
-    #     train_time = toc - tic
-    #     print(f"Performed training in {train_time} seconds \n", flush=True)
-    #     if train_proc.exitcode != 0:
-    #         raise Exception("Training failed\n")
-    #     iter_end = perf_counter()
-    #     iter_time = iter_end - iter_start
-    #     print(
-    #         f"Performed iter {iter} in {iter_time} seconds \n", flush=True
-    #     )
-    #     with open("driver_times.log", "a") as f:
-    #         f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
+        # Launch Training
+        print(f"Launched Fine Tune Training", flush=True)
+        tic = perf_counter()
+        BATCH = 64
+        EPOCH = 500
+        train_proc = mp.Process(
+            target=launch_training,
+            args=(
+                model_list_dd,
+                sim_dd,
+                nodelists["training"][0],  # training is always 1 node
+                BATCH,
+                EPOCH,
+            ),
+        )
+        train_proc.start()
+        train_proc.join()
+        toc = perf_counter()
+        train_time = toc - tic
+        print(f"Performed training in {train_time} seconds \n", flush=True)
+        if train_proc.exitcode != 0:
+            raise Exception("Training failed\n")
+        iter_end = perf_counter()
+        iter_time = iter_end - iter_start
+        print(
+            f"Performed iter {iter} in {iter_time} seconds \n", flush=True
+        )
+        with open("driver_times.log", "a") as f:
+            f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
-    #     tic = perf_counter()
-    #     output_sims(cand_dd, iter=iter)
-    #     toc = perf_counter()
-    #     print(f"Output candidates in {toc -tic} seconds",flush=True)
+        tic = perf_counter()
+        output_sims(model_list_dd, iter=iter)
+        toc = perf_counter()
+        print(f"Output candidates in {toc -tic} seconds",flush=True)
     
         model_list_dd.checkpoint()
         iter += 1

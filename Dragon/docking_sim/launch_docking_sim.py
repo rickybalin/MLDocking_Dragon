@@ -12,7 +12,7 @@ from dragon.native.machine import Node
 from .docking_openeye import run_docking
 
 
-def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
+def launch_docking_sim(cdd, tdd, docking_iter, num_procs, nodelist):
     """Launch docking simulations
 
     :param cdd: Dragon distributed dictionary for top candidates
@@ -47,6 +47,7 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
             grp.add_process(nproc=1,
                             template=ProcessTemplate(target=run_docking,
                                                         args=(cdd,
+                                                            tdd,
                                                             docking_iter,
                                                             proc_id,
                                                             num_procs), 
@@ -72,6 +73,6 @@ def launch_docking_sim(cdd, docking_iter, num_procs, nodelist):
                                                     "current" not in k and
                                                     k != "simulated_compounds" and 
                                                     k != "random_compound_sample"]
-    cdd.bput('simulated_compounds', simulated_compounds)
+    tdd.bput('simulated_compounds', simulated_compounds)
     
 

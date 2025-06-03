@@ -315,7 +315,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
         raise(e)
 
 
-def run_docking(cdd, docking_iter, proc: int, num_procs: int):
+def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
     #print(f"Dock worker {proc} starting...", flush=True)
     debug = False
     if debug:
@@ -361,7 +361,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
 
     # All previously simulated compounds
     #simulated_compounds = cdd["simulated_compounds"]
-    simulated_compounds = cdd.bget("simulated_compounds")
+    simulated_compounds = sdd.bget("simulated_compounds")
 
     # Remove top candidates that have already been simulated
     if proc == 1:
@@ -400,9 +400,9 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     if len(my_candidates) > 0:
         tic = perf_counter()
         if not os.getenv("DOCKING_SIM_DUMMY"):
-            sim_metrics = dock(cdd, my_candidates, top_candidates_dict, proc, debug=debug) 
+            sim_metrics = dock(sdd, my_candidates, top_candidates_dict, proc, debug=debug) 
         else:
-            sim_metrics = dummy_dock(cdd, my_candidates, top_candidates_dict, proc, debug=debug) 
+            sim_metrics = dummy_dock(sdd, my_candidates, top_candidates_dict, proc, debug=debug) 
 
         toc = perf_counter()
         if debug:
@@ -417,6 +417,8 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     prev_simulated_candidates = simulated_compounds #list(set(simulated_compounds) - set(top_candidates_smiles))
 
     # Get local keys
+    ## NOTE: commenting since not understanding it 
+    """
     current_host = host_id()
     manager_nodes = cdd.manager_nodes
     procs_per_node = num_procs//len(manager_nodes)
@@ -441,6 +443,7 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
                 # print(f"{cand}: {inf_results}")
                 val['inf_scores'] = inf_results
                 cdd[cand] = val
+    """
 
 
     #with open(f"finished_run_docking.log", "a") as f:
@@ -448,12 +451,12 @@ def run_docking(cdd, docking_iter, proc: int, num_procs: int):
     return
 
 
-def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int, debug=False):
+def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
 
     Parameters
     ----------
-    cdd : DDict
+    sdd : DDict
         A Dragon Dictionary to store results
     candidates : List[str]
         A list of smiles strings that are top binding candidates.
@@ -518,7 +521,7 @@ def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
         dock_scores.append(dock_score)
         dtic = perf_counter()
         inf_scores = [top_candidates_dict[smiles]]
-        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':inf_scores}
+        sdd[smiles] = {'dock_score':dock_score, 'inf_scores':inf_scores}
         # with open(f"dock_worker_{proc}.log","a") as f:
         #     f.write(f"{smiles=} {dock_score=} {inf_scores=}\n")
         dtoc = perf_counter()
@@ -533,7 +536,7 @@ def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
         with open(f"dock_worker_{proc}.log","a") as f:
             f.write(f"All candidates completed: {smiter == num_cand}\n")
 
-        new_keys = cdd.keys()
+        new_keys = sdd.keys()
         num_sim = 0
         for smiles in candidates:
             if smiles in new_keys:
@@ -557,7 +560,7 @@ def dock(cdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
 
 
 
-def dummy_dock(cdd, candidates, top_candidates_dict, proc: int, debug=False):
+def dummy_dock(sdd, candidates, top_candidates_dict, proc: int, debug=False):
     """Run OpenEye docking on a single ligand.
 
     Parameters
@@ -596,7 +599,7 @@ def dummy_dock(cdd, candidates, top_candidates_dict, proc: int, debug=False):
 
 
         dtic = perf_counter()
-        cdd[smiles] = {'dock_score':dock_score, 'inf_scores':[top_candidates_dict[smiles]]}
+        sdd[smiles] = {'dock_score':dock_score, 'inf_scores':[top_candidates_dict[smiles]]}
         dtoc = perf_counter()
         data_store_time += dtic-dtoc
         data_store_size += sys.getsizeof(smiles) + sys.getsizeof(dock_score)

@@ -25,8 +25,8 @@ from dragon.data.ddict.ddict import DDict
 #tf.enable_eager_execution()
 
 
-def fine_tune(dd: DDict, 
-                candidate_dict: DDict, 
+def fine_tune(model_dd: DDict, 
+                sim_dd: DDict, 
                 BATCH: int, 
                 EPOCH: int, 
                 save_model=True):
@@ -35,7 +35,7 @@ def fine_tune(dd: DDict,
 
     ######## Build model #############
         
-    model, model_iter, hyper_params = retrieve_model_from_dict(dd)
+    model, model_iter, hyper_params = retrieve_model_from_dict(model_dd)
     model_iter += 1
 
     for layer in model.layers:
@@ -45,7 +45,7 @@ def fine_tune(dd: DDict,
     with open(fine_tune_log, 'a') as f:
         f.write(f"Create training data\n")
     ########Create training and validation data##### 
-    x_train, y_train, x_val, y_val = train_val_data(candidate_dict)
+    x_train, y_train, x_val, y_val = train_val_data(sim_dd)
     with open(fine_tune_log, 'a') as f:
         f.write(f"Finished creating training data\n")
     
@@ -76,7 +76,7 @@ def fine_tune(dd: DDict,
             with open("model_iter",'w') as f:
                 f.write(f"{model_iter=} {model_path=}")
 
-        save_model_weights(dd, model, model_iter)
+        save_model_weights(model_dd, model, model_iter)
         print("Saved fine tuned model to dictionary",flush=True)
     
 
