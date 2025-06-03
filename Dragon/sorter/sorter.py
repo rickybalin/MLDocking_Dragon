@@ -14,6 +14,7 @@ from dragon.native.machine import cpu_count, current, System, Node
 from dragon.utils import host_id
 from .sort_mpi import mpi_sort
 import datetime
+import numpy as np
 
 import time
 import heapq
@@ -231,20 +232,19 @@ def comparator(x, y):
     return x[0] > y[0]
 
 
-def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
+def sort_dictionary_ddict(dd: DDict, num_return_sorted, cdd: DDict):
 
-    print(f"Finding the best {num_return_sorted} candidates.", flush=True)
+    #print(f"Finding the best {num_return_sorted} candidates.", flush=True)
+    tic = perf_counter()
     candidate_list = []
-
     with dd.filter(get_largest, (num_return_sorted,), comparator) as candidates:
         for candidate in candidates:
             candidate_list.append(candidate)
             if len(candidate_list) == num_return_sorted:
                 break
-
-    print("HERE IS THE CANDIDATE LIST (first 10 only)")
-    print("******************************************", flush=True)
-    print(candidate_list[:10], flush=True)
+    toc = perf_counter()
+    infer_time = toc - tic
+    print(f"Performed sorting in {infer_time:.3f} seconds", flush=True)
 
     candidate_inf,candidate_smiles,candidate_model_iter = zip(*candidate_list)
     non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
@@ -258,8 +258,14 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
         cdd[str(current_sort_iter)] = current_sort_list 
 
     new_sort_iter = int(current_sort_iter + 1)
+
+    btic = perf_counter()
     cdd.bput("current_sort_iter", new_sort_iter)
     cdd.bput("current_sort_list", sort_val)
+    btoc = perf_counter()
+    b_time = btoc - btic
+    print(f"Broadcast sorted results in {b_time:.3f} seconds",flush=True)
+    print(f"DDict sort finished in {(btoc-tic):.3f} seconds",flush=True)
 
     #cdd[ckey] = sort_val
     #cdd["sort_iter"] = int(ckey)
@@ -311,8 +317,9 @@ def make_random_compound_selection(random_number):
 def sort_dictionary_pg(dd: DDict, 
                        num_return_sorted: int, 
                        num_procs: int, 
-                       nodelist, cdd: DDict, 
-                       random_number):
+                       nodelist, 
+                       cdd: DDict, 
+                       random_number=0):
    
     max_num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
@@ -332,7 +339,6 @@ def sort_dictionary_pg(dd: DDict,
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy, pmi_enabled=True)
 
-    print(f"Launching sorting process group {nodelist}", flush=True)
     for node in nodelist:
         node_name = Node(node).hostname
         local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
@@ -345,18 +351,20 @@ def sort_dictionary_pg(dd: DDict,
                                                     args=(dd, num_keys, num_return_sorted,cdd), 
                                                     policy=local_policy,
                                                     cwd=run_dir))
-    print(f"Added processes to sorting group",flush=True)
+    #print(f"Added processes to sorting group",flush=True)
+    print(f"Starting Process Group for Sorting",flush=True)
+    tic = perf_counter()
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Sorting",flush=True)
     grp.join()
-    print(f"Process Group for Sorting has joined",flush=True)
     grp.close()
+    toc = perf_counter()
+    infer_time = toc - tic
+    print(f"Sorting PG finished in {infer_time:.3f} seconds", flush=True)
 
-    print("Getting random compounds",flush=True)
     # Grab random compounds from each node
-
     if random_number > 0:
+        print("Getting random compounds",flush=True)
         alloc = System()
         num_nodes = min(int(alloc.nnodes), random_number)
         pool = mp.Pool(num_nodes, 

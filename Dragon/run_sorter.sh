@@ -1,14 +1,14 @@
 #!/bin/bash -l
 
 # Setup
+DATA_PATH=$1
 NODES=$(cat $PBS_NODEFILE | wc -l)
 
 # Determine which machine you are on
 FULL_HOSTNAME=`hostname -f`
 echo "FULL_HOSTNAME="$FULL_HOSTNAME
 
-DATA_PATH=$1
-
+# Set up system paths
 case "$FULL_HOSTNAME" in
     *"americas"* )
 	SUNSPOT=1
@@ -36,8 +36,8 @@ case "$FULL_HOSTNAME" in
 	;;
 esac
 
-echo "Setting hardware affinities"
 # Set gpu and cpu affinities and other machine specific env vars
+echo "Setting hardware affinities"
 if [[ -n $SUNSPOT || -n $AURORA ]]; then
     echo "Setting up for Intel GPUS"
     export GPU_DEVICES="0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1"
@@ -60,40 +60,38 @@ if [[ -n $POLARIS || -n $SIRIUS ]]; then
     MEM_PER_NODE=256
 fi
 
-echo "Location of dragon:"
-which dragon
 
 # Dragon env vars
+module list
+echo "Running Dragon from " `which dragon`
 #export FI_MR_CACHE_MAX_COUNT=0
 export FI_CXI_ODP=1
 export DRAGON_HSTA_NO_NET_CONFIG=1
 export DRAGON_DEFAULT_SEG_SZ=34359738368
-
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
+#DEBUG_STR="-l dragon_file=DEBUG -l actor_file=DEBUG"
+#DEBUG_STR="-l DEBUG"
+DEBUG_STR=
+export TEST_SORTING=1
 
+# Run settings
 MANAGERS=1
+TOP_CANDIDATES=10
+echo
 echo Running on $NODES nodes
 echo Reading files from $DATA_PATH
 echo Running with $PROCS_PER_NODE max. processes in Pool per Node
 echo Mem per node $MEM_PER_NODE
 echo Managers $MANAGERS
+echo Top candidates $TOP_CANDIDATES
 
-# Set debug flag
-#DEBUG_STR="-l dragon_file=DEBUG -l actor_file=DEBUG"
-DEBUG_STR=
-#DEBUG_STR="-l DEBUG"
-
-# Run
-module list
-echo $LD_LIBRARY_PATH
-#dragon-cleanup
-
-export TEST_SORTING=1
-
+# Run script
 EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sort_test.py \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \
---mem_per_node=$MEM_PER_NODE"
-
+--mem_per_node=$MEM_PER_NODE \
+--managers_per_node=$MANAGERS \
+--top_candidates=$TOP_CANDIDATES"
+echo Running:
 echo $EXE
 ${EXE}

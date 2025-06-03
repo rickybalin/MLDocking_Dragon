@@ -2,6 +2,7 @@ import mpi4py
 mpi4py.rc.initialize = False
 from mpi4py import MPI
 from time import perf_counter
+import numpy as np
 from dragon.utils import host_id
 from dragon.data.ddict import DDict
 from dragon.globalservices.api_setup import connect_to_infrastructure
@@ -17,6 +18,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
     #print(f"Sort rank {rank} has started",flush=True)
     if rank == 0: print(f"MPI Sorting starting on {size} ranks")
     
+    tic_full = perf_counter()
     tic = perf_counter()
     
     current_host = host_id()
@@ -194,39 +196,65 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
             continue_loop = root_comm.bcast(continue_loop, root=0)
             if not continue_loop:
                 break
-    
-    if root_rank == 0: print(f"Rank {rank} moving onto saving",flush=True)
     com_toc = perf_counter()
+
     if root_rank == 0:
+        print(f"Rank {rank} moving onto saving",flush=True)
         com_time = com_toc - com_tic
         print(f"Collected sorted results on rank 0 in {com_time:.3f} seconds",flush=True)
         #print(f"{my_results=}")
         # put data in candidate_dict
+
+        candidate_inf,candidate_smiles,candidate_model_iter = zip(*all_results)
+        non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+        sort_val = {"inf": list(candidate_inf), 
+                    "smiles": list(candidate_smiles), 
+                    "model_iter": list(candidate_model_iter)}
+
+        current_sort_iter = candidate_dict.bget("current_sort_iter")
+        if current_sort_iter > -1:
+            current_sort_list = candidate_dict.bget("current_sort_list")
+            candidate_dict[str(current_sort_iter)] = current_sort_list 
+
+        new_sort_iter = int(current_sort_iter + 1)
+
+        btic = perf_counter()
+        candidate_dict.bput("current_sort_iter", new_sort_iter)
+        candidate_dict.bput("current_sort_list", sort_val)
+        btoc = perf_counter()
+        b_time = btoc - btic
+        print(f"Broadcast sorted results in {b_time:.3f} seconds",flush=True)
         
         #top_candidates = all_results
         # filter out any 0 values or dummy values
-        print(f"Number of results {len(all_results)=}",flush=True)
+        #print(f"Number of results {len(all_results)=}",flush=True)
         #print(all_results,flush=True)
-        top_candidates = [c for c in all_results if c[0] > 0 and c[1] != 'dummy']
-        num_top_candidates = len(top_candidates)
-        with open("sort_controller.log", "a") as f:
-            f.write(f"Collected {num_top_candidates=}\n")
-        print(f"Collected {num_top_candidates=}",flush=True)
-        if num_top_candidates > 0:
-            
-            current_sort_iter = candidate_dict.bget("current_sort_iter")
-            if current_sort_iter > -1:
-                current_sort_list = candidate_dict.bget("current_sort_list")
-                candidate_dict[str(current_sort_iter)] = current_sort_list
-            
-            candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
-            non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
-            
-            print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
-            sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
-        
-            save_list(candidate_dict, current_sort_iter+1, sort_val)    
+        #top_candidates = [c for c in all_results if c[0] > 0 and c[1] != 'dummy']
+        #num_top_candidates = len(top_candidates)
+        #with open("sort_controller.log", "a") as f:
+        #    f.write(f"Collected {num_top_candidates=}\n")
+        #print(f"Collected {num_top_candidates=}",flush=True)
+        #if num_top_candidates > 0:
+        #    current_sort_iter = candidate_dict.bget("current_sort_iter")
+        #    if current_sort_iter > -1:
+        #        current_sort_list = candidate_dict.bget("current_sort_list")
+        #        candidate_dict[str(current_sort_iter)] = current_sort_list
+        #    
+        #    candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+        #    non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
+        #    
+        #    print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
+        #    sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+        #    
+        #    btic = perf_counter()
+        #    save_list(candidate_dict, current_sort_iter+1, sort_val) 
+        #    btoc = perf_counter()
+        #    b_time = btoc - btic
+        #    print(f"Broadcast sorted results in {b_time:.3f} seconds",flush=True)
+
     #print(f"Rank {rank} done",flush=True)
+    comm.Barrier()
+    if root_rank == 0: print(f"MPI sort finished in {(perf_counter()-tic_full):.3f} seconds",flush=True)
     MPI.Finalize()
     
     return
@@ -234,7 +262,7 @@ def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict
 def save_list(candidate_dict, ckey, sort_val):
     candidate_dict.bput("current_sort_list", sort_val)
     candidate_dict.bput("current_sort_iter", ckey)
-    print(f"candidate dictionary on iter {int(ckey)} and saved",flush=True)
+    #print(f"candidate dictionary on iter {int(ckey)} and saved",flush=True)
 
 
 

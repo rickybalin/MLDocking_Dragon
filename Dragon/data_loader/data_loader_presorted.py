@@ -77,7 +77,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
         inf_results = [0.0 for i in range(len(smiles))]
         if sort_test:
-            inf_results = [random.uniform(8.0, 14.0) for i in range(len(smiles))]
+            inf_results = [random.uniform(0.0, 100.0) for i in range(len(smiles))]
         key = f"{manager_index}_{file_index}"
 
         smiles_size = sum([sys.getsizeof(s) for s in smiles])
