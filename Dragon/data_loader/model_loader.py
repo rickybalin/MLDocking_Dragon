@@ -56,27 +56,25 @@ def retrieve_model_from_dict(dd: Union[DDict, dict]):
                     for weight_idx in range(len(layer.get_weights()))]
         layer.set_weights(weights)
 
-    print(f"Finished loading model from dictionary\n")
+    #print(f"Finished loading model from dictionary\n")
     return model, hyper_params
 
 def load_pretrained_model(dd: Union[DDict, dict]):
 
-    print("Loading pretrained model")
     # Read HyperParameters
     json_file = os.path.join(driver_path, "inference/config.json")
     hyper_params = ParamsJson(json_file)
-
+    #print(f"Loaded hyper params: {hyper_params}", flush=True)
     dd.bput('model_hyper_params', hyper_params)
     #dd['model_hyper_params'] = hyper_params
 
-    print(f"Loaded hyper params: {hyper_params}", flush=True)
     # Load model and weights
     model = ModelArchitecture(hyper_params).call()
     model.load_weights(os.path.join(driver_path,"inference/smile_regress.autosave.model.h5"))
-    print(f"Loaded pretrained model weights from disk", flush=True)
-    save_model_weights(dd, model, verbose=True)
+    #print(f"Loaded pretrained model weights from disk", flush=True)
+    save_model_weights(dd, model, verbose=False)
 
-    print(f"Loaded pretrained model into dictionary", flush=True)
+    #print(f"Loaded pretrained model into dictionary", flush=True)
 
 if __name__ == "__main__":
     dd = {}

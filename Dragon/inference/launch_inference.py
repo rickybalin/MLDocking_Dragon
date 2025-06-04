@@ -10,6 +10,7 @@ from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 import os
 import sys
+from datetime import datetime
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 
@@ -45,6 +46,8 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
     :param num_procs: number of processes to use for inference
     :type num_procs: int
     """
+    now = datetime.now()
+    print('datetime start inference mp.Process',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
     num_inf_nodes = len(nodelist)
 
     gpu_devices_string = os.getenv("GPU_DEVICES")
@@ -75,8 +78,8 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
         inf_cpu_bind.append(bind_threads)
 
     run_dir = os.getcwd()
-    print(f"{inf_cpu_bind=}")
-    print(f"{inf_gpu_bind=}")
+    #print(f"{inf_cpu_bind=}")
+    #print(f"{inf_gpu_bind=}")
     if len(inf_cpu_bind) != len(inf_gpu_bind):
         raise (Exception("Number of cpu bindings does not match the number of gpus"))
 
@@ -105,10 +108,13 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
                                                      policy=local_policy,))
     
     # Launch the ProcessGroup 
-
-    grp.init()
     print(f"Starting Process Group for Inference", flush=True)
+    now = datetime.now()
+    print('datetime start inference ProcessGroup',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
+    grp.init()
     grp.start()
     grp.join()
     print(f"Joined Process Group for Inference", flush=True)
     grp.close()
+    now = datetime.now()
+    print('datetime closed inference ProcessGroup',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)

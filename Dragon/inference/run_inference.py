@@ -10,6 +10,7 @@ import gc
 import socket
 from tqdm import tqdm
 from dragon.utils import host_id
+from datetime import datetime
 
 #from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_transformer import pad
@@ -101,15 +102,21 @@ def check_model_iter(continue_event):
 
 def infer(data_dd, 
           model_list_dd, 
-          num_procs, proc, continue_event, limit=None, debug=True):
+          num_procs, proc, 
+          continue_event, 
+          limit=None, 
+          debug=False):
     """Run inference reading from and writing data to the Dragon Dictionary"""
+    now = datetime.now()
+    print(f'datetime start infer {proc}',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
+    tic = perf_counter()
     gc.collect()
     # !!! DEBUG !!!
     if debug:
         p = psutil.Process()
         core_list = p.cpu_affinity()
         log_file_name = f"infer_worker_{proc}.log"
-        print(f"Opening inference worker log {log_file_name}", flush=True)
+        if debug: print(f"Opening inference worker log {log_file_name}", flush=True)
         with open(log_file_name,'w') as f:
             f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
@@ -122,15 +129,15 @@ def infer(data_dd,
         if pvc_device:
             device = pvc_device
         hostname = socket.gethostname()
-        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
+        if debug: print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
     
     
     # Get local keys
     current_host = host_id()
     manager_nodes = data_dd.manager_nodes
     keys = []
-    print(f"{current_host=}",flush=True)
-    if proc == 0:
+    if debug: print(f"{current_host=}",flush=True)
+    if proc == 0 and debug:
         print(f"{manager_nodes=}",flush=True)
     for i in range(len(manager_nodes)):
         if manager_nodes[i].h_uid == current_host:
@@ -138,7 +145,7 @@ def infer(data_dd,
             #print(f"{proc}: getting keys from local manager {local_manager}")
             dm = data_dd.manager(i)
             keys.extend(dm.keys())
-    print(f"{proc}: found {len(keys)} local keys")
+    if debug: print(f"{proc}: found {len(keys)} local keys")
     
     # Load model from dictionary
     if debug:
@@ -173,8 +180,8 @@ def infer(data_dd,
     vocab_file = driver_path + "inference/VocabFiles/vocab_spe.txt"
     spe_file = driver_path + "inference/VocabFiles/SPE_ChEMBL.txt"
     tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file=spe_file)
-    tic = perf_counter()
     num_smiles = 0
+    model_time = 0
     dictionary_time = 0
     data_moved_size = 0
     num_run = len(split_keys)
@@ -183,11 +190,11 @@ def infer(data_dd,
     # Iterate over keys in Dragon Dict
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
-    print(f"worker {proc} processing {num_run} keys",flush=True)
+    if debug: print(f"worker {proc} processing {num_run} keys",flush=True)
 
     for ikey in range(num_run):
         # Print progress to stdout every 8 iters
-        if ikey%8 == 0:
+        if ikey%8 == 0 and debug:
            print(f"...worker {proc} has completed {ikey} keys out of {num_run} with model {model_iter}", flush=True)
         if check_model_iter(continue_event):  # this check is to stop inference in async wf when model is retrained
             ktic = perf_counter()
@@ -211,7 +218,9 @@ def infer(data_dd,
 
             smiles_raw = val["smiles"]
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+            tic_fp = perf_counter()
             output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
+            toc_fp = perf_counter()
 
             sort_index = np.flip(np.argsort(output)).tolist()
             smiles_sorted = [smiles_raw[i] for i in sort_index]
@@ -243,13 +252,14 @@ def infer(data_dd,
 
             ktoc = perf_counter()
             key_time = ktoc - ktic
+            model_time += toc_fp - tic_fp
             dictionary_time += key_dictionary_time
             data_moved_size += key_data_moved_size
 
             if debug:
                 with open(log_file_name, "a") as f:
                     f.write(
-                        f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n"
+                        f"Performed inference on key {key} {key_time=} {model_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n"
                     )
                 #print(
                 #    f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}",
@@ -266,8 +276,12 @@ def infer(data_dd,
         "data_move_time": dictionary_time,
         "data_move_size": data_moved_size,
     }
-    print(f"worker {proc} is all DONE!! :)", flush=True)
+    if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
+    now = datetime.now()
+    print(f'datetime finish infer {proc}',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
     return metrics
+
+
 ## Run main
 if __name__ == "__main__":
     

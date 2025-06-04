@@ -54,10 +54,15 @@ if [[ -n $SUNSPOT || -n $AURORA ]]; then
     # Some env vars from Archit's script
     export PLATFORM_NUM_GPU_TILES=2
     export ZE_ENABLE_PCI_ID_DEVICE_ORDER=1
-    export ITEX_LIMIT_MEMORY_SIZE_IN_MB=8192
-    export ITEX_ENABLE_NEXTPLUGGABLE_DEVICE=0
     PROCS_PER_NODE=104
     MEM_PER_NODE=256
+    #export TF_CPP_MAX_VLOG_LEVEL=3
+    export ITEX_VERBOSE=0
+    export TF_CPP_MIN_LOG_LEVEL=3
+    export ITEX_CPP_MIN_LOG_LEVEL=2
+    export PYTHONWARNINGS="ignore::FutureWarning"
+    export ITEX_LIMIT_MEMORY_SIZE_IN_MB=8192
+    export ITEX_ENABLE_NEXTPLUGGABLE_DEVICE=0
 fi
 if [[ -n $POLARIS || -n $SIRIUS ]]; then
     echo "Setting up for Nvidia GPUS"
@@ -76,7 +81,6 @@ which dragon
 
 # Other env vars
 # for tensorflow reporting
-export TF_CPP_MIN_LOG_LEVEL=2
 export OMP_NUM_THREADS=1
 export PYTHONPATH=$DRIVER_PATH:$PYTHONPATH
 
@@ -104,4 +108,5 @@ EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
 --inference_node_num=2 --sorting_node_num=2 --simulation_node_num=1"
 
 echo $EXE
+echo
 ${EXE}

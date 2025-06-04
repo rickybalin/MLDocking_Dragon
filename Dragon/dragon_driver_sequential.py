@@ -1,5 +1,4 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
 from time import perf_counter
 import argparse
@@ -20,6 +19,7 @@ from dragon.infrastructure.policy import Policy
 #    level=logging.INFO,
 #    format='%(levelname)s - %(message)s'
 #)
+from datetime import datetime
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
@@ -177,6 +177,7 @@ if __name__ == "__main__":
 
     # Load pretrained model
     load_pretrained_model(model_list_dd)
+    print("Loaded pretrained model",flush=True)
 
     # Initialize simulated compounds list
     sim_dd.bput('simulated_compounds', [])
@@ -219,6 +220,8 @@ if __name__ == "__main__":
             inf_num_limit = None
 
         tic = perf_counter()
+        now = datetime.now()
+        print('datetime launch inference mp.Process',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
         inf_proc = mp.Process(
             target=launch_inference,
             args=(
@@ -234,6 +237,7 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+        sys.exit()
 
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")

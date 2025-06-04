@@ -87,7 +87,7 @@ if __name__ == "__main__":
         nodelists[key] = tot_nodelist[offset:offset+node_counts[key]]
         offset += node_counts[key]
     
-    print(f"{nodelists=}")    
+    print(f"{nodelists=}")
 
     # Set up and launch the inference DDict
     # inf_dd_nodelist = tot_nodelist[:args.inf_dd_nodes]
