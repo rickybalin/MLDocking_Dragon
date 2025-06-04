@@ -22,6 +22,7 @@ def output_sims(cdd: DDict, iter=0):
             f.write(line+"\n")
 
 def max_data_dict_size(num_keys: int, 
+                       node_counts: dict,
                        model_size=33, 
                        smiles_key_val_size=14.6, 
                        canidate_sim_size_per_iter=1.5, 
@@ -55,8 +56,8 @@ def max_data_dict_size(num_keys: int,
     model_dict_size /= 1024
 
     # Ensure there is a minimum of 1 GB per node
-    sim_dict_size = max(sim_dict_size, num_tot_nodes)
-    data_dict_size = max(data_dict_size, num_tot_nodes)
+    sim_dict_size = max(sim_dict_size, node_counts["simulation"])
+    data_dict_size = max(data_dict_size, node_counts["inference"])
     model_dict_size = max(model_dict_size, num_tot_nodes)
 
     max_mem = ddict_mem_check()

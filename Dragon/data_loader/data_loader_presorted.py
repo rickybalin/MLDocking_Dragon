@@ -10,7 +10,8 @@ import random
 import dragon
 import multiprocessing as mp
 from dragon.data.ddict import DDict
-from dragon.native.machine import current, System
+from dragon.native.machine import current, System, Node
+from dragon.infrastructure.policy import Policy
 import traceback
 
 from functools import partial
@@ -137,7 +138,9 @@ def load_inference_data(_dict: DDict,
                         data_path: str, 
                         max_procs: int, 
                         num_managers: int, 
-                        num_files: int = None):
+                        num_files: int = None,
+                        nodelist: list = None,
+                        load_split_factor: int = 1):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
@@ -150,7 +153,6 @@ def load_inference_data(_dict: DDict,
     # Get list of files to read
     base_path = pathlib.Path(data_path)
     files, num_files_in_dir = get_files(base_path)
-    print(f"{num_files_in_dir=}", flush=True)
     if num_files is None:
         num_files = num_files_in_dir
     else:
@@ -173,34 +175,50 @@ def load_inference_data(_dict: DDict,
     file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)
-    print(f"Number of pool procs is {num_procs}", flush=True)
+    print(f"Number of Pool processes is {num_procs}", flush=True)
     
+    policy = None
+    process_per_policy = 1
+    if nodelist is not None:
+        policy = [Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(nodelist[node]).hostname) \
+                    for node in range(len(nodelist))]
+
     total_data_size = 0
-    for i in range(4):
-        start_time = perf_counter()
-
-        num_pool_procs = num_procs
-        pool = mp.Pool(num_pool_procs, initializer=initialize_worker, initargs=(_dict,))
-        print(f"Pool initialized", flush=True)
-        print(f"Reading smiles for {num_files}", flush=True)
-
-        num_files_per_pool = num_files // 4 + 1
-        print(f"{num_pool_procs=} {num_files_per_pool=}")
-        smiles_sizes = pool.imap_unordered(
-            read_smiles,
-            file_tuples[
-                i
-                * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
-            ],
-        )
-        iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
-        print(f"Size of dataset is {iter_data_size} GB", flush=True)
-        total_data_size += iter_data_size
-        print(f"Mapped function complete", flush=True)
+    if load_split_factor == 1:
+        pool = mp.Pool(num_procs, 
+                       initializer=initialize_worker, 
+                       initargs=(_dict,))
+        smiles_sizes = pool.imap_unordered(read_smiles, file_tuples)
+        total_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
         pool.close()
-        print(f"Pool closed", flush=True)
         pool.join()
-        print(f"Pool joined", flush=True)
+    else:
+        for i in range(load_split_factor):
+            num_pool_procs = num_procs
+            pool = mp.Pool(num_pool_procs, 
+                        initializer=initialize_worker, 
+                        initargs=(_dict,),
+                        policy=policy)
+            #print(f"Pool initialized", flush=True)
+            #print(f"Reading smiles for {num_files}", flush=True)
+
+            num_files_per_pool = num_files // load_split_factor + 1
+            print(f"{num_pool_procs=} {num_files_per_pool=}")
+            smiles_sizes = pool.imap_unordered(
+                read_smiles,
+                file_tuples[
+                    i
+                    * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
+                ],
+            )
+            iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+            print(f"Size of dataset is {iter_data_size} GB", flush=True)
+            total_data_size += iter_data_size
+            print(f"Mapped function complete", flush=True)
+            pool.close()
+            print(f"Pool closed", flush=True)
+            pool.join()
+            print(f"Pool joined", flush=True)
     print(f"Total data read in {total_data_size} GB", flush=True)
     
 

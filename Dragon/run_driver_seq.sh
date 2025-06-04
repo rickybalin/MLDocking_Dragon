@@ -100,7 +100,8 @@ EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
 --managers_per_node=$MANAGERS \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \
---mem_per_node=$MEM_PER_NODE"
+--mem_per_node=$MEM_PER_NODE \
+--inference_node_num=2 --sorting_node_num=2 --simulation_node_num=1"
 
 echo $EXE
 ${EXE}
