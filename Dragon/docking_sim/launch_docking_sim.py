@@ -12,7 +12,7 @@ from dragon.native.machine import Node
 from .docking_openeye import run_docking
 
 
-def launch_docking_sim(cdd, tdd, docking_iter, num_procs, nodelist):
+def launch_docking_sim(cdd, sdd, docking_iter, num_procs, nodelist):
     """Launch docking simulations
 
     :param cdd: Dragon distributed dictionary for top candidates
@@ -47,7 +47,7 @@ def launch_docking_sim(cdd, tdd, docking_iter, num_procs, nodelist):
             grp.add_process(nproc=1,
                             template=ProcessTemplate(target=run_docking,
                                                         args=(cdd,
-                                                            tdd,
+                                                            sdd,
                                                             docking_iter,
                                                             proc_id,
                                                             num_procs), 
@@ -67,12 +67,12 @@ def launch_docking_sim(cdd, tdd, docking_iter, num_procs, nodelist):
     # Collect candidate keys and save them to simulated keys
     # Lists will have a key that is a digit
     # Non-smiles keys that are not digits are -1, max_sort_iter and simulated_compounds
-    simulated_compounds = [k for k in cdd.keys() if not k.isdigit() and 
+    simulated_compounds = [k for k in sdd.keys() if not k.isdigit() and 
                                                     k != '-1' and 
                                                     "iter" not in k and
                                                     "current" not in k and
                                                     k != "simulated_compounds" and 
                                                     k != "random_compound_sample"]
-    tdd.bput('simulated_compounds', simulated_compounds)
+    sdd.bput('simulated_compounds', simulated_compounds)
     
 

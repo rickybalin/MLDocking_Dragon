@@ -290,7 +290,7 @@ if __name__ == "__main__":
         print(f"Launched Fine Tune Training", flush=True)
         tic = perf_counter()
         BATCH = 64
-        EPOCH = 500
+        EPOCH = 150
         train_proc = mp.Process(
             target=launch_training,
             args=(
@@ -316,10 +316,10 @@ if __name__ == "__main__":
         with open("driver_times.log", "a") as f:
             f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
-        tic = perf_counter()
-        output_sims(model_list_dd, iter=iter)
-        toc = perf_counter()
-        print(f"Output candidates in {toc -tic} seconds",flush=True)
+        #tic = perf_counter()
+        #output_sims(model_list_dd, iter=iter)
+        #toc = perf_counter()
+        #print(f"Output candidates in {toc -tic} seconds",flush=True)
     
         model_list_dd.checkpoint()
         iter += 1

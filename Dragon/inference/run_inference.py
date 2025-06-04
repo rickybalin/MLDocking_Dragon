@@ -110,7 +110,7 @@ def infer(data_dd,
         core_list = p.cpu_affinity()
         log_file_name = f"infer_worker_{proc}.log"
         print(f"Opening inference worker log {log_file_name}", flush=True)
-        with open(log_file_name,'a') as f:
+        with open(log_file_name,'w') as f:
             f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
             f.flush()

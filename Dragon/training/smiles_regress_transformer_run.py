@@ -35,14 +35,13 @@ def fine_tune(model_dd: DDict,
 
     ######## Build model #############
         
-    model, model_iter, hyper_params = retrieve_model_from_dict(model_dd)
-    model_iter += 1
+    model, hyper_params = retrieve_model_from_dict(model_dd)
 
     for layer in model.layers:
         if layer.name not in ['dropout_3', 'dense_3', 'dropout_4', 'dense_4', 'dropout_5', 'dense_5', 'dropout_6', 'dense_6']:
             layer.trainable = False
 
-    with open(fine_tune_log, 'a') as f:
+    with open(fine_tune_log, 'w') as f:
         f.write(f"Create training data\n")
     ########Create training and validation data##### 
     x_train, y_train, x_val, y_val = train_val_data(sim_dd)
@@ -70,13 +69,13 @@ def fine_tune(model_dd: DDict,
         
         
         # Save to dictionary
-        if save_model:
-            model_path = "current_model.keras"
-            model.save(model_path)
-            with open("model_iter",'w') as f:
-                f.write(f"{model_iter=} {model_path=}")
+        #if save_model:
+        #    model_path = "current_model.keras"
+        #    model.save(model_path)
+        #    with open("model_iter",'w') as f:
+        #        f.write(f"{model_path=}")
 
-        save_model_weights(model_dd, model, model_iter)
+        save_model_weights(model_dd, model)
         print("Saved fine tuned model to dictionary",flush=True)
     
 

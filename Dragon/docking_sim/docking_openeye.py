@@ -333,7 +333,7 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
     
     if debug:
         with open(log_file_name,"a") as f:
-            f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckey_max}\n")
+            f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckeys}\n")
 
     # most recent sorted list
     top_candidates = cdd.bget("current_sort_list")
@@ -533,7 +533,7 @@ def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
     time_per_cand = (toc-tic)/num_cand
     if debug:
         
-        with open(f"dock_worker_{proc}.log","a") as f:
+        with open(f"dock_worker_{proc}.log","w") as f:
             f.write(f"All candidates completed: {smiter == num_cand}\n")
 
         new_keys = sdd.keys()
@@ -554,7 +554,7 @@ def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
             f.write(f"{dock_scores=}\n")
             f.write(f"Simulated {num_cand} candidates in {toc-tic} s, {time_per_cand=}\n")
 
-    with open(f"docking.log","a") as f:
+    with open(f"docking.log","w") as f:
         f.write(f"Simulated {num_cand} candidates in {toc-tic} s on worker {proc}, {time_per_cand=}\n")
     return metrics
 
