@@ -49,7 +49,7 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
                                                 ))
     
     # Launch the ProcessGroup 
-    print(f"Starting Process Group for training")
+    print(f"Starting Process Group for training",flush=True)
     grp.init()
     grp.start()
     grp.join()

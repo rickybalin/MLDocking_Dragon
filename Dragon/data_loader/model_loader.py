@@ -24,7 +24,7 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
                 print(f"{wkey}: {weight.nbytes} bytes")
             tot_memory += weight.nbytes
     
-    print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
+    #print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
 
     # Future version will use broadcast put to send model to every manager
     dd.bput('model', weights_dict)
@@ -36,7 +36,7 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
 
     print(f"Saved model to dictionary", flush=True)
 
-def retrieve_model_from_dict(dd: Union[DDict, dict]):
+def retrieve_model_from_dict(dd: Union[DDict, dict], fine_tune: bool = False):
 
     #weights_dict = dd["model"]
     #model_iter = dd["model_iter"]
@@ -46,7 +46,7 @@ def retrieve_model_from_dict(dd: Union[DDict, dict]):
     hyper_params = dd.bget("model_hyper_params")
 
     try:
-        model = ModelArchitecture(hyper_params).call()
+        model = ModelArchitecture(hyper_params, fine_tune=fine_tune).call()
     except Exception as e:
         print(f"Exception {e} raised in calling model")
 
