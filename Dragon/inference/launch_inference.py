@@ -37,8 +37,7 @@ def load_pretrained_model(dd: DDict):
             f.write(f"{e}")
 
 
-def launch_inference(data_dd: DDict, 
-                     model_list_dd: DDict, 
+def launch_inference( 
                      nodelist,
                      num_procs: int = 1, 
                      inf_num_limit = None):
@@ -98,8 +97,7 @@ def launch_inference(data_dd: DDict,
                                   gpu_affinity=inf_gpu_bind[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
-                                                     args=(data_dd,
-                                                        model_list_dd,
+                                                     args=(
                                                         num_procs_pn,
                                                         proc_id, 
                                                         None, # Continue event not used in sequential wf

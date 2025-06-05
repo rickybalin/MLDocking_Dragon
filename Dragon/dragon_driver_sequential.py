@@ -42,16 +42,10 @@ if __name__ == "__main__":
                         help='number of nodes running docking simulation')
     parser.add_argument('--training_node_num', type=int, default=1,
                         help='number of nodes running training')
-    parser.add_argument('--managers_per_node', type=int, default=1,
-                        help='number of managers per node for the dragon dict')
-    parser.add_argument('--mem_per_node', type=int, default=8,
-                        help='managed memory size per node for dictionary in GB')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
     parser.add_argument('--max_iter', type=int, default=1,
                         help='Maximum number of iterations')
-    parser.add_argument('--dictionary_timeout', type=int, default=10,
-                        help='Timeout for Dictionary in seconds')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
     parser.add_argument('--logging', type=str, default="info",
@@ -100,101 +94,11 @@ if __name__ == "__main__":
     else:
         num_gpus = 0
 
-    # Set up and launch the dictionaries
-    # There are 3 dictionaries:
-    # 1. data dictionary for inference
-    # 2. simulation dictionary for docking simulation results
-    # 3. model and candidate dictionary for training
-    # The model and candidate dictionary will be checkpointed
-    num_files = 24
-    data_dict_mem, sim_dict_mem, model_list_dict_mem = max_data_dict_size(num_files, node_counts, max_pool_frac=0.5)
-    print(f"Setting data_dict size to {data_dict_mem} GB")
-    print(f"Setting sim_dict size to {sim_dict_mem} GB")
-    print(f"Setting model_list_dict size to {model_list_dict_mem} GB")
-
-    # Convert memory sizes to bytes
-    data_dict_mem *= (1024 * 1024 * 1024)
-    sim_dict_mem *= (1024 * 1024 * 1024)
-    model_list_dict_mem *= (1024 * 1024 * 1024)
-
-    # Initialize Dragon Dictionaries for inference, docking simulation, and model list
-    data_dd_cpu_bind = os.getenv("DATA_DD_CPU_AFFINITY").split(",")
-    data_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                             host_name=Node(nodelist["inference"][node]).hostname, 
-                             cpu_affinity=data_dd_cpu_bind) \
-                      for node in range(len(nodelist["inference"]))]
-    data_dd = DDict(None, 
-                    None, 
-                    data_dict_mem, 
-                    policy=data_dd_policy)
-    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes", flush=True)
     
-    sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
-    sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                            host_name=Node(nodelist["simulation"][node]).hostname, 
-                            cpu_affinity=sim_dd_cpu_bind) \
-                      for node in range(len(nodelist["simulation"]))]
-    sim_dd = DDict(None, 
-                   None, 
-                   sim_dict_mem,
-                   policy=sim_dd_policy)
-    print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes", flush=True)
-
-    model_dd_cpu_bind = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
-    model_dd_policy = Policy(cpu_affinity=model_dd_cpu_bind)
-    model_list_dd = DDict(args.managers_per_node, 
-                          num_tot_nodes, 
-                          model_list_dict_mem, 
-                          policy=model_dd_policy, 
-                          working_set_size=10)
-    print(f"Launched Dragon Dictionary for model list with total memory size {model_list_dict_mem} on {num_tot_nodes} nodes", flush=True)
-
-    # Load data into the data dictionary
-    print("\nLoading inference data into Dragon Dictionary ...", flush=True)
-    max_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["inference"]
-    tic = perf_counter()
-    loader_proc = mp.Process(
-        target=load_inference_data,
-        args=(
-            data_dd,
-            args.data_path,
-            max_procs,
-            node_counts["inference"] * args.managers_per_node,
-        ),
-        kwargs={
-            'num_files': num_files,
-            'nodelist': None,
-            'load_split_factor': 1
-        }
-    )
-    loader_proc.start()
-    loader_proc.join()
-    toc = perf_counter()
-    load_time = toc - tic
-    if loader_proc.exitcode == 0:
-        print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
-    else:
-        raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
-
-    if args.logging == "debug":
-        print("Here are the stats after data loading...")
-        print("Data Dictionary stats:", flush=True)
-        print(data_dd.stats)
-
-    # Load pretrained model
-    load_pretrained_model(model_list_dd)
-    print("\nLoaded pretrained model",flush=True)
-
-    # Initialize simulated compounds list
-    sim_dd.bput('simulated_compounds', [])
+    num_files = 24
 
     # Update driver log
     with open("driver_times.log", "w") as f:
-        f.write(f"# {load_time=}\n")
-    num_keys = len(data_dd.keys())
-    with open("driver_times.log", "a") as f:
-        f.write(f"# {num_keys=}\n")
-    with open("driver_times.log", "a") as f:
         f.write(f"# {num_files=}\n")
     
     # Number of top candidates to produce
@@ -214,8 +118,6 @@ if __name__ == "__main__":
         print(f"\n*** Start loop iter {iter} ***")
         iter_start = perf_counter()
 
-        print(f"Current checkpoint: {model_list_dd.checkpoint_id}", flush=True)
-
         # Launch the data inference component
         print(f"Launching inference ...", flush=True)
         inf_num_limit = None
@@ -227,8 +129,6 @@ if __name__ == "__main__":
         inf_proc = mp.Process(
             target=launch_inference,
             args=(
-                data_dd,
-                model_list_dd,
                 nodelist["inference"],
             ),
             kwargs={
@@ -240,6 +140,7 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+        sys.exit()
 
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
