@@ -242,9 +242,9 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
             if len(candidate_list) == num_return_sorted:
                 break
 
-    print("HERE IS THE CANDIDATE LIST (first 10 only)")
-    print("******************************************", flush=True)
-    print(candidate_list[:10], flush=True)
+    #print("HERE IS THE CANDIDATE LIST (first 10 only)")
+    #print("******************************************", flush=True)
+    #print(candidate_list[:10], flush=True)
 
     candidate_inf,candidate_smiles,candidate_model_iter = zip(*candidate_list)
     non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])

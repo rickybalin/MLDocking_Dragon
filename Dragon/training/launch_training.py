@@ -23,6 +23,12 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     run_dir = os.getcwd()
 
     # Create the process group
+    gpu_devices = os.getenv("GPU_DEVICES").split(",")
+    gpu_devices = [float(gid) for gid in gpu_devices]
+    gpu_devices = [gpu_devices[0]] # training only needs 1 GPU
+    cpu_affinity = os.getenv("TRAIN_CPU_AFFINITY").split(",")
+    cpu_affinity = [int(cid) for cid in cpu_affinity]
+    print(f'Launching training on {cpu_affinity} CPUs and {gpu_devices} GPU',flush=True)
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
 
@@ -30,8 +36,8 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
 
     local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                           host_name=node_name, 
-                          cpu_affinity=list(range(8)), 
-                          gpu_affinity=[3])
+                          cpu_affinity=cpu_affinity, 
+                          gpu_affinity=[gpu_devices[0]])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=fine_tune,
                                                 args=(model_dd, 
@@ -43,10 +49,9 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
                                                 ))
     
     # Launch the ProcessGroup 
+    print(f"Starting Process Group for training")
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Training")
-    
     grp.join()
     grp.close()
     print(f"Training process group stopped",flush=True)

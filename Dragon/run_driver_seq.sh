@@ -47,15 +47,21 @@ echo "Setting hardware affinities"
 if [[ -n $SUNSPOT || -n $AURORA ]]; then
     echo "Setting up for Intel GPUS"
     export GPU_DEVICES="0.0,0.1,1.0,1.1,2.0,2.1,3.0,3.1,4.0,4.1,5.0,5.1"
-    export CPU_AFFINITY="list:1-7,105-111:8-15,112-119:16-23,120-127:24-31,128-135:32-39,136-143:40-47,144-151:53-59,157-163:60-67,164-171:68-75,172-179:76-83,180-187:84-91,188-195:92-99,196-203"
+    export DATA_DD_CPU_AFFINITY="44,45,46,47,96,97,98,99"
+    export SIM_DD_CPU_AFFINITY="44,45,46,47,96,97,98,99"
+    export MODEL_DD_CPU_AFFINITY="48,49,50,51,100,101,102,103"
+    export INF_CPU_AFFINITY="1-4:5-8:9-12:13-16:17-20:21-24:53-56:57-60:61-64:65-68:69-72:73-76"
+    export SORT_CPU_AFFINITY="" # only needed for MPI sort
+    export SIM_CPU_AFFINITY="5-8:9-12:13-16:17-20:21-24:53-56:57-60:61-64:65-68:69-72:73-76"
+    export TRAIN_CPU_AFFINITY="1,2,3,4"
     export SKIP_THREADS="0,52,104,156"
     export ZEX_NUMBER_OF_CCS=0:1,1:1,2:1,3:1,4:1,5:1
     # Other machine specific env vars
     # Some env vars from Archit's script
     export PLATFORM_NUM_GPU_TILES=2
     export ZE_ENABLE_PCI_ID_DEVICE_ORDER=1
-    PROCS_PER_NODE=104
-    MEM_PER_NODE=256
+    export PROCS_PER_NODE=104
+    export MEM_PER_NODE=256
     #export TF_CPP_MAX_VLOG_LEVEL=3
     export ITEX_VERBOSE=0
     export TF_CPP_MIN_LOG_LEVEL=3

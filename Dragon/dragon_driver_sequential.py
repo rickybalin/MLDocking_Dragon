@@ -19,7 +19,6 @@ from dragon.infrastructure.policy import Policy
 #    level=logging.INFO,
 #    format='%(levelname)s - %(message)s'
 #)
-from datetime import datetime
 
 from data_loader.data_loader_presorted import load_inference_data
 from inference.launch_inference import launch_inference
@@ -91,7 +90,7 @@ if __name__ == "__main__":
         "training": [tot_nodelist[-1]]
     }
     for key, val in nodelist.items():
-        print(f"Component {key} running on {val} nodes",flush=True)
+        print(f"Component {key} running on {[Node(node).hostname for node in val]} nodes",flush=True)
 
     # Get info about gpus and cpus
     gpu_devices = os.getenv("GPU_DEVICES")
@@ -119,22 +118,30 @@ if __name__ == "__main__":
     model_list_dict_mem *= (1024 * 1024 * 1024)
 
     # Initialize Dragon Dictionaries for inference, docking simulation, and model list
-    dd_cpu_bind = [48, 49, 50, 51, 99, 100, 101, 103]
-    data_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(nodelist["inference"][node]).hostname, cpu_affinity=dd_cpu_bind) \
+    data_dd_cpu_bind = os.getenv("DATA_DD_CPU_AFFINITY").split(",")
+    data_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
+                             host_name=Node(nodelist["inference"][node]).hostname, 
+                             cpu_affinity=data_dd_cpu_bind) \
                       for node in range(len(nodelist["inference"]))]
     data_dd = DDict(None, 
                     None, 
                     data_dict_mem, 
                     policy=data_dd_policy)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes", flush=True)
-    sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, host_name=Node(nodelist["simulation"][node]).hostname, cpu_affinity=dd_cpu_bind) \
+    
+    sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
+    sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
+                            host_name=Node(nodelist["simulation"][node]).hostname, 
+                            cpu_affinity=sim_dd_cpu_bind) \
                       for node in range(len(nodelist["simulation"]))]
     sim_dd = DDict(None, 
                    None, 
                    sim_dict_mem,
                    policy=sim_dd_policy)
     print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes", flush=True)
-    model_dd_policy = Policy(cpu_affinity=dd_cpu_bind)
+
+    model_dd_cpu_bind = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
+    model_dd_policy = Policy(cpu_affinity=model_dd_cpu_bind)
     model_list_dd = DDict(args.managers_per_node, 
                           num_tot_nodes, 
                           model_list_dict_mem, 
@@ -142,10 +149,9 @@ if __name__ == "__main__":
                           working_set_size=10)
     print(f"Launched Dragon Dictionary for model list with total memory size {model_list_dict_mem} on {num_tot_nodes} nodes", flush=True)
 
-
     # Load data into the data dictionary
-    print("Loading inference data into Dragon Dictionary ...", flush=True)
-    max_procs = (args.max_procs_per_node-len(dd_cpu_bind)*2) * node_counts["inference"]
+    print("\nLoading inference data into Dragon Dictionary ...", flush=True)
+    max_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["inference"]
     tic = perf_counter()
     loader_proc = mp.Process(
         target=load_inference_data,
@@ -177,7 +183,7 @@ if __name__ == "__main__":
 
     # Load pretrained model
     load_pretrained_model(model_list_dd)
-    print("Loaded pretrained model",flush=True)
+    print("\nLoaded pretrained model",flush=True)
 
     # Initialize simulated compounds list
     sim_dd.bput('simulated_compounds', [])
@@ -197,7 +203,7 @@ if __name__ == "__main__":
     else:
         top_candidate_number = 10000
 
-    print(f"Finished workflow setup in {(perf_counter()-start_time):.3f} seconds", flush=True)
+    print(f"\nFinished workflow setup in {(perf_counter()-start_time):.3f} seconds\n", flush=True)
 
     # Start sequential loop
     max_iter = args.max_iter
@@ -205,39 +211,35 @@ if __name__ == "__main__":
     with open("driver_times.log", "a") as f:
         f.write(f"# iter  infer_time  sort_time  dock_time  train_time \n")
     while iter < max_iter:
-        print(f"*** Start loop iter {iter} ***")
+        print(f"\n*** Start loop iter {iter} ***")
         iter_start = perf_counter()
 
         print(f"Current checkpoint: {model_list_dd.checkpoint_id}", flush=True)
 
         # Launch the data inference component
-        num_procs = num_gpus*node_counts["inference"]
-        print(f"Launching inference with {num_procs} processes ...", flush=True)
+        print(f"Launching inference ...", flush=True)
+        inf_num_limit = None
         if num_tot_nodes == 1:
             inf_num_limit = 8
             print(f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker")
-        else:
-            inf_num_limit = None
 
         tic = perf_counter()
-        now = datetime.now()
-        print('datetime launch inference mp.Process',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
         inf_proc = mp.Process(
             target=launch_inference,
             args=(
                 data_dd,
                 model_list_dd,
                 nodelist["inference"],
-                num_procs,
-                inf_num_limit,
             ),
+            kwargs={
+            'inf_num_limit': inf_num_limit,
+            }
         )
         inf_proc.start()
         inf_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-        sys.exit()
 
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
@@ -252,7 +254,7 @@ if __name__ == "__main__":
         print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)
-            max_sorter_procs = args.max_procs_per_node*node_counts["sorting"]
+            max_sorter_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["sorting"]
             sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                      args=(data_dd,
                                            top_candidate_number,
@@ -282,25 +284,24 @@ if __name__ == "__main__":
         print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
 
         # Launch Docking Simulations
-        print(f"Launched Docking Simulations", flush=True)
+        print(f"Launched docking simulations ...", flush=True)
         tic = perf_counter()
-        num_procs = (args.max_procs_per_node - len(dd_cpu_bind)*2) * node_counts["simulation"]
-        num_procs = min(num_procs, top_candidate_number//4)
+        max_num_procs = top_candidate_number//4
         dock_proc = mp.Process(
             target=launch_docking_sim,
-            args=(model_list_dd, sim_dd, iter, num_procs, nodelist["simulation"]),
+            args=(model_list_dd, 
+                  sim_dd, 
+                  iter, 
+                  max_num_procs, 
+                  nodelist["simulation"]),
         )
         dock_proc.start()
         dock_proc.join()
-        toc = perf_counter()
-        dock_time = toc - tic
-        #os.rename("finished_run_docking.log", f"finished_run_docking_{iter}.log")
-        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
-        
-    #     print(f"Candidate Dictionary stats:", flush=True)
-    #     print(cand_dd.stats)
         if dock_proc.exitcode != 0:
             raise Exception("Docking sims failed\n")
+        toc = perf_counter()
+        dock_time = toc - tic
+        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
 
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)

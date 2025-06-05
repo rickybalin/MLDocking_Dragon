@@ -12,7 +12,7 @@ from dragon.native.machine import Node
 from .docking_openeye import run_docking
 
 
-def launch_docking_sim(cdd, sdd, docking_iter, num_procs, nodelist):
+def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     """Launch docking simulations
 
     :param cdd: Dragon distributed dictionary for top candidates
@@ -20,30 +20,43 @@ def launch_docking_sim(cdd, sdd, docking_iter, num_procs, nodelist):
     :param num_procs: number of processes to use for docking
     :type num_procs: int
     """
-    num_nodes = len(nodelist)
-    num_procs_pn = num_procs//num_nodes
     run_dir = os.getcwd()
+    num_nodes = len(nodelist)
 
-    skip_threads = os.getenv("SKIP_THREADS")
-    if skip_threads:
-        print(f"skipping threads {skip_threads}",flush=True)
-        skip_threads = skip_threads.split(',')
-        skip_threads = [int(t) for t in skip_threads]
-    else:
-        skip_threads = []
+    available_cores = list(range(int(os.getenv("PROCS_PER_NODE"))))
+    skip_cores = os.getenv("SKIP_THREADS").split(",")
+    skip_cores = [int(c) for c in skip_cores]
+    model_dd_cores = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
+    model_dd_cores = [int(c) for c in model_dd_cores]
+    sim_dd_cores = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
+    sim_dd_cores = [int(c) for c in sim_dd_cores]
+    train_cores = os.getenv("TRAIN_CPU_AFFINITY").split(",")
+    train_cores = [int(c) for c in train_cores]
+    available_cores = [c for c in available_cores if c not in skip_cores]
+    available_cores = [c for c in available_cores if c not in model_dd_cores]
+    available_cores = [c for c in available_cores if c not in sim_dd_cores]
+    available_cores = [c for c in available_cores if c not in train_cores]
+    #print('Available cores for docking sim: ',available_cores,flush=True)
+    num_procs_pn = len(available_cores)
+    num_procs = num_procs_pn*num_nodes
+    if num_procs > max_num_procs:
+        num_procs = max_num_procs
+        num_procs_pn = max_num_procs//num_nodes
+    remainder_procs_pn = num_procs%num_nodes if num_procs%num_nodes != 0 else num_procs_pn
+    print(f"Docking simulations running on {num_nodes} nodes and {num_procs} processes and {num_procs_pn} processes per node", flush=True)
         
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
         node_name = Node(nodelist[node_num]).hostname
+        if node_num == num_nodes-1:
+            num_procs_pn = remainder_procs_pn
         for proc in range(num_procs_pn):
-            if proc in skip_threads:
-                continue
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name,
-                                  cpu_affinity=[proc])
+                                  cpu_affinity=[available_cores[proc]])
             grp.add_process(nproc=1,
                             template=ProcessTemplate(target=run_docking,
                                                         args=(cdd,
@@ -57,12 +70,12 @@ def launch_docking_sim(cdd, sdd, docking_iter, num_procs, nodelist):
                             )
 
     # Launch the ProcessGroup
+    print(f"Starting Process Group for docking sims", flush=True)
     grp.init()
     grp.start()
-    print(f"Starting Process Group for Docking Sims on {num_procs} procs", flush=True)
     grp.join()
-    print(f"Joined Process Group for Docking Sims",flush=True)
     grp.close()
+    print(f"Joined Process Group for Docking Sims",flush=True)
 
     # Collect candidate keys and save them to simulated keys
     # Lists will have a key that is a digit

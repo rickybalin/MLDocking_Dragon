@@ -10,7 +10,6 @@ from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
 import os
 import sys
-from datetime import datetime
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 
@@ -38,7 +37,11 @@ def load_pretrained_model(dd: DDict):
             f.write(f"{e}")
 
 
-def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: int, inf_num_limit):
+def launch_inference(data_dd: DDict, 
+                     model_list_dd: DDict, 
+                     nodelist,
+                     num_procs: int = 1, 
+                     inf_num_limit = None):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -46,12 +49,9 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
     :param num_procs: number of processes to use for inference
     :type num_procs: int
     """
-    now = datetime.now()
-    print('datetime start inference mp.Process',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
     num_inf_nodes = len(nodelist)
 
     gpu_devices_string = os.getenv("GPU_DEVICES")
-
     inf_gpu_bind = []
     for g in gpu_devices_string.split(","):
         if "." in g:
@@ -59,11 +59,12 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
         else:
             inf_gpu_bind.append([int(g)])
     num_procs_pn = len(inf_gpu_bind)  # number of procs per node is number of gpus
+    print(f"Inference running on {num_inf_nodes} nodes and {num_procs_pn} processes per node", flush=True)
 
-    cpu_affinity_string = os.getenv("CPU_AFFINITY")
+    cpu_affinity_string = os.getenv("INF_CPU_AFFINITY")
     cpu_ranges = cpu_affinity_string.split(":")
     inf_cpu_bind = []
-    for cr in cpu_ranges[1:]:
+    for cr in cpu_ranges:
         bind_threads = []
         thread_ranges = cr.split(",")
         for tr in thread_ranges:
@@ -108,13 +109,9 @@ def launch_inference(data_dd: DDict, model_list_dd: DDict, nodelist, num_procs: 
                                                      policy=local_policy,))
     
     # Launch the ProcessGroup 
-    print(f"Starting Process Group for Inference", flush=True)
-    now = datetime.now()
-    print('datetime start inference ProcessGroup',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
+    print(f"Starting Process Group for inference", flush=True)
     grp.init()
     grp.start()
     grp.join()
-    print(f"Joined Process Group for Inference", flush=True)
     grp.close()
-    now = datetime.now()
-    print('datetime closed inference ProcessGroup',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
+    print(f"Joined Process Group for Inference", flush=True)

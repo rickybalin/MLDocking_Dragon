@@ -15,12 +15,11 @@ from typing import List, Optional
 import numpy as np
 import time
 from time import perf_counter
-import datetime
+from datetime import datetime
 import random
 from functools import cache
 import socket
 import psutil
-
 
 import dragon
 import multiprocessing as mp
@@ -324,8 +323,8 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
         core_list = p.cpu_affinity()
         log_file_name = f"dock_worker_{proc}.log"
         hostname = socket.gethostname()
-        with open(log_file_name,"a") as f:
-            f.write(f"Launching infer for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}\n")
+        with open(log_file_name,"w") as f:
+            f.write(f"Launching docking sim for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}\n")
     
     # Get keys
     ckeys = cdd.keys()
@@ -333,7 +332,7 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
     
     if debug:
         with open(log_file_name,"a") as f:
-            f.write(f"{datetime.datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckeys}\n")
+            f.write(f"{datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckeys}\n")
 
     # most recent sorted list
     top_candidates = cdd.bget("current_sort_list")
@@ -387,14 +386,14 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
 
     if debug:
         with open(log_file_name,"a") as f:
-            f.write(f"{datetime.datetime.now()}: Docking worker assigned {len(my_candidates)} candidates\n")
+            f.write(f"{datetime.now()}: Docking worker assigned {len(my_candidates)} candidates\n")
             
     ## Remove any candidates in ckeys, this may lead to load imbalance, we should replace with queue
     #my_candidates = list(set(my_candidates) - set(ckeys))
 
     if debug:
         with open(log_file_name,"a") as f:
-            f.write(f"{datetime.datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
+            f.write(f"{datetime.now()}: Docking worker found {len(my_candidates)} candidates to simulate\n")
 
     # if there are new candidates to simulate, run sims
     if len(my_candidates) > 0:
@@ -407,11 +406,11 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
         toc = perf_counter()
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
+                f.write(f"{datetime.now()}: iter {docking_iter}: proc {proc}: docking_sim_time {toc-tic} s \n")
     else:
         if debug:
             with open(f"dock_worker_{proc}.log","a") as f:
-                f.write(f"{datetime.datetime.now()}: iter {docking_iter}: no sims run \n")
+                f.write(f"{datetime.now()}: iter {docking_iter}: no sims run \n")
 
     # Get previously simulated candidates and update inference results
     prev_simulated_candidates = simulated_compounds #list(set(simulated_compounds) - set(top_candidates_smiles))
@@ -447,7 +446,7 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
 
 
     #with open(f"finished_run_docking.log", "a") as f:
-    #    f.write(f"{datetime.datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
+    #    f.write(f"{datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
     return
 
 

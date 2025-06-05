@@ -10,7 +10,6 @@ import gc
 import socket
 from tqdm import tqdm
 from dragon.utils import host_id
-from datetime import datetime
 
 #from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 from inference.utils_transformer import pad
@@ -107,16 +106,14 @@ def infer(data_dd,
           limit=None, 
           debug=False):
     """Run inference reading from and writing data to the Dragon Dictionary"""
-    now = datetime.now()
-    print(f'datetime start infer {proc}',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
     tic = perf_counter()
     gc.collect()
     # !!! DEBUG !!!
     if debug:
         p = psutil.Process()
         core_list = p.cpu_affinity()
-        log_file_name = f"infer_worker_{proc}.log"
-        if debug: print(f"Opening inference worker log {log_file_name}", flush=True)
+        log_file_name = f"infer_worker_{proc}.log" 
+        print(f"Opening inference worker log {log_file_name}", flush=True)
         with open(log_file_name,'w') as f:
             f.write(f"\n\nNew run\n")
             f.write(f"Hello from process {p} on core {core_list}\n")
@@ -129,16 +126,16 @@ def infer(data_dd,
         if pvc_device:
             device = pvc_device
         hostname = socket.gethostname()
-        if debug: print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
+        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
     
     
     # Get local keys
     current_host = host_id()
     manager_nodes = data_dd.manager_nodes
     keys = []
-    if debug: print(f"{current_host=}",flush=True)
-    if proc == 0 and debug:
-        print(f"{manager_nodes=}",flush=True)
+    if debug: 
+        print(f"{current_host=}",flush=True)
+        if proc == 0: print(f"{manager_nodes=}",flush=True)
     for i in range(len(manager_nodes)):
         if manager_nodes[i].h_uid == current_host:
             local_manager = i
@@ -277,8 +274,6 @@ def infer(data_dd,
         "data_move_size": data_moved_size,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
-    now = datetime.now()
-    print(f'datetime finish infer {proc}',now.strftime("%H:%M:%S.") + f"{now.microsecond // 1000:03d}",flush=True)
     return metrics
 
 
