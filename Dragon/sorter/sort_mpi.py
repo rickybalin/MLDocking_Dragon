@@ -6,10 +6,10 @@ import argparse
 import os
 import socket
 import csv
-from dragon.utils import host_id
-from dragon.data.ddict import DDict
-from dragon.globalservices.api_setup import connect_to_infrastructure
-connect_to_infrastructure()
+#from dragon.utils import host_id
+#from dragon.data.ddict import DDict
+#from dragon.globalservices.api_setup import connect_to_infrastructure
+#connect_to_infrastructure()
 
 
 def mpi_sort(num_files: int, num_return_sorted: int):
@@ -30,7 +30,15 @@ def mpi_sort(num_files: int, num_return_sorted: int):
         all_files = [os.path.join(predicted_data_path, f) \
                     for f in all_files \
                     if os.path.isfile(os.path.join(predicted_data_path, f))]
-        split_files = all_files[rank::size]
+        avg = len(all_files) // size
+        rem = len(all_files) % size
+        split_files = []
+        start = 0
+        for i in range(size):
+            end = start + avg + (1 if i < rem else 0)
+            split_files.append(all_files[start:end])
+            start = end
+        #split_files = all_files[rank::size]
     else:
         split_files = None
     file_subset = comm.scatter(split_files, root=0)
@@ -57,15 +65,22 @@ def mpi_sort(num_files: int, num_return_sorted: int):
     # Direct sort keys assigned to this rank
     tic = perf_counter()
     my_results = []
+    val = {"smiles": [], "score": []}
     for i,file in enumerate(file_subset):
         with open(file, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
+            for row in reader:
+                for key, value in row.items():
+                    if key == "score":
+                        val[key].append(float(value))
+                    else:
+                        val[key].append(value)
 
         # Only include this key if it has non-zero inf values
-        num_smiles = len(val['inf'])
-        this_value = list(zip(val["inf"],
-                                val["smiles"],
-                                [val["model_iter"] for _ in range(num_smiles)]))
+        num_smiles = len(val['score'])
+        this_value = list(zip(val["score"],
+                                val["smiles"]))
+                                # for _ in range(num_smiles))
         my_results.extend(this_value)
         my_results.sort(key=lambda tup: tup[0])
         my_results = my_results[-num_return_sorted:]
@@ -153,38 +168,40 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             continue_loop = root_comm.bcast(continue_loop, root=0)
             if not continue_loop:
                 break
-    
-    if root_rank == 0: print(f"Rank {rank} moving onto saving",flush=True)
     com_toc = perf_counter()
+
     if root_rank == 0:
         com_time = com_toc - com_tic
         print(f"Collected sorted results on rank 0 in {com_time:.3f} seconds",flush=True)
         #print(f"{my_results=}")
         # put data in candidate_dict
+
+        print(f"Rank {rank} moving onto saving",flush=True)
         
         #top_candidates = all_results
         # filter out any 0 values or dummy values
         print(f"Number of results {len(all_results)=}",flush=True)
         #print(all_results,flush=True)
-        top_candidates = [c for c in all_results if c[0] > 0 and c[1] != 'dummy']
+        top_candidates = [c for c in all_results if float(c[0]) > 0 and c[1] != 'dummy']
         num_top_candidates = len(top_candidates)
-        with open("sort_controller.log", "a") as f:
-            f.write(f"Collected {num_top_candidates=}\n")
         print(f"Collected {num_top_candidates=}",flush=True)
         if num_top_candidates > 0:
             
-            current_sort_iter = candidate_dict.bget("current_sort_iter")
-            if current_sort_iter > -1:
-                current_sort_list = candidate_dict.bget("current_sort_list")
-                candidate_dict[str(current_sort_iter)] = current_sort_list
-            
-            candidate_inf,candidate_smiles,candidate_model_iter = zip(*top_candidates)
+            candidate_inf,candidate_smiles = zip(*top_candidates)
             non_zero_infs = len([cinf for cinf in candidate_inf if cinf != 0])
             
             print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
-            sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles), "model_iter": list(candidate_model_iter)}
+            sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles)}
         
-            save_list(candidate_dict, current_sort_iter+1, sort_val)    
+            sorted_data_path = driver_path + "/sorted_data"
+            if not os.path.exists(sorted_data_path):
+                os.makedirs(sorted_data_path)
+            with open(sorted_data_path+'/sorted_smiles.csv', 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['smiles', 'score'])
+                writer.writerows(zip(candidate_smiles,candidate_inf))
+            
+            #save_list(candidate_dict, current_sort_iter+1, sort_val)    
     #print(f"Rank {rank} done",flush=True)
     MPI.Finalize()
     

@@ -309,15 +309,18 @@ def make_random_compound_selection(random_number):
     return random_selection
 
 
-def sort_dictionary_pg(data_path, 
+def sort_dictionary_pg( 
                        num_return_sorted: int, 
                        num_procs: int, 
                        nodelist):
    
+    driver_path = os.getenv("DRIVER_PATH")
+    predicted_data_path = driver_path + "/predicted_data"
+   
     max_num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
 
-    file_list = os.listdir(data_path)
+    file_list = os.listdir(predicted_data_path)
     num_files = len(file_list)
 
     keys_per_node = num_files//len(nodelist)
@@ -332,8 +335,8 @@ def sort_dictionary_pg(data_path,
     exe = os.getenv("DRIVER_PATH")+"/sorter/sort_mpi.py"
     hostlist = [Node(node).hostname for node in nodelist]
     hostlist_str = ",".join(hostlist)
-    print(f"Launching sorting process group {nodelist}", flush=True)
-    cmd = f"mpiexec -n {num_procs} --ppn {num_procs_pn} --hostlist {hostlist_str}" + \
+    print(f"Launching sorting on {hostlist} with {num_procs} processes and {num_procs_pn} procs per node", flush=True)
+    cmd = f"mpiexec -n {num_procs} --ppn {num_procs_pn} --hostlist {hostlist_str} " + \
             f"python {exe} " + \
             f"--num_files {num_files} --num_return_sorted {num_return_sorted}"
 
