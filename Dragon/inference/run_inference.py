@@ -101,9 +101,9 @@ def check_model_iter(continue_event):
     return True
 
 
-def infer( 
-          num_procs, proc, 
-          continue_event, 
+def infer(file_path, 
+          num_procs, 
+          proc, 
           limit=None, 
           debug=False):
     """Run inference reading from and writing data to the Dragon Dictionary"""
@@ -127,7 +127,8 @@ def infer(
         if pvc_device:
             device = pvc_device
         hostname = socket.gethostname()
-        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
+        with open(log_file_name,'a') as f:
+            f.write(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}\n")
     
     #######HyperParamSetting#############
     driver_path = os.getenv("DRIVER_PATH")
@@ -135,13 +136,20 @@ def infer(
     hyper_params = ParamsJson(json_file)
 
     ######## Load model #############
-
     model = ModelArchitecture(hyper_params).call()
     model.load_weights(os.path.join(driver_path,"inference/smile_regress.autosave.model.h5"))
 
     ####### Oranize data files #########
-    split_files, split_dirs = large_scale_split(hyper_params, num_procs, proc)
-    print(f"Inference process {proc} has {len(split_files)} files",flush=True)
+    #split_files, split_dirs = large_scale_split(file_path, hyper_params, num_procs, proc)
+    all_files = [
+        f
+        for f in os.listdir(file_path)
+        if os.path.isfile(os.path.join(file_path, f))
+    ]
+    if limit is not None:
+        all_files = all_files[:limit]
+    split_files = all_files[proc::num_procs]
+    print(f"Inference process {proc}/{num_procs} has {len(split_files)}/{len(all_files)} files",flush=True)
     
     # Set up tokenizer
     # if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
@@ -149,57 +157,64 @@ def infer(
     spe_file = driver_path + "inference/VocabFiles/SPE_ChEMBL.txt"
     tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file=spe_file)
 
-    model_time = 0
-    io_time = 0
+    total_model_time = 0
+    total_io_time = 0
+    num_smiles = 0
 
     # Iterate over files
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
-    output_dir = 
-
-    for fil, dirs in zip(split_files, split_dirs):
+    output_dir = os.path.join(driver_path, "predicted_data")
+    if proc == 0:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    for fil in split_files:
             
         # read files and procedd data
-        Data_smiles_inf, x_inference = large_inference_data_gen(hyper_params, tokenizer, dirs, fil, rank)
+        tic_read = perf_counter()
+        smiles_raw, x_inference, header = large_inference_data_gen(hyper_params, 
+                                                           tokenizer, 
+                                                           file_path, 
+                                                           fil)
+        toc_read = perf_counter()
         
         # run model
         tic_fp = perf_counter()
         output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
         toc_fp = perf_counter()
 
-        SMILES_DS = np.vstack((Data_smiles_inf, np.array(output).flatten())).T
+        SMILES_DS = np.vstack((smiles_raw, np.array(output).flatten())).T
         SMILES_DS = sorted(SMILES_DS, key=lambda x: x[1], reverse=True)
+        num_smiles += len(SMILES_DS)
 
-        filtered_data = list(OrderedDict((item[0], item) for item in SMILES_DS if item[1] >= cutoff).values())
+        filtered_data = list(OrderedDict((item[0], item) for item in SMILES_DS if float(item[1]) >= cutoff).values())
 
-        filename = f'{output_dir}/{dirs}/{fil}'
+        tic_write = perf_counter()
+        filename = f'{output_dir}/{header}.csv'
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(['smiles', 'score'])
             writer.writerows(filtered_data)
+        toc_write = perf_counter()
         
         
-        model_time += toc_fp - tic_fp
-        dictionary_time += key_dictionary_time
-        data_moved_size += key_data_moved_size
+        model_time = toc_fp - tic_fp
+        total_model_time += model_time
+        io_time = (toc_read-tic_read) + (toc_write-tic_write)
+        total_io_time += io_time
 
         if debug:
             with open(log_file_name, "a") as f:
                 f.write(
-                    f"Performed inference on key {key} {key_time=} {model_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}\n"
+                    f"Performed inference on file {fil}: {io_time=} {model_time=} {len(SMILES_DS)=}\n"
                 )
-            #print(
-            #    f"Performed inference on key {key} {key_time=} {len(smiles_sorted)=} {key_data_moved_size=} {key_dictionary_time=}",
-                #   flush=True,
-            #)
 
     toc = perf_counter()
 
     metrics = {
         "num_smiles": num_smiles,
         "total_time": toc - tic,
-        "data_move_time": dictionary_time,
-        "data_move_size": data_moved_size,
+        "data_move_time": total_io_time,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
     return metrics

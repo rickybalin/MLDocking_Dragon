@@ -63,7 +63,6 @@ if __name__ == "__main__":
     num_tot_nodes = int(alloc.nnodes)
     print(f"Running on {num_tot_nodes} total nodes",flush=True)
     tot_nodelist = alloc.nodes
-    tot_mem = args.mem_per_node * num_tot_nodes
 
     # Distribute nodes
     print()
@@ -93,13 +92,6 @@ if __name__ == "__main__":
         num_gpus = len(gpu_devices)
     else:
         num_gpus = 0
-
-    
-    num_files = 24
-
-    # Update driver log
-    with open("driver_times.log", "w") as f:
-        f.write(f"# {num_files=}\n")
     
     # Number of top candidates to produce
     if num_tot_nodes < 4:
@@ -112,7 +104,7 @@ if __name__ == "__main__":
     # Start sequential loop
     max_iter = args.max_iter
     iter = 0
-    with open("driver_times.log", "a") as f:
+    with open("driver_times.log", "w") as f:
         f.write(f"# iter  infer_time  sort_time  dock_time  train_time \n")
     while iter < max_iter:
         print(f"\n*** Start loop iter {iter} ***")
@@ -120,15 +112,11 @@ if __name__ == "__main__":
 
         # Launch the data inference component
         print(f"Launching inference ...", flush=True)
-        inf_num_limit = None
-        if num_tot_nodes == 1:
-            inf_num_limit = 8
-            print(f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker")
-
+        inf_num_limit = 24
         tic = perf_counter()
         inf_proc = mp.Process(
             target=launch_inference,
-            args=(
+            args=(args.data_path,
                 nodelist["inference"],
             ),
             kwargs={

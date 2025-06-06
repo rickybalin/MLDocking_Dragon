@@ -7,6 +7,7 @@ import matplotlib
 import pandas as pd
 import json
 from functools import partial
+import gzip
 
 matplotlib.use("Agg")
 
@@ -155,13 +156,13 @@ def split_data_list(hyper_params, size, rank):
     list_dir_files = np.array_split(np.array(list_dir_files), int(size/4))[int(rank/4)]
     return list_dir_files
 
-def large_scale_split(hyper_params, size, rank):
-    DATA_FILE_PATH = hyper_params['inference_data']['data_dir']
+def large_scale_split(file_path, hyper_params, size, rank):
+    #DATA_FILE_PATH = hyper_params['inference_data']['data_dir']
     databases = hyper_params['inference_data']['databases']
     All_Files = np.array([])
     All_Dirs = np.array([])
     for dirs in databases:
-        list_dir_files = np.array(sorted(os.listdir(f'{DATA_FILE_PATH}/{dirs}')))
+        list_dir_files = np.array(sorted(os.listdir(f'{file_path}/{dirs}')))
         All_Files = np.concatenate((All_Files, list_dir_files))
         dir_enumerate = np.array([dirs for i in range(len(list_dir_files))]) 
         All_Dirs = np.concatenate((All_Dirs, dir_enumerate))
@@ -206,6 +207,7 @@ def _large_inference_data_gen(hyper_params, tokenizer, dirs, fil, rank):
     
     return x_inference
 
+"""
 def large_inference_data_gen(hyper_params, tokenizer, dirs, fil, rank):
     DATA_FILE_PATH = hyper_params['inference_data']['data_dir']
     data_path_inference = f'{DATA_FILE_PATH}/{dirs}/{fil}'
@@ -221,6 +223,32 @@ def large_inference_data_gen(hyper_params, tokenizer, dirs, fil, rank):
                                                     )
 
     return Data_smiles_raw, x_inference
+"""
+
+def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
+    maxlen = hyper_params['tokenization']['maxlen']
+
+    smiles_raw = []
+    file = file_path+"/"+fil
+    f_extension = str(fil).split(".")[-1]
+    f_header = str(fil).split(".")[0]
+    if f_extension == "smi":
+        with file.open() as f:
+            for line in f:
+                smile = line.split("\t")[0]
+                smiles_raw.append(smile)
+    elif f_extension == "gz":
+        with gzip.open(str(file), "rt") as f:
+            for line in f:
+                smile = line.split("\t")[0]
+                smiles_raw.append(smile)
+
+    x_inference = preprocess_smiles_pair_encoding(smiles_raw,
+                                                    tokenizer,
+                                                    maxlen
+                                                    )
+
+    return smiles_raw, x_inference, f_header
 
 
 
@@ -352,7 +380,7 @@ class ModelArchitecture(layers.Layer):
         outputs = self.dense5(x)
         
         model = keras.Model(inputs=self.inputs, outputs=outputs)
-        model.summary()
+        #model.summary()
 
         if self.compile_switch:
             model.compile(

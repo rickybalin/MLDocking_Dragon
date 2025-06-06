@@ -37,7 +37,7 @@ def load_pretrained_model(dd: DDict):
             f.write(f"{e}")
 
 
-def launch_inference( 
+def launch_inference(file_path,
                      nodelist,
                      num_procs: int = 1, 
                      inf_num_limit = None):
@@ -58,6 +58,7 @@ def launch_inference(
         else:
             inf_gpu_bind.append([int(g)])
     num_procs_pn = len(inf_gpu_bind)  # number of procs per node is number of gpus
+    num_procs = num_procs_pn * num_inf_nodes
     print(f"Inference running on {num_inf_nodes} nodes and {num_procs_pn} processes per node", flush=True)
 
     cpu_affinity_string = os.getenv("INF_CPU_AFFINITY")
@@ -97,12 +98,15 @@ def launch_inference(
                                   gpu_affinity=inf_gpu_bind[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
-                                                     args=(
-                                                        num_procs_pn,
+                                                     args=(file_path,
+                                                        num_procs,
                                                         proc_id, 
-                                                        None, # Continue event not used in sequential wf
                                                         inf_num_limit,
                                                         ), 
+                                                     kwargs={
+                                                         'limit': inf_num_limit,
+                                                         'debug': False
+                                                     }
                                                      cwd=run_dir,
                                                      policy=local_policy,))
     
