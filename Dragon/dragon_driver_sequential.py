@@ -128,7 +128,6 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-        sys.exit()
 
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
@@ -136,41 +135,23 @@ if __name__ == "__main__":
         # Launch data sorter component
         print(f"Launching sorting ...", flush=True)
         tic = perf_counter()
-        if iter == 0:
-            model_list_dd.bput("max_sort_iter",-1)
-            model_list_dd.bput('current_sort_iter', -1)
-        random_number = int(0.1*top_candidate_number)
-        print(f"Adding {random_number} random candidates to training", flush=True)
-        if os.getenv("USE_MPI_SORT"):
-            print("Using MPI sort",flush=True)
-            max_sorter_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["sorting"]
-            sorter_proc = mp.Process(target=sort_dictionary_pg, 
-                                     args=(data_dd,
-                                           top_candidate_number,
-                                           max_sorter_procs, 
-                                           nodelist["sorting"],
-                                           model_list_dd,
-                                           random_number,
-                                           ),
-                                    )
-            sorter_proc.start()
-            sorter_proc.join()
-        else:
-            print("Using filter sort", flush=True)
-            sorter_proc = mp.Process(target=sort_dictionary,
-                                      args=(
-                                            data_dd,
-                                            top_candidate_number,
-                                            model_list_dd,
-                                            ),
-                                      )
-            sorter_proc.start()
-            sorter_proc.join()
+        print("Using MPI sort",flush=True)
+        max_sorter_procs = (args.max_procs_per_node) * node_counts["sorting"]
+        sorter_proc = mp.Process(target=sort_dictionary_pg, 
+                                    args=(
+                                        top_candidate_number,
+                                        max_sorter_procs, 
+                                        nodelist["sorting"],
+                                        ),
+                                )
+        sorter_proc.start()
+        sorter_proc.join()
         if sorter_proc.exitcode != 0:
             raise Exception("Sorting failed\n")
         toc = perf_counter()
         sort_time = toc - tic
-        print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
+        print(f"Performed sorting in {sort_time:.3f} seconds \n", flush=True)
+        sys.exit()
 
         # Launch Docking Simulations
         print(f"Launched docking simulations ...", flush=True)

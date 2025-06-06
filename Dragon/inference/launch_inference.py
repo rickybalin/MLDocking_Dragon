@@ -101,12 +101,11 @@ def launch_inference(file_path,
                                                      args=(file_path,
                                                         num_procs,
                                                         proc_id, 
-                                                        inf_num_limit,
-                                                        ), 
+                                                    ), 
                                                      kwargs={
                                                          'limit': inf_num_limit,
                                                          'debug': False
-                                                     }
+                                                     },
                                                      cwd=run_dir,
                                                      policy=local_policy,))
     

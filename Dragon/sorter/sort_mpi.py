@@ -2,118 +2,77 @@ import mpi4py
 mpi4py.rc.initialize = False
 from mpi4py import MPI
 from time import perf_counter
+import argparse
+import os
+import socket
+import csv
 from dragon.utils import host_id
 from dragon.data.ddict import DDict
 from dragon.globalservices.api_setup import connect_to_infrastructure
 connect_to_infrastructure()
 
 
-def mpi_sort(_dict: DDict, num_keys: int, num_return_sorted: int, candidate_dict: DDict):
+def mpi_sort(num_files: int, num_return_sorted: int):
     MPI.Init()
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-        
-    #print(f"Sort rank {rank} has started",flush=True)
     if rank == 0: print(f"MPI Sorting starting on {size} ranks")
-    
+
     tic = perf_counter()
     
-    current_host = host_id()
-    manager_nodes = _dict.manager_nodes
-    #stats = _dict.stats
-    #cpu_num = psutil.Process().cpu_num()
-    #print(f"Sort rank {rank} on host {current_host} {cpu_num=}",flush=True)
-
-    # Get local keys
-   
-    stic = perf_counter()
-    # Get the host of every rank; assume all hosts are manager nodes
-    all_hosts = []
-    for h in manager_nodes:
-        if h.h_uid not in all_hosts:
-            all_hosts.append(h.h_uid)
-    
+    # Read the files
+    driver_path = os.getenv("DRIVER_PATH")
+    predicted_data_path = driver_path + "/predicted_data"
     if rank == 0:
-        print(f"Sorting on {len(all_hosts)} nodes")
+        # Get list of files
+        all_files = os.listdir(predicted_data_path)
+        all_files = [os.path.join(predicted_data_path, f) \
+                    for f in all_files \
+                    if os.path.isfile(os.path.join(predicted_data_path, f))]
+        split_files = all_files[rank::size]
+    else:
+        split_files = None
+    file_subset = comm.scatter(split_files, root=0)
+    print(f'Rank {rank} is reading {len(file_subset)} files',flush=True)
 
     # Create communicator for local ranks only
-    ctic = perf_counter()
-    for h in all_hosts:
-        color = True if current_host == h else MPI.UNDEFINED
+    hostname = socket.gethostname()
+    hostnames = comm.allgather(hostname)
+    for h in hostnames:
+        color = True if hostname == h else MPI.UNDEFINED
         new_comm = comm.Split(color=color, key=rank)
-        if current_host == h:
+        if hostname == h:
             my_host_comm = new_comm
     local_rank = my_host_comm.Get_rank()
     local_size = my_host_comm.Get_size()
-    
-    stoc = perf_counter()
-    local_comm_time = stoc - stic
-
-    #print(f"Sort rank {rank} has local rank {local_rank} on host {current_host}; setup time is {stoc-stic}; comm setup time is {stoc-ctic}")
-    
-    # Get keys on local rank and bcast them to other local ranks
-    key_list = []
-    for i in range(len(manager_nodes)):
-        # local rank 0 gets keys from local managers
-        if local_rank == 0:
-            if manager_nodes[i].h_uid == current_host:
-                ktic = perf_counter()
-                dm = _dict.manager(i)
-                key_list.extend(dm.keys())
-                # Filter out keys containing model or iter info
-                key_list = [key for key in key_list if "model" not in key and "iter" not in key]
-                ktoc = perf_counter()
-                #print(f"Sort rank {rank} retrieved local keys in {ktoc - ktic} seconds",flush=True)
-    
-    if local_rank == 0:
-        my_key_list = []
-        direct_sort_num = len(key_list)//local_size
-        print(f"Sort rank {rank} retrieved {len(key_list)} local keys",flush=True)
-        for i in range(local_size):
-            min_index = i*direct_sort_num
-            max_index = min(min_index + direct_sort_num, num_keys)
-            my_key_list.append(key_list[min_index:max_index])
-    else:
-        my_key_list = None
-    # Communicate key_list to local ranks
-    ctic = perf_counter()
-    my_key_list = my_host_comm.scatter(my_key_list,root=0)
-    ctoc = perf_counter()
     
     toc = perf_counter()
     setup_time = toc - tic
     all_setup_times = comm.gather(setup_time, root=0)
     if rank == 0:
         ave_setup_time = sum(all_setup_times) / len(all_setup_times)
-        print(f"Average key and comm setup time is {ave_setup_time:.3f} seconds", flush=True)
-
-    #print(f"Sort rank {rank} got keys in {toc-tic} seconds, sorting {len(my_key_list)} local keys",flush=True)
+        print(f"Average file and comm setup time is {ave_setup_time:.3f} seconds", flush=True)
 
     # Direct sort keys assigned to this rank
     tic = perf_counter()
     my_results = []
-    
-    for i,key in enumerate(my_key_list):
-        #print(f"Sort rank {rank} getting key {key} on iter {i}",flush=True)
-        val = _dict[key]
-        #print(f"Sort rank {rank} finished getting key {key} on iter {i}",flush=True)
+    for i,file in enumerate(file_subset):
+        with open(file, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
 
         # Only include this key if it has non-zero inf values
-        if any(val["inf"]):
-            num_smiles = len(val['inf'])
-            this_value = list(zip(val["inf"],
-                                  val["smiles"],
-                                  [val["model_iter"] for _ in range(num_smiles)]))
-            my_results.extend(this_value)
-            my_results.sort(key=lambda tup: tup[0])
-            my_results = my_results[-num_return_sorted:]
+        num_smiles = len(val['inf'])
+        this_value = list(zip(val["inf"],
+                                val["smiles"],
+                                [val["model_iter"] for _ in range(num_smiles)]))
+        my_results.extend(this_value)
+        my_results.sort(key=lambda tup: tup[0])
+        my_results = my_results[-num_return_sorted:]
      
     my_results.sort(key=lambda tup: tup[0])
     my_results = my_results[-num_return_sorted:]
-
     toc = perf_counter()
-
     direct_sort_time = toc - tic
     all_direct_sort_times = comm.gather(direct_sort_time, root=0)
     if rank == 0:
@@ -235,6 +194,15 @@ def save_list(candidate_dict, ckey, sort_val):
     candidate_dict.bput("current_sort_list", sort_val)
     candidate_dict.bput("current_sort_iter", ckey)
     print(f"candidate dictionary on iter {int(ckey)} and saved",flush=True)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Distributed dictionary example')
+    parser.add_argument('--num_files', type=int, default=1,
+                        help='number of files to read')
+    parser.add_argument('--num_return_sorted', type=int, default=1000,
+                        help='number of sorted smiles to return')
+    args = parser.parse_args()
+    mpi_sort(args.num_files, args.num_return_sorted)
 
 
 

@@ -19,6 +19,7 @@ import time
 import heapq
 import socket
 import traceback
+import subprocess
 
 from data_loader.data_loader_presorted import load_inference_data, initialize_worker
 
@@ -308,79 +309,43 @@ def make_random_compound_selection(random_number):
     return random_selection
 
 
-def sort_dictionary_pg(dd: DDict, 
+def sort_dictionary_pg(data_path, 
                        num_return_sorted: int, 
                        num_procs: int, 
-                       nodelist, cdd: DDict, 
-                       random_number):
+                       nodelist):
    
     max_num_procs_pn = num_procs//len(nodelist)
     run_dir = os.getcwd()
-    key_list = dd.keys()
-    key_list = [key for key in key_list if "iter" not in key and "model" not in key]
-    
-    num_keys = len(key_list)
 
-    keys_per_node = num_keys//len(nodelist)
+    file_list = os.listdir(data_path)
+    num_files = len(file_list)
+
+    keys_per_node = num_files//len(nodelist)
     min_direct_sort_num = 4
 
-    direct_sort_num = max(num_keys//num_procs+1,min_direct_sort_num)
+    direct_sort_num = max(num_files//num_procs+1,min_direct_sort_num)
     num_procs_pn = keys_per_node // direct_sort_num
+    num_procs = num_procs_pn * len(nodelist)
     
     print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
-
-    global_policy = Policy(distribution=Policy.Distribution.BLOCK)
-    grp = ProcessGroup(policy=global_policy, pmi_enabled=True)
-
+    
+    exe = os.getenv("DRIVER_PATH")+"/sorter/sort_mpi.py"
+    hostlist = [Node(node).hostname for node in nodelist]
+    hostlist_str = ",".join(hostlist)
     print(f"Launching sorting process group {nodelist}", flush=True)
-    for node in nodelist:
-        node_name = Node(node).hostname
-        local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
-                            host_name=node_name, 
-                            cpu_affinity=list(range(0, 
-                                                    max_num_procs_pn, 
-                                                    max_num_procs_pn//num_procs_pn)))
-        grp.add_process(nproc=num_procs_pn, 
-                            template=ProcessTemplate(target=mpi_sort, 
-                                                    args=(dd, num_keys, num_return_sorted,cdd), 
-                                                    policy=local_policy,
-                                                    cwd=run_dir))
-    print(f"Added processes to sorting group",flush=True)
-    grp.init()
-    grp.start()
-    print(f"Starting Process Group for Sorting",flush=True)
-    grp.join()
-    print(f"Process Group for Sorting has joined",flush=True)
-    grp.close()
+    cmd = f"mpiexec -n {num_procs} --ppn {num_procs_pn} --hostlist {hostlist_str}" + \
+            f"python {exe} " + \
+            f"--num_files {num_files} --num_return_sorted {num_return_sorted}"
 
-    print("Getting random compounds",flush=True)
-    # Grab random compounds from each node
+    p = subprocess.Popen(cmd, cwd=os.path.dirname(__file__), shell=True)
 
-    if random_number > 0:
-        alloc = System()
-        num_nodes = min(int(alloc.nnodes), random_number)
-        pool = mp.Pool(num_nodes, 
-                    initializer=initialize_worker, 
-                    initargs=(dd,), 
-                    )
-        out = pool.imap_unordered(make_random_compound_selection, 
-                                [random_number for _ in range(num_nodes)])
-
-        random_smiles = []
-        random_inf = []
-        random_model = []
-        for result in out:
-            for r in result:
-                sm,sc,mi = r
-                random_smiles.append(sm)
-                random_inf.append(sc)
-                random_model.append(mi)
-        pool.close()
-        pool.join()
-        print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
-        cdd['random_compound_sample'] = {'smiles': random_smiles,
-                                        'inf': random_inf,
-                                        'model_iter': random_model,}
+    finished = False
+    while p.poll() is None:
+        time.sleep(1)
+    if p.poll() == 0:
+        print("Sorter finished successfully")
+    else:
+        print("Sorter failed")
    
 
 def create_dummy_data(_dict,num_managers):
