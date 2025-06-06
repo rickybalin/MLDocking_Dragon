@@ -84,6 +84,15 @@ def launch_inference(file_path,
     if len(inf_cpu_bind) != len(inf_gpu_bind):
         raise (Exception("Number of cpu bindings does not match the number of gpus"))
 
+    ####### Oranize data files #########
+    all_files = [
+        f
+        for f in os.listdir(file_path)
+        if os.path.isfile(os.path.join(file_path, f))
+    ]
+    if inf_num_limit is not None:
+        all_files = all_files[:inf_num_limit]
+    
     # Create the process group
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
@@ -99,6 +108,7 @@ def launch_inference(file_path,
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 
                                                      args=(file_path,
+                                                        all_files[proc_id::num_procs],
                                                         num_procs,
                                                         proc_id, 
                                                     ), 

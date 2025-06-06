@@ -128,7 +128,6 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
         
@@ -151,7 +150,6 @@ if __name__ == "__main__":
         toc = perf_counter()
         sort_time = toc - tic
         print(f"Performed sorting in {sort_time:.3f} seconds \n", flush=True)
-        sys.exit()
 
         # Launch Docking Simulations
         print(f"Launched docking simulations ...", flush=True)
@@ -159,11 +157,10 @@ if __name__ == "__main__":
         max_num_procs = top_candidate_number//4
         dock_proc = mp.Process(
             target=launch_docking_sim,
-            args=(model_list_dd, 
-                  sim_dd, 
-                  iter, 
-                  max_num_procs, 
-                  nodelist["simulation"]),
+            args=( 
+                1, 
+                max_num_procs, 
+                nodelist["simulation"]),
         )
         dock_proc.start()
         dock_proc.join()
@@ -181,8 +178,6 @@ if __name__ == "__main__":
         train_proc = mp.Process(
             target=launch_training,
             args=(
-                model_list_dd,
-                sim_dd,
                 nodelist["training"][0],  # training is always 1 node
                 BATCH,
                 EPOCH,
@@ -195,6 +190,7 @@ if __name__ == "__main__":
         print(f"Performed training in {train_time} seconds \n", flush=True)
         if train_proc.exitcode != 0:
             raise Exception("Training failed\n")
+        
         iter_end = perf_counter()
         iter_time = iter_end - iter_start
         print(
@@ -208,7 +204,6 @@ if __name__ == "__main__":
         #toc = perf_counter()
         #print(f"Output candidates in {toc -tic} seconds",flush=True)
     
-        model_list_dd.checkpoint()
         iter += 1
 
 

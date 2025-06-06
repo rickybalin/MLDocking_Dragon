@@ -101,7 +101,8 @@ def check_model_iter(continue_event):
     return True
 
 
-def infer(file_path, 
+def infer(file_path,
+          split_files, 
           num_procs, 
           proc, 
           limit=None, 
@@ -140,16 +141,7 @@ def infer(file_path,
     model.load_weights(os.path.join(driver_path,"inference/smile_regress.autosave.model.h5"))
 
     ####### Oranize data files #########
-    #split_files, split_dirs = large_scale_split(file_path, hyper_params, num_procs, proc)
-    all_files = [
-        f
-        for f in os.listdir(file_path)
-        if os.path.isfile(os.path.join(file_path, f))
-    ]
-    if limit is not None:
-        all_files = all_files[:limit]
-    split_files = all_files[proc::num_procs]
-    print(f"Inference process {proc}/{num_procs} has {len(split_files)}/{len(all_files)} files",flush=True)
+    if debug: print(f"Inference process {proc}/{num_procs} has {len(split_files)} files",flush=True)
     
     # Set up tokenizer
     # if hyper_params['tokenization']['tokenizer']['category'] == 'smilespair':
@@ -217,6 +209,7 @@ def infer(file_path,
         "data_move_time": total_io_time,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
+    print(f"Performed inference on {len(split_files)} files: total={toc - tic}, IO={total_io_time}, model={total_model_time}",flush=True)
     return metrics
 
 

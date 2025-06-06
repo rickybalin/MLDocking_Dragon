@@ -227,10 +227,11 @@ def assemble_docking_data_top(sim_dd):
     
 
 
-def train_val_data(sim_dd,validation_fraction=0.2,method="random"):
+def train_val_data(candidates,validation_fraction=0.2,method="random"):
   
     assert method in ["random","stratified"], "The sampling method must be random or stratified"
-    smiles, scores = assemble_docking_data_top(sim_dd)
+    smiles = candidates["smiles"]
+    scores = candidates["score"]
     if method == "random":  
         data = list(zip(smiles,scores))
         random.shuffle(data)

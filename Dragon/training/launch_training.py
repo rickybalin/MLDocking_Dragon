@@ -12,7 +12,7 @@ from dragon.native.machine import Node
 from .smiles_regress_transformer_run import fine_tune
 
 
-def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
+def launch_training(node, BATCH, EPOCH):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -40,8 +40,7 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
                           gpu_affinity=[gpu_devices[0]])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=fine_tune,
-                                                args=(model_dd, 
-                                                    sim_dd, 
+                                                args=( 
                                                     BATCH, EPOCH, 
                                                     ), 
                                                 cwd=run_dir,

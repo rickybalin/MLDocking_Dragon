@@ -19,9 +19,11 @@ def mpi_sort(num_files: int, num_return_sorted: int):
     rank = comm.Get_rank()
     if rank == 0: print(f"MPI Sorting starting on {size} ranks")
 
-    tic = perf_counter()
+    debug = False
+    tic_start = perf_counter()
     
     # Read the files
+    tic_files = perf_counter()
     driver_path = os.getenv("DRIVER_PATH")
     predicted_data_path = driver_path + "/predicted_data"
     if rank == 0:
@@ -42,9 +44,12 @@ def mpi_sort(num_files: int, num_return_sorted: int):
     else:
         split_files = None
     file_subset = comm.scatter(split_files, root=0)
-    print(f'Rank {rank} is reading {len(file_subset)} files',flush=True)
+    toc_files = perf_counter()
+    files_time = toc_files - tic_files
+    if debug: print(f'Rank {rank} is reading {len(file_subset)} files',flush=True)
 
     # Create communicator for local ranks only
+    tic = perf_counter()
     hostname = socket.gethostname()
     hostnames = comm.allgather(hostname)
     for h in hostnames:
@@ -54,7 +59,6 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             my_host_comm = new_comm
     local_rank = my_host_comm.Get_rank()
     local_size = my_host_comm.Get_size()
-    
     toc = perf_counter()
     setup_time = toc - tic
     all_setup_times = comm.gather(setup_time, root=0)
@@ -66,7 +70,9 @@ def mpi_sort(num_files: int, num_return_sorted: int):
     tic = perf_counter()
     my_results = []
     val = {"smiles": [], "score": []}
+    read_time = 0
     for i,file in enumerate(file_subset):
+        tic_read = perf_counter()
         with open(file, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
@@ -75,6 +81,8 @@ def mpi_sort(num_files: int, num_return_sorted: int):
                         val[key].append(float(value))
                     else:
                         val[key].append(value)
+        toc_read = perf_counter()
+        read_time += toc_read - tic_read
 
         # Only include this key if it has non-zero inf values
         num_smiles = len(val['score'])
@@ -169,9 +177,10 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             if not continue_loop:
                 break
     com_toc = perf_counter()
+    com_time = com_toc - com_tic
 
+    write_time = 0
     if root_rank == 0:
-        com_time = com_toc - com_tic
         print(f"Collected sorted results on rank 0 in {com_time:.3f} seconds",flush=True)
         #print(f"{my_results=}")
         # put data in candidate_dict
@@ -193,6 +202,7 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             print(f"Sorted list contains {non_zero_infs} non-zero inference results out of {len(candidate_inf)}",flush=True)
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles)}
         
+            tic_write = perf_counter()
             sorted_data_path = driver_path + "/sorted_data"
             if not os.path.exists(sorted_data_path):
                 os.makedirs(sorted_data_path)
@@ -200,9 +210,17 @@ def mpi_sort(num_files: int, num_return_sorted: int):
                 writer = csv.writer(file)
                 writer.writerow(['smiles', 'score'])
                 writer.writerows(zip(candidate_smiles,candidate_inf))
-            
+            toc_write = perf_counter()
+            write_time = toc_write - tic_write
+    
+    comm.Barrier()
+    toc_end = perf_counter()
             #save_list(candidate_dict, current_sort_iter+1, sort_val)    
     #print(f"Rank {rank} done",flush=True)
+    if rank == 0:
+        total_io_time = read_time + write_time + files_time
+        total_comm_time = setup_time + com_time
+        print(f"Performed sorting of {num_top_candidates} compounds: total={toc_end-tic_start}, IO={total_io_time}, comm={total_comm_time}",flush=True)
     MPI.Finalize()
     
     return
