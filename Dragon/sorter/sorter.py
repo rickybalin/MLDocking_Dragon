@@ -232,7 +232,7 @@ def comparator(x, y):
 
 
 def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
-
+    tic_start = perf_counter()
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
     candidate_list = []
 
@@ -259,11 +259,19 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
 
     new_sort_iter = int(current_sort_iter + 1)
     cdd.bput("current_sort_iter", new_sort_iter)
+    tic_w = perf_counter()
     cdd.bput("current_sort_list", sort_val)
+    toc_w = perf_counter()
+
+    toc_end = perf_counter()
 
     #cdd[ckey] = sort_val
     #cdd["sort_iter"] = int(ckey)
     #cdd["max_sort_iter"] = ckey
+
+    io_time =(toc_w-tic_w)
+
+    print(f"Performed sorting of {num_return_sorted} compounds: total={toc_end-tic_start}, IO={io_time}",flush=True)
     
 
 def make_random_compound_selection(random_number):

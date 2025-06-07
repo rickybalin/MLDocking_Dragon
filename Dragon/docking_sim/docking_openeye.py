@@ -327,21 +327,28 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
             f.write(f"Launching docking sim for worker {proc} from process {myp.ident} on core {core_list} on device {hostname}\n")
     
     # Get keys
+    tic = perf_counter()
     ckeys = cdd.keys()
+    dict_time = perf_counter() - tic
 
-    
     if debug:
         with open(log_file_name,"a") as f:
             f.write(f"{datetime.now()}: Docking worker on iter {docking_iter} with candidate list {ckeys}\n")
 
     # most recent sorted list
+    tic = perf_counter()
     top_candidates = cdd.bget("current_sort_list")
+    dict_time += perf_counter() - tic
     top_candidates_list = list(zip(top_candidates['smiles'], top_candidates['inf'], top_candidates['model_iter']))
-    if proc == 1: print(f"Sorted list has {len(top_candidates_list)} candidates", flush=True)
+    if proc == 1 and debug: 
+        with open(log_file_name,"a") as f:
+            f.write(f"Sorted list has {len(top_candidates_list)} candidates")
     
     # add random samples to sorted candidates if available
     if "random_compound_sample" in ckeys:
+        tic = perf_counter()
         random_candidates = cdd['random_compound_sample']
+        dict_time += perf_counter() - tic
         random_candidates_list = list(zip(random_candidates['smiles'],random_candidates['inf'],random_candidates['model_iter']))
         if proc == 1: print(f"Random candidate list has {len(random_candidates_list)} candidates", flush=True)
         top_candidates_list += random_candidates_list
@@ -360,19 +367,23 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
 
     # All previously simulated compounds
     #simulated_compounds = cdd["simulated_compounds"]
+    tic = perf_counter()
     simulated_compounds = sdd.bget("simulated_compounds")
+    dict_time += perf_counter() - tic
 
     # Remove top candidates that have already been simulated
-    if proc == 1:
-        print(f"Found {len(top_candidates_smiles)} top candidates; there are {len(ckeys)} ckeys", flush=True)
+    if proc == 1 and debug:
+        with open(log_file_name,"a") as f:
+            f.write(f"Found {len(top_candidates_smiles)} top candidates; there are {len(ckeys)} ckeys")
 
     # Remove only candidates in previous list and not ckeys because other workers may have already updated cdd
     top_candidates_smiles = list(set(top_candidates_smiles) - set(simulated_compounds))
     top_candidates_smiles.sort()
     num_candidates = len(top_candidates_smiles)
 
-    if proc == 1:
-        print(f"Found {num_candidates} candidates not in previous list", flush=True)
+    if proc == 1 and debug:
+        with open(log_file_name,"a") as f:
+            f.write(f"Found {num_candidates} candidates not in previous list")
         
 
     # Partition top candidate list to get candidates for this process to simulate
@@ -400,6 +411,7 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
         tic = perf_counter()
         if not os.getenv("DOCKING_SIM_DUMMY"):
             sim_metrics = dock(sdd, my_candidates, top_candidates_dict, proc, debug=debug) 
+            dict_time += sim_metrics["ddict_time"]
         else:
             sim_metrics = dummy_dock(sdd, my_candidates, top_candidates_dict, proc, debug=debug) 
 
@@ -447,6 +459,8 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
 
     #with open(f"finished_run_docking.log", "a") as f:
     #    f.write(f"{datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
+    
+    print(f"{dict_time}",flush=True)
     return
 
 
@@ -491,7 +505,7 @@ def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
             try:
                 conformers = select_enantiomer(from_string(smiles))
             except:
-                print(f"Conformers failed in batch {batch_key}, returning 0 docking score", flush=True)
+                #print(f"Conformers failed in batch {batch_key}, returning 0 docking score", flush=True)
                 simulated_smiles.append(smiles)
 
                 dock_score = 0
@@ -524,8 +538,8 @@ def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
         # with open(f"dock_worker_{proc}.log","a") as f:
         #     f.write(f"{smiles=} {dock_score=} {inf_scores=}\n")
         dtoc = perf_counter()
-        data_store_time += dtic-dtoc
-        data_store_size += sys.getsizeof(smiles) + sys.getsizeof(dock_score)
+        ddict_time = dtoc-dtic
+        ddict_size = sys.getsizeof(smiles) + sys.getsizeof(dock_score)
         smiter += 1
         
     toc = perf_counter()
@@ -545,8 +559,8 @@ def dock(sdd: DDict, candidates: List[str], top_candidates_dict: dict, proc: int
     metrics = {}
     metrics['total_run_time'] = toc-tic
     metrics['num_cand'] = num_cand
-    metrics['data_store_time'] = data_store_time
-    metrics['data_store_size'] =  data_store_size
+    metrics['ddict_time'] = ddict_time
+    metrics['dict_size'] =  ddict_size
 
     if debug:
         with open(f"dock_worker_{proc}.log","a") as f:

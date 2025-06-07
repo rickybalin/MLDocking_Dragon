@@ -8,6 +8,7 @@ import json
 import random
 import sys
 from functools import partial
+from time import perf_counter
 
 import keras as kr
 import tensorflow as tf
@@ -220,9 +221,10 @@ def assemble_docking_data_top(sim_dd):
         if sc > 0:
             train_smiles.append(sm)
             train_scores.append(sc)
-    print(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training",flush=True)
-    print(f"Missing {num_skipped} candidates from dictionary",flush=True)
-    print(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates",flush=True) 
+    with open("training.log", "a") as f:
+        f.write(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training")
+        f.write(f"Missing {num_skipped} candidates from dictionary")
+        f.write(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates") 
     return train_smiles, train_scores
     
 
@@ -230,7 +232,9 @@ def assemble_docking_data_top(sim_dd):
 def train_val_data(sim_dd,validation_fraction=0.2,method="random"):
   
     assert method in ["random","stratified"], "The sampling method must be random or stratified"
+    tic = perf_counter()
     smiles, scores = assemble_docking_data_top(sim_dd)
+    ddict_time = perf_counter() - tic
     if method == "random":  
         data = list(zip(smiles,scores))
         random.shuffle(data)
@@ -296,7 +300,7 @@ def train_val_data(sim_dd,validation_fraction=0.2,method="random"):
                                                         spe_file)
         #print(f"xtrain: {x_train}",flush=True)
         
-        return x_train, y_train, x_val, y_val
+        return x_train, y_train, x_val, y_val, ddict_time
     else:
         return [],[]
   

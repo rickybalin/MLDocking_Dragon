@@ -240,7 +240,6 @@ if __name__ == "__main__":
         toc = perf_counter()
         infer_time = toc - tic
         print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
-
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
         
@@ -250,7 +249,7 @@ if __name__ == "__main__":
         if iter == 0:
             model_list_dd.bput("max_sort_iter",-1)
             model_list_dd.bput('current_sort_iter', -1)
-        random_number = int(0.1*top_candidate_number)
+        random_number = int(0*top_candidate_number)
         print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)

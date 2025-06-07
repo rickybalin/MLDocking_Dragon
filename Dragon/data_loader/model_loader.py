@@ -24,7 +24,7 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
                 print(f"{wkey}: {weight.nbytes} bytes")
             tot_memory += weight.nbytes
     
-    #print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
+    print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
 
     # Future version will use broadcast put to send model to every manager
     dd.bput('model', weights_dict)
@@ -34,7 +34,7 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
 
     # Checkpoint here?
 
-    print(f"Saved model to dictionary", flush=True)
+    #print(f"Saved model to dictionary", flush=True)
 
 def retrieve_model_from_dict(dd: Union[DDict, dict], fine_tune: bool = False):
 

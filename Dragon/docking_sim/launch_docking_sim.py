@@ -1,4 +1,5 @@
 import os
+from time import perf_counter
 
 import dragon
 import multiprocessing as mp
@@ -11,6 +12,26 @@ from dragon.native.machine import Node
 
 from .docking_openeye import run_docking
 
+def read_output(stdout_conn: Connection) -> str:
+    """Read stdout from the Dragon connection.
+
+    :param stdout_conn: Dragon connection to rank 0's stdout
+    :type stdout_conn: Connection
+    :return: string with the output from stdout
+    :rtype: str
+    """
+    output = ""
+    try:
+        # this is brute force
+        while True:
+            tmp = stdout_conn.recv()
+            #print(tmp, flush=True)
+            output += tmp
+    except EOFError:
+        pass
+    finally:
+        stdout_conn.close()
+    return output
 
 def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     """Launch docking simulations
@@ -66,6 +87,7 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
                                                             num_procs), 
                                                         cwd=run_dir,
                                                         policy=local_policy,
+                                                        stdout=MSG_PIPE
                                                         )
                             )
 
@@ -73,6 +95,15 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     print(f"Starting Process Group for docking sims", flush=True)
     grp.init()
     grp.start()
+
+    ddict_times = []
+    group_procs = [Process(None, ident=puid) for puid in grp.puids]
+    for proc in group_procs:
+        if proc.stdout_conn:
+            std_out = read_output(proc.stdout_conn)
+            time = std_out.replace("\n","")
+            ddict_times.append(float(time))
+
     grp.join()
     grp.close()
     print(f"Joined Process Group for Docking Sims",flush=True)
@@ -80,6 +111,7 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     # Collect candidate keys and save them to simulated keys
     # Lists will have a key that is a digit
     # Non-smiles keys that are not digits are -1, max_sort_iter and simulated_compounds
+    tic_write = perf_counter()
     simulated_compounds = [k for k in sdd.keys() if not k.isdigit() and 
                                                     k != '-1' and 
                                                     "iter" not in k and
@@ -87,5 +119,9 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
                                                     k != "simulated_compounds" and 
                                                     k != "random_compound_sample"]
     sdd.bput('simulated_compounds', simulated_compounds)
+    toc_write = perf_counter()
+
+    total_io_time = (toc_write-tic_write) + sum(ddict_times)/len(ddict_times)
+    print(f'Performed docking simulation: total={0}, IO={total_io_time}',flush=True)
     
 

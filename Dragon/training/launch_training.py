@@ -1,4 +1,5 @@
 import os
+from time import perf_counter
 
 import dragon
 import multiprocessing as mp
@@ -11,6 +12,27 @@ from dragon.native.machine import Node
 
 from .smiles_regress_transformer_run import fine_tune
 
+def read_output(stdout_conn: Connection) -> str:
+    """Read stdout from the Dragon connection.
+
+    :param stdout_conn: Dragon connection to rank 0's stdout
+    :type stdout_conn: Connection
+    :return: string with the output from stdout
+    :rtype: str
+    """
+    output = ""
+    try:
+        # this is brute force
+        while True:
+            tmp = stdout_conn.recv()
+            #print(tmp, flush=True)
+            output += tmp
+    except EOFError:
+        pass
+    finally:
+        stdout_conn.close()
+    return output
+
 
 def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     """Launch the inference ruotine
@@ -20,6 +42,7 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     :param num_procs: number of processes to use for inference
     :type num_procs: int
     """
+    tic = perf_counter()
     run_dir = os.getcwd()
 
     # Create the process group
@@ -52,9 +75,22 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     print(f"Starting Process Group for training",flush=True)
     grp.init()
     grp.start()
+
+    #ddict_times = []
+    #group_procs = [Process(None, ident=puid) for puid in grp.puids]
+    #for proc in group_procs:
+    #    if proc.stdout_conn:
+    #        std_out = read_output(proc.stdout_conn)
+    #        time = std_out.replace("\n","")
+    #        ddict_times.append(float(time))
+
     grp.join()
     grp.close()
     print(f"Training process group stopped",flush=True)
+    toc = perf_counter()
+
+    #io_time = sum(ddict_times)/len(ddict_times)
+    #print(f"Performed training: total={toc-tic}, IO={io_time}",flush=True)
     #print(dd["model_iter"])
     #print(dd["model"])
 

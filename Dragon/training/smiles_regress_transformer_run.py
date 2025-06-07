@@ -17,6 +17,7 @@ from .ST_funcs.smiles_regress_transformer_funcs import train_val_data, assemble_
 from data_loader.model_loader import retrieve_model_from_dict, save_model_weights
 import sys
 import os
+from time import perf_counter
 
 import dragon
 from dragon.data.ddict.ddict import DDict
@@ -32,14 +33,18 @@ def fine_tune(model_dd: DDict,
                 save_model=True):
 
     fine_tune_log = "training.log"
+    tic_start = perf_counter()
 
     ######## Build model #############
+    tic = perf_counter()
     model, hyper_params = retrieve_model_from_dict(model_dd,fine_tune=True)
+    ddict_time = perf_counter() - tic
 
     ########Create training and validation data#####
     with open(fine_tune_log, 'w') as f:
         f.write(f"Create training data\n")
-    x_train, y_train, x_val, y_val = train_val_data(sim_dd,method="stratified")
+    x_train, y_train, x_val, y_val, time = train_val_data(sim_dd,method="stratified")
+    ddict_time += time
     with open(fine_tune_log, 'a') as f:
         f.write(f"Finished creating training data\n")
     
@@ -71,7 +76,13 @@ def fine_tune(model_dd: DDict,
         #    with open("model_iter",'w') as f:
         #        f.write(f"{model_path=}")
 
+        tic = perf_counter()
         save_model_weights(model_dd, model)
+        ddict_time += perf_counter() - tic
+        toc_end = perf_counter()
+
+        #print(f"{ddict_time}",flush=True)
+        print(f"Performed training: total={toc_end-tic_start}, IO={ddict_time}",flush=True)
     
 
 

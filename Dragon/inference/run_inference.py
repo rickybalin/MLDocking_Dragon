@@ -106,8 +106,8 @@ def infer(data_dd,
           limit=None, 
           debug=False):
     """Run inference reading from and writing data to the Dragon Dictionary"""
-    tic = perf_counter()
     gc.collect()
+    tic = perf_counter()
     # !!! DEBUG !!!
     if debug:
         p = psutil.Process()
@@ -178,6 +178,7 @@ def infer(data_dd,
     spe_file = driver_path + "inference/VocabFiles/SPE_ChEMBL.txt"
     tokenizer = SMILES_SPE_Tokenizer(vocab_file=vocab_file, spe_file=spe_file)
     num_smiles = 0
+    preproc_time = 0
     model_time = 0
     dictionary_time = 0
     data_moved_size = 0
@@ -196,25 +197,27 @@ def infer(data_dd,
         if check_model_iter(continue_event):  # this check is to stop inference in async wf when model is retrained
             ktic = perf_counter()
             key = split_keys[ikey]
-            dict_tic = perf_counter()
-            
+
+            dict_tic = perf_counter()  
             # print(f"worker {proc}: getting val from dd",flush=True)
             val = data_dd[key]
             # print(f"worker {proc}: finished getting val from dd",flush=True)
-            
             dict_toc = perf_counter()
             key_dictionary_time = dict_toc - dict_tic
 
             key_data_moved_size = 0.
-            for kkey in val.keys():
-                key_data_moved_size += sys.getsizeof(kkey)
-                if type(val[kkey]) == list:
-                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
-                else:
-                    key_data_moved_size += sys.getsizeof(val[kkey])          
+            #for kkey in val.keys():
+            #    key_data_moved_size += sys.getsizeof(kkey)
+            #    if type(val[kkey]) == list:
+            #        key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
+            #    else:
+            #        key_data_moved_size += sys.getsizeof(val[kkey])          
 
             smiles_raw = val["smiles"]
+            tic_proc = perf_counter()
             x_inference = process_inference_data(hyper_params, tokenizer, smiles_raw)
+            toc_proc = perf_counter()
+            
             tic_fp = perf_counter()
             output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
             toc_fp = perf_counter()
@@ -238,17 +241,18 @@ def infer(data_dd,
             dict_toc = perf_counter()
             key_dictionary_time += dict_toc - dict_tic
 
-            for kkey in val.keys():
-                key_data_moved_size += sys.getsizeof(kkey)
-                if type(val[kkey]) == list:
-                    key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
-                else:
-                    key_data_moved_size += sys.getsizeof(val[kkey]) 
+            #for kkey in val.keys():
+            #    key_data_moved_size += sys.getsizeof(kkey)
+            #    if type(val[kkey]) == list:
+            #        key_data_moved_size += sum([sys.getsizeof(v) for v in val[kkey]]) 
+            #    else:
+            #        key_data_moved_size += sys.getsizeof(val[kkey]) 
                     
             num_smiles += len(smiles_sorted)
 
             ktoc = perf_counter()
             key_time = ktoc - ktic
+            preproc_time += toc_proc - tic_proc
             model_time += toc_fp - tic_fp
             dictionary_time += key_dictionary_time
             data_moved_size += key_data_moved_size
@@ -274,6 +278,7 @@ def infer(data_dd,
         "data_move_size": data_moved_size,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
+    print(f"Performed inference on {num_run} files: total={toc - tic}, IO={dictionary_time}, model={model_time}, preprocessing={preproc_time}",flush=True)
     return metrics
 
 
