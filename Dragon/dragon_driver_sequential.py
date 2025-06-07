@@ -94,7 +94,7 @@ if __name__ == "__main__":
         num_gpus = 0
     
     # Number of top candidates to produce
-    if num_tot_nodes < 4:
+    if num_tot_nodes <= 3:
         top_candidate_number = 1000
     else:
         top_candidate_number = 10000
@@ -112,8 +112,11 @@ if __name__ == "__main__":
 
         # Launch the data inference component
         print(f"Launching inference ...", flush=True)
-        inf_num_limit = 24
         tic = perf_counter()
+        if num_tot_nodes <= 3:
+            inf_num_limit = 24
+        else:
+            None
         inf_proc = mp.Process(
             target=launch_inference,
             args=(args.data_path,
