@@ -106,7 +106,11 @@ if __name__ == "__main__":
     # 2. simulation dictionary for docking simulation results
     # 3. model and candidate dictionary for training
     # The model and candidate dictionary will be checkpointed
-    num_files = 24
+    if num_tot_nodes <= 3: 
+        num_files = 24
+    else:
+        base_path = pathlib.Path(args.data_path)
+        files, num_files = get_files(base_path)
     data_dict_mem, sim_dict_mem, model_list_dict_mem = max_data_dict_size(num_files, node_counts, max_pool_frac=0.5)
     print(f"Setting data_dict size to {data_dict_mem} GB")
     print(f"Setting sim_dict size to {sim_dict_mem} GB")
@@ -198,7 +202,7 @@ if __name__ == "__main__":
         f.write(f"# {num_files=}\n")
     
     # Number of top candidates to produce
-    if num_tot_nodes < 4:
+    if num_tot_nodes <= 3:
         top_candidate_number = 1000
     else:
         top_candidate_number = 10000
