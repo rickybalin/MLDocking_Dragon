@@ -229,6 +229,7 @@ def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
     maxlen = hyper_params['tokenization']['maxlen']
 
     smiles_raw = []
+    tic = perf_counter()
     file = file_path+"/"+fil
     f_extension = str(fil).split(".")[-1]
     f_header = str(fil).split(".")[0]
@@ -242,13 +243,15 @@ def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
             for line in f:
                 smile = line.split("\t")[0]
                 smiles_raw.append(smile)
+    toc = perf_counter()
+    read_time = toc - tic
 
     x_inference = preprocess_smiles_pair_encoding(smiles_raw,
                                                     tokenizer,
                                                     maxlen
                                                     )
 
-    return smiles_raw, x_inference, f_header
+    return smiles_raw, x_inference, f_header, read_time
 
 
 

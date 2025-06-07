@@ -163,12 +163,10 @@ def infer(file_path,
     for fil in split_files:
             
         # read files and procedd data
-        tic_read = perf_counter()
-        smiles_raw, x_inference, header = large_inference_data_gen(hyper_params, 
+        smiles_raw, x_inference, header, read_time = large_inference_data_gen(hyper_params, 
                                                            tokenizer, 
                                                            file_path, 
                                                            fil)
-        toc_read = perf_counter()
         
         # run model
         tic_fp = perf_counter()
@@ -192,7 +190,7 @@ def infer(file_path,
         
         model_time = toc_fp - tic_fp
         total_model_time += model_time
-        io_time = (toc_read-tic_read) + (toc_write-tic_write)
+        io_time = read_time + (toc_write-tic_write)
         total_io_time += io_time
 
         if debug:
