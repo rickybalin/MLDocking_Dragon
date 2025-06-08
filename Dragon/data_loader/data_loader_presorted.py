@@ -63,6 +63,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         file_path = file_tuple[1]
 
         smiles = []
+        tic = perf_counter()
         f_name = str(file_path).split("/")[-1]
         f_extension = str(file_path).split("/")[-1].split(".")[-1]
         if f_extension == "smi":
@@ -75,6 +76,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
                 for line in f:
                     smile = line.split("\t")[0]
                     smiles.append(smile)
+        read_time = perf_counter() - tic
 
         inf_results = [0.0 for i in range(len(smiles))]
         if sort_test:
@@ -95,10 +97,12 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
 
 
         #print(f"Now putting key {key}", flush=True)
+        tic = perf_counter()
         data_dict[key] = {"f_name": f_name, 
                           "smiles": smiles, 
                           "inf": inf_results, 
                           "model_iter": -1}
+        put_time = perf_counter() - tic
 
         #print(f"Finished putting key {key}", flush=True)
         # data_dict[key] = smiles
@@ -106,7 +110,7 @@ def read_smiles(file_tuple: Tuple[int, str, int]):
         #     f.write(f"Stored data in dragon dictionary\n")
         #     f.write(f"key is {key}")
 
-        return smiles_size
+        return smiles_size, read_time, put_time
     except Exception as e:
         try:
             tb = traceback.format_exc()
@@ -184,16 +188,24 @@ def load_inference_data(_dict: DDict,
                     for node in range(len(nodelist))]
 
     total_data_size = 0
+    io_times = []
+    ddict_times = []
     if load_split_factor == 1:
         pool = mp.Pool(num_procs, 
                        initializer=initialize_worker, 
                        initargs=(_dict,))
-        smiles_sizes = pool.imap_unordered(read_smiles, file_tuples)
-        total_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+        #smiles_sizes, read_times, put_times = pool.imap_unordered(read_smiles, file_tuples)
+        outputs = pool.imap_unordered(read_smiles, file_tuples)
+        for out in outputs:
+            total_data_size += out[0]
+            io_times.append(out[1])
+            ddict_times.append(out[2])
+        total_data_size = total_data_size/(1024.*1024.*1024.)
         pool.close()
         pool.join()
     else:
         for i in range(load_split_factor):
+            iter_data_size = 0
             num_pool_procs = num_procs
             pool = mp.Pool(num_pool_procs, 
                         initializer=initialize_worker, 
@@ -204,14 +216,18 @@ def load_inference_data(_dict: DDict,
 
             num_files_per_pool = num_files // load_split_factor + 1
             print(f"{num_pool_procs=} {num_files_per_pool=}")
-            smiles_sizes = pool.imap_unordered(
+            outputs = pool.imap_unordered(
                 read_smiles,
                 file_tuples[
                     i
                     * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
                 ],
             )
-            iter_data_size = sum(smiles_sizes)/(1024.*1024.*1024.)
+            for out in outputs:
+                iter_data_size += out[0]
+                io_times.append(out[1])
+                ddict_times.append(out[2])
+            iter_data_size = iter_data_size/(1024.*1024.*1024.)
             print(f"Size of dataset is {iter_data_size} GB", flush=True)
             total_data_size += iter_data_size
             print(f"Mapped function complete", flush=True)
@@ -219,7 +235,9 @@ def load_inference_data(_dict: DDict,
             print(f"Pool closed", flush=True)
             pool.join()
             print(f"Pool joined", flush=True)
-    print(f"Total data read in {total_data_size} GB", flush=True)
+    print(f"Total data read {total_data_size} GB", flush=True)
+    print(f"IO times: avg={sum(io_times)/len(io_times)} sec, max={max(io_times)} sec", flush=True)
+    print(f"DDict times: avg={sum(ddict_times)/len(ddict_times)} sec, max={max(ddict_times)} sec", flush=True)
     
 
 if __name__ == "__main__":

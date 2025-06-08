@@ -56,6 +56,8 @@ if __name__ == "__main__":
                         help='Path to pre-sorted SMILES strings to load')
     parser.add_argument('--logging', type=str, default="info",
                         help='Logging level')
+    parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
+                        help='Perform inference and sorting only')
     args = parser.parse_args()
 
     # Start driver
@@ -285,6 +287,8 @@ if __name__ == "__main__":
         toc = perf_counter()
         sort_time = toc - tic
         print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
+        if args.inference_and_sort == "True":
+            sys.exit()
 
         # Launch Docking Simulations
         print(f"Launched docking simulations ...", flush=True)
