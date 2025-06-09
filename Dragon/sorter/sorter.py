@@ -1,6 +1,7 @@
 from time import perf_counter
 import argparse
 import os
+import sys
 import random
 import gc
 import dragon
@@ -316,21 +317,20 @@ def sort_dictionary_pg(
    
     driver_path = os.getenv("DRIVER_PATH")
     predicted_data_path = driver_path + "/predicted_data"
-   
-    max_num_procs_pn = num_procs//len(nodelist)
-    run_dir = os.getcwd()
 
     file_list = os.listdir(predicted_data_path)
     num_files = len(file_list)
+    if num_files < len(nodelist):
+        print("ERROR: Have fewer files than nodes for inference")
+        sys.exit()
 
-    keys_per_node = num_files//len(nodelist)
-    min_direct_sort_num = 4
-
-    direct_sort_num = max(num_files//num_procs+1,min_direct_sort_num)
-    num_procs_pn = keys_per_node // direct_sort_num
-    num_procs = num_procs_pn * len(nodelist)
-    
-    print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
+    #keys_per_node = num_files//len(nodelist)
+    #min_direct_sort_num = 4
+    #direct_sort_num = max(num_files//num_procs+1,min_direct_sort_num)
+    #num_procs_pn = keys_per_node // direct_sort_num
+    #num_procs = num_procs_pn * len(nodelist) 
+    #print(f"Direct sorting {direct_sort_num} keys per process",flush=True)
+    num_procs_pn = num_procs // len(nodelist)
     
     exe = os.getenv("DRIVER_PATH")+"/sorter/sort_mpi.py"
     hostlist = [Node(node).hostname for node in nodelist]
@@ -340,13 +340,14 @@ def sort_dictionary_pg(
             f"python {exe} " + \
             f"--num_files {num_files} --num_return_sorted {num_return_sorted}"
 
+    tic = perf_counter()
     p = subprocess.Popen(cmd, cwd=os.path.dirname(__file__), shell=True)
 
-    finished = False
     while p.poll() is None:
         time.sleep(1)
     if p.poll() == 0:
-        print("Sorter finished successfully")
+        toc = perf_counter()
+        print(f"Performed sorting in {toc-tic} seconds",flush=True)
     else:
         print("Sorter failed")
    

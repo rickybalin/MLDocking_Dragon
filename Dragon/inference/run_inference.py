@@ -209,7 +209,7 @@ def infer(file_path,
         "data_move_time": total_io_time,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
-    print(f"Performed inference on {len(split_files)} files: total={toc - tic}, IO={total_io_time}, model={total_model_time}, preprocessing={total_preproc_time}",flush=True)
+    print(f"Performed inference on {len(split_files)} files and {num_smiles} smiles: total={toc - tic}, IO={total_io_time}, model={total_model_time}, preprocessing={total_preproc_time}",flush=True)
     return metrics
 
 

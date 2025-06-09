@@ -43,13 +43,17 @@ if __name__ == "__main__":
     parser.add_argument('--training_node_num', type=int, default=1,
                         help='number of nodes running training')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
-                        help='Maximum number of processes in a Pool')
+                        help='Maximum number of processes')
+    parser.add_argument('--sort_procs_per_node', type=int, default=1,
+                        help='Number of processes per node for MPI sorting')
     parser.add_argument('--max_iter', type=int, default=1,
                         help='Maximum number of iterations')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
     parser.add_argument('--logging', type=str, default="info",
                         help='Logging level')
+    parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
+                        help='Perform inference and sorting only')
     args = parser.parse_args()
 
     # Start driver
@@ -130,7 +134,7 @@ if __name__ == "__main__":
         inf_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
-        print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+        print(f"Executed inference mp.Process in {infer_time:.3f} seconds \n", flush=True)
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
         
@@ -138,7 +142,7 @@ if __name__ == "__main__":
         print(f"Launching sorting ...", flush=True)
         tic = perf_counter()
         print("Using MPI sort",flush=True)
-        max_sorter_procs = (args.max_procs_per_node) * node_counts["sorting"]
+        max_sorter_procs = (args.sort_procs_per_node) * node_counts["sorting"]
         sorter_proc = mp.Process(target=sort_dictionary_pg, 
                                     args=(
                                         top_candidate_number,
@@ -152,7 +156,9 @@ if __name__ == "__main__":
             raise Exception("Sorting failed\n")
         toc = perf_counter()
         sort_time = toc - tic
-        print(f"Performed sorting in {sort_time:.3f} seconds \n", flush=True)
+        print(f"Executed sorting mp.Process in {sort_time:.3f} seconds \n", flush=True)
+        if args.inference_and_sort == "True":
+            sys.exit()
 
         # Launch Docking Simulations
         print(f"Launched docking simulations ...", flush=True)
@@ -171,7 +177,7 @@ if __name__ == "__main__":
             raise Exception("Docking sims failed\n")
         toc = perf_counter()
         dock_time = toc - tic
-        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
+        print(f"Executed docking mp.Process in {dock_time:.3f} seconds \n", flush=True)
 
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
@@ -190,7 +196,7 @@ if __name__ == "__main__":
         train_proc.join()
         toc = perf_counter()
         train_time = toc - tic
-        print(f"Performed training in {train_time} seconds \n", flush=True)
+        print(f"Executed training mp.Process in {train_time} seconds \n", flush=True)
         if train_proc.exitcode != 0:
             raise Exception("Training failed\n")
         

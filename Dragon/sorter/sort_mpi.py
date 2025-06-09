@@ -185,11 +185,11 @@ def mpi_sort(num_files: int, num_return_sorted: int):
         #print(f"{my_results=}")
         # put data in candidate_dict
 
-        print(f"Rank {rank} moving onto saving",flush=True)
+        #print(f"Rank {rank} moving onto saving",flush=True)
         
         #top_candidates = all_results
         # filter out any 0 values or dummy values
-        print(f"Number of results {len(all_results)=}",flush=True)
+        #print(f"Number of results {len(all_results)=}",flush=True)
         #print(all_results,flush=True)
         top_candidates = [c for c in all_results if float(c[0]) > 0 and c[1] != 'dummy']
         num_top_candidates = len(top_candidates)
