@@ -42,7 +42,6 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     :param num_procs: number of processes to use for inference
     :type num_procs: int
     """
-    tic = perf_counter()
     run_dir = os.getcwd()
 
     # Create the process group
@@ -52,11 +51,11 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     cpu_affinity = os.getenv("TRAIN_CPU_AFFINITY").split(",")
     cpu_affinity = [int(cid) for cid in cpu_affinity]
     print(f'Launching training on {cpu_affinity} CPUs and {gpu_devices} GPU',flush=True)
+    
+    tic = perf_counter()
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
-
     node_name = Node(node).hostname
-
     local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                           host_name=node_name, 
                           cpu_affinity=cpu_affinity, 
@@ -65,8 +64,13 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
                     template=ProcessTemplate(target=fine_tune,
                                                 args=(model_dd, 
                                                     sim_dd, 
-                                                    BATCH, EPOCH, 
-                                                    ), 
+                                                    BATCH, 
+                                                    EPOCH, 
+                                                ),
+                                                kwargs={
+                                                    'save_model': False,
+                                                    'debug': False
+                                                },  
                                                 cwd=run_dir,
                                                 policy=local_policy, 
                                                 ))
@@ -75,22 +79,9 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     print(f"Starting Process Group for training",flush=True)
     grp.init()
     grp.start()
-
-    #ddict_times = []
-    #group_procs = [Process(None, ident=puid) for puid in grp.puids]
-    #for proc in group_procs:
-    #    if proc.stdout_conn:
-    #        std_out = read_output(proc.stdout_conn)
-    #        time = std_out.replace("\n","")
-    #        ddict_times.append(float(time))
-
     grp.join()
     grp.close()
-    print(f"Training process group stopped",flush=True)
     toc = perf_counter()
+    print(f"Performed training in {toc-tic} seconds", flush=True)
 
-    #io_time = sum(ddict_times)/len(ddict_times)
-    #print(f"Performed training: total={toc-tic}, IO={io_time}",flush=True)
-    #print(dd["model_iter"])
-    #print(dd["model"])
 

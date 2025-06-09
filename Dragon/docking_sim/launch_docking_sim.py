@@ -67,6 +67,7 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     print(f"Docking simulations running on {num_nodes} nodes and {num_procs} processes and {num_procs_pn} processes per node", flush=True)
         
     # Create the process group
+    tic = perf_counter()
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
@@ -96,17 +97,18 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     grp.init()
     grp.start()
 
+    run_times = []
     ddict_times = []
     group_procs = [Process(None, ident=puid) for puid in grp.puids]
     for proc in group_procs:
         if proc.stdout_conn:
             std_out = read_output(proc.stdout_conn)
             time = std_out.replace("\n","")
-            ddict_times.append(float(time))
+            run_times.append(float(time.split(",")[0]))
+            ddict_times.append(float(time.split(",")[1]))
 
     grp.join()
     grp.close()
-    print(f"Joined Process Group for Docking Sims",flush=True)
 
     # Collect candidate keys and save them to simulated keys
     # Lists will have a key that is a digit
@@ -120,8 +122,11 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
                                                     k != "random_compound_sample"]
     sdd.bput('simulated_compounds', simulated_compounds)
     toc_write = perf_counter()
-
-    total_io_time = (toc_write-tic_write) + sum(ddict_times)/len(ddict_times)
-    print(f'Performed docking simulation: total={0}, IO={total_io_time}',flush=True)
+    toc = perf_counter()
     
+    run_time = max(run_times)
+    avg_io_time = (toc_write-tic_write) + sum(ddict_times)/len(ddict_times)
+    max_io_time = (toc_write-tic_write) + max(ddict_times)
+    print(f'Performed docking simulation: total={run_time}, IO_avg={avg_io_time}, IO_avg={max_io_time}',flush=True)
+    print(f"Performed docking simulations in {toc-tic} seconds", flush=True)    
 

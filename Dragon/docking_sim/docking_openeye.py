@@ -316,6 +316,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
     #print(f"Dock worker {proc} starting...", flush=True)
+    tic_start = perf_counter()
     debug = False
     if debug:
         myp = current_process()
@@ -459,8 +460,8 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
 
     #with open(f"finished_run_docking.log", "a") as f:
     #    f.write(f"{datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
-    
-    print(f"{dict_time}",flush=True)
+    toc_end = perf_counter()
+    print(f"{toc_end-tic_start},{dict_time}",flush=True)
     return
 
 

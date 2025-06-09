@@ -30,7 +30,8 @@ def fine_tune(model_dd: DDict,
                 sim_dd: DDict, 
                 BATCH: int, 
                 EPOCH: int, 
-                save_model=True):
+                save_model=False,
+                debug=False):
 
     fine_tune_log = "training.log"
     tic_start = perf_counter()
@@ -41,22 +42,17 @@ def fine_tune(model_dd: DDict,
     ddict_time = perf_counter() - tic
 
     ########Create training and validation data#####
-    with open(fine_tune_log, 'w') as f:
-        f.write(f"Create training data\n")
     x_train, y_train, x_val, y_val, time = train_val_data(sim_dd,method="stratified")
     ddict_time += time
-    with open(fine_tune_log, 'a') as f:
-        f.write(f"Finished creating training data\n")
+    with open(fine_tune_log, 'w') as f:
+        f.write(f"{BATCH=} {EPOCH=} {len(x_train)=} {len(x_val)=}\n")
     
     ######## Create callbacks #######
     callbacks = assemble_callbacks(hyper_params)
 
     ######## Train #######
     # Only train if there is new data
-    if len(x_train) > 0:
-        with open(fine_tune_log, 'a') as f:
-            f.write(f"{BATCH=} {EPOCH=} {len(x_train)=}\n")
-        
+    if len(x_train) > 0:        
         with open(fine_tune_log, 'a') as sys.stdout:
             history = model.fit(
                         x_train,
@@ -69,19 +65,19 @@ def fine_tune(model_dd: DDict,
                     )
         sys.stdout = sys.__stdout__
         
-        # Save to dictionary
-        #if save_model:
-        #    model_path = "current_model.keras"
-        #    model.save(model_path)
-        #    with open("model_iter",'w') as f:
-        #        f.write(f"{model_path=}")
+        # Save to file
+        if save_model:
+            model_path = "current_model.keras"
+            model.save(model_path)
+            with open("model_iter",'w') as f:
+                f.write(f"{model_path=}")
 
+        # Save to DDict
         tic = perf_counter()
         save_model_weights(model_dd, model)
         ddict_time += perf_counter() - tic
         toc_end = perf_counter()
 
-        #print(f"{ddict_time}",flush=True)
         print(f"Performed training: total={toc_end-tic_start}, IO={ddict_time}",flush=True)
     
 
