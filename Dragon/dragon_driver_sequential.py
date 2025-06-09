@@ -137,7 +137,7 @@ if __name__ == "__main__":
                     policy=data_dd_policy)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes", flush=True)
     
-    if args.load == "False":
+    if args.load == "False" and args.inference_and_sort == "False":
         sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
         sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
                                 host_name=Node(nodelist["simulation"][node]).hostname,
@@ -203,7 +203,8 @@ if __name__ == "__main__":
     print("\nLoaded pretrained model",flush=True)
 
     # Initialize simulated compounds list
-    sim_dd.bput('simulated_compounds', [])
+    if args.load == "False" and args.inference_and_sort == "False":
+        sim_dd.bput('simulated_compounds', [])
 
     # Update driver log
     with open("driver_times.log", "w") as f:

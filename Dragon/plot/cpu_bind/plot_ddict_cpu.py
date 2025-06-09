@@ -15,6 +15,7 @@ case_files = [
     '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/4c_1s/mldocking_seq_ddict.o5509066',
     #'/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/4c_1s_2man/mldocking_seq_ddict.o5509066',
     '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/4c_2s/mldocking_seq_ddict.o5509012'
+    #'/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/8c_1s/mldocking_seq_ddict.o5515242',
 ]
 legend = [
     'no binding',
@@ -24,6 +25,7 @@ legend = [
     '4 cores on 1 socket',
     #'4 cores on 1 socket 2 managers',
     '8 cores on 2 socket',
+    #'8 cores on 1 socket',
 ]
 keys = ['nodes',
         'procs',
@@ -60,6 +62,7 @@ for case in case_files:
         cases[case][label] = []
     with open(case,'r') as fh:
         inf_ddict_time = []
+        inf_run_time = []
         for l in fh:
             if "Launched Dragon Dictionary for inference" in l:
                 cases[case]['nodes'] = int(l.split(' ')[-2])
@@ -75,19 +78,24 @@ for case in case_files:
                 parsed_l=l.split(":")[-1].split(",")
                 cases[case]['load_ddict_avg'] = float(parsed_l[0].split("=")[-1].split(" ")[0])
                 cases[case]['load_ddict_max'] = float(parsed_l[1].split("=")[-1].split(" ")[0])
-            if "Performed inference in" in l:
-                cases[case]['inference'] = float(l.split(' ')[-3])
+            #if "Performed inference in" in l:
+            #    cases[case]['inference'] = float(l.split(' ')[-3])
             if "Performed inference on" in l:
-                parsed_l = l.split(":")[-1].split(",")[1]
-                inf_ddict_time.append(float(parsed_l.split("=")[-1]))
+                parsed_l = l.split(":")[-1]
+                run_l = parsed_l.split(",")[0]
+                inf_run_time.append(float(run_l.split("=")[-1]))
+                ddict_l = parsed_l.split(",")[1]
+                inf_ddict_time.append(float(ddict_l.split("=")[-1]))
             if "Performed sorting of 10000 compounds" in l:
                 cases[case]['sort_IO'] = float(l.split(":")[-1].split(",")[-1].split("=")[-1])
-            if "Performed sorting of 8192" in l:
-                cases[case]['sort'] = float(l.split(" ")[-3])
+                cases[case]['sort'] = float(l.split(":")[-1].split(",")[0].split("=")[-1])
+            #if "Performed sorting of 8192" in l:
+            #    cases[case]['sort'] = float(l.split(" ")[-3])
 
 
         cases[case]['inf_ddict_avg'] = sum(inf_ddict_time)/len(inf_ddict_time)
         cases[case]['inf_ddict_max'] = max(inf_ddict_time)
+        cases[case]['inference'] = max(inf_run_time)
 
 
 # Plot load, inf, sort times
@@ -111,13 +119,28 @@ fig.savefig('plt_comp_time.png')
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 for i, case in enumerate(cases):
     axs.bar(x+factors[i]*width, [cases[case]['load_IO_avg'], cases[case]['inf_ddict_avg'], cases[case]['sort_IO']], width,label=legend[i])
+axs.set_yscale('log')
+axs.set_ylim(0.01,1)
 axs.set_ylabel('Time [sec]')
-axs.set_title('Component DDict Time')
+axs.set_title('Component Average DDict Time')
 axs.set_xticks(x);axs.set_xticklabels(labels)
 #axs.set_xticks(x, labels)
 axs.legend()
 axs.grid(axis='y')
-fig.savefig('plt_ddict_time.png')
+fig.savefig('plt_ddict_avgtime.png')
+
+fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
+for i, case in enumerate(cases):
+    axs.bar(x+factors[i]*width, [cases[case]['load_IO_max'], cases[case]['inf_ddict_max'], cases[case]['sort_IO']], width,label=legend[i])
+axs.set_yscale('log')
+#axs.set_ylim(0.01,1)
+axs.set_ylabel('Time [sec]')
+axs.set_title('Component Max DDict Time')
+axs.set_xticks(x);axs.set_xticklabels(labels)
+#axs.set_xticks(x, labels)
+axs.legend()
+axs.grid(axis='y')
+fig.savefig('plt_ddict_maxtime.png')
 
 """
 # Plot processes
