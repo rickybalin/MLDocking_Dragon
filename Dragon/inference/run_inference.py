@@ -278,7 +278,7 @@ def infer(data_dd,
         "data_move_size": data_moved_size,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
-    print(f"Performed inference on {num_run} files: total={toc - tic}, IO={dictionary_time}, model={model_time}, preprocessing={preproc_time}",flush=True)
+    print(f"Performed inference on {num_run} files and {num_smiles} smiles: total={toc - tic}, IO={dictionary_time}, model={model_time}, preprocessing={preproc_time}",flush=True)
     return metrics
 
 

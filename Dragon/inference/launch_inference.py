@@ -1,4 +1,5 @@
 import os
+from time import perf_counter
 
 import dragon
 import multiprocessing as mp
@@ -8,8 +9,6 @@ from dragon.infrastructure.connection import Connection
 from dragon.data.ddict import DDict
 from dragon.infrastructure.policy import Policy
 from dragon.native.machine import Node
-import os
-import sys
 
 from inference.utils_transformer import ParamsJson, ModelArchitecture, pad
 
@@ -85,6 +84,7 @@ def launch_inference(data_dd: DDict,
         raise (Exception("Number of cpu bindings does not match the number of gpus"))
 
     # Create the process group
+    tic = perf_counter()
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_inf_nodes):
@@ -114,4 +114,5 @@ def launch_inference(data_dd: DDict,
     grp.start()
     grp.join()
     grp.close()
-    print(f"Joined Process Group for Inference", flush=True)
+    toc = perf_counter()
+    print(f"Performed inference in {toc-tic} seconds", flush=True)

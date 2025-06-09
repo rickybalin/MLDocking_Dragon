@@ -181,7 +181,7 @@ if __name__ == "__main__":
     toc = perf_counter()
     load_time = toc - tic
     if loader_proc.exitcode == 0:
-        print(f"Executed inference data mp.Process in {load_time:.3f} seconds", flush=True)
+        print(f"Executed loader mp.Process in {load_time:.3f} seconds", flush=True)
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
         inf_proc.join()
         toc = perf_counter()
         infer_time = toc - tic
-        print(f"Performed inference in {infer_time:.3f} seconds \n", flush=True)
+        print(f"Executed inference mp.Process in {infer_time:.3f} seconds \n", flush=True)
         if inf_proc.exitcode != 0:
             raise Exception("Inference failed!\n")
         
@@ -297,7 +297,7 @@ if __name__ == "__main__":
             raise Exception("Sorting failed\n")
         toc = perf_counter()
         sort_time = toc - tic
-        print(f"Performed sorting of {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
+        print(f"Executed sorting mp.Process with {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
         if args.inference_and_sort == "True":
             sys.exit()
 
@@ -319,7 +319,7 @@ if __name__ == "__main__":
             raise Exception("Docking sims failed\n")
         toc = perf_counter()
         dock_time = toc - tic
-        print(f"Performed docking in {dock_time:.3f} seconds \n", flush=True)
+        print(f"Executed docking mp.Process in {dock_time:.3f} seconds \n", flush=True)
 
         # Launch Training
         print(f"Launched Fine Tune Training", flush=True)
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         train_proc.join()
         toc = perf_counter()
         train_time = toc - tic
-        print(f"Performed training in {train_time} seconds \n", flush=True)
+        print(f"Executed training mp.Process in {train_time} seconds \n", flush=True)
         if train_proc.exitcode != 0:
             raise Exception("Training failed\n")
         iter_end = perf_counter()
