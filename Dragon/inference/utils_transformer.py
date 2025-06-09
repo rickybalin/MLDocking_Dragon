@@ -8,6 +8,7 @@ import pandas as pd
 import json
 from functools import partial
 import gzip
+from time import perf_counter
 
 matplotlib.use("Agg")
 
@@ -245,13 +246,16 @@ def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
                 smiles_raw.append(smile)
     toc = perf_counter()
     read_time = toc - tic
-
+    
+    tic = perf_counter()
     x_inference = preprocess_smiles_pair_encoding(smiles_raw,
                                                     tokenizer,
                                                     maxlen
                                                     )
+    toc = perf_counter()
+    preproc_time = toc - tic
 
-    return smiles_raw, x_inference, f_header, read_time
+    return smiles_raw, x_inference, f_header, read_time, preproc_time
 
 
 

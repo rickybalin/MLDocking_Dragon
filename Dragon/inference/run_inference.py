@@ -151,6 +151,7 @@ def infer(file_path,
 
     total_model_time = 0
     total_io_time = 0
+    total_preproc_time = 0
     num_smiles = 0
 
     # Iterate over files
@@ -163,7 +164,7 @@ def infer(file_path,
     for fil in split_files:
             
         # read files and procedd data
-        smiles_raw, x_inference, header, read_time = large_inference_data_gen(hyper_params, 
+        smiles_raw, x_inference, header, read_time, preproc_time = large_inference_data_gen(hyper_params, 
                                                            tokenizer, 
                                                            file_path, 
                                                            fil)
@@ -192,6 +193,7 @@ def infer(file_path,
         total_model_time += model_time
         io_time = read_time + (toc_write-tic_write)
         total_io_time += io_time
+        total_preproc_time += preproc_time
 
         if debug:
             with open(log_file_name, "a") as f:
@@ -207,7 +209,7 @@ def infer(file_path,
         "data_move_time": total_io_time,
     }
     if debug: print(f"worker {proc} is all DONE in {toc - tic} seconds!! :)", flush=True)
-    print(f"Performed inference on {len(split_files)} files: total={toc - tic}, IO={total_io_time}, model={total_model_time}",flush=True)
+    print(f"Performed inference on {len(split_files)} files: total={toc - tic}, IO={total_io_time}, model={total_model_time}, preprocessing={total_preproc_time}",flush=True)
     return metrics
 
 

@@ -23,7 +23,7 @@ case "$FULL_HOSTNAME" in
 	source /flare/hpe_dragon_collab/balin/PASC25/env.sh
 	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
 	DATA_PATH=/flare/datascience/dragon/tiny
-	export DRIVER_PATH=/flare/hpe_dragon_collab/balin/PASC25/MLDocking_Dragon/Dragon/
+	export DRIVER_PATH=/flare/hpe_dragon_collab/balin/PASC25/MLDocking_Dragon_pfs/Dragon/
 	export OE_LICENSE=/flare/hpe_dragon_collab/balin/oe_license.txt
     ;;
     *"polaris"* )

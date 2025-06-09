@@ -116,7 +116,7 @@ if __name__ == "__main__":
         if num_tot_nodes <= 3:
             inf_num_limit = 24
         else:
-            None
+            inf_num_limit = None
         inf_proc = mp.Process(
             target=launch_inference,
             args=(args.data_path,
@@ -210,9 +210,5 @@ if __name__ == "__main__":
         iter += 1
 
 
-    # # Close the dictionary
-    # print("Closing the Dragon Dictionary and exiting ...", flush=True)
-    # # cand_dd.destroy()
-    # data_dd.destroy()
-    # end_time = perf_counter()
-    # print(f"Total time {end_time - start_time} seconds", flush=True)
+    end_time = perf_counter()
+    print(f"Total time {end_time - start_time} seconds", flush=True)
