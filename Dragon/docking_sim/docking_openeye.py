@@ -316,7 +316,7 @@ def filter_candidates(cdd, candidates: list, current_iter):
 
 def run_docking(smiles, proc: int, num_procs: int):
     #print(f"Dock worker {proc} starting...", flush=True)
-    debug = True
+    debug = False
     if debug:
         myp = current_process()
         p = psutil.Process()
@@ -383,9 +383,10 @@ def run_docking(smiles, proc: int, num_procs: int):
     #    f.write(f"{datetime.now()}: iter {docking_iter}: proc {proc}: Finished docking sims \n")
     scores = [str(i) for i in scores]
     scores_str = ','.join(scores)
-    with open(log_file_name,"a") as f:
-        f.write(f"{scores}\n")
-        f.write(f"{scores_str}\n")
+    if debug:
+        with open(log_file_name,"a") as f:
+            f.write(f"{scores}\n")
+            f.write(f"{scores_str}\n")
     print(scores_str,flush=True)
     return
 
