@@ -54,8 +54,10 @@ if __name__ == "__main__":
                         help='Timeout for Dictionary in seconds')
     parser.add_argument('--data_path', type=str, default="/lus/eagle/clone/g2/projects/hpe_dragon_collab/balin/ZINC-22-2D-smaller_files",
                         help='Path to pre-sorted SMILES strings to load')
-    parser.add_argument('--logging', type=str, default="info",
+    parser.add_argument('--logging', type=str, default="info", choices=["info","debug"],
                         help='Logging level')
+    parser.add_argument('--load', type=str, default="False", choices=["False", "True"],
+                        help='Perform data loading only')
     parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
                         help='Perform inference and sorting only')
     args = parser.parse_args()
@@ -126,7 +128,7 @@ if __name__ == "__main__":
     # Initialize Dragon Dictionaries for inference, docking simulation, and model list
     data_dd_cpu_bind = os.getenv("DATA_DD_CPU_AFFINITY").split(",")
     data_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                             host_name=Node(nodelist["inference"][node]).hostname, 
+                             host_name=Node(nodelist["inference"][node]).hostname,
                              cpu_affinity=data_dd_cpu_bind) \
                       for node in range(len(nodelist["inference"]))]
     data_dd = DDict(None, 
@@ -135,16 +137,17 @@ if __name__ == "__main__":
                     policy=data_dd_policy)
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes", flush=True)
     
-    sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
-    sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                            host_name=Node(nodelist["simulation"][node]).hostname, 
-                            cpu_affinity=sim_dd_cpu_bind) \
-                      for node in range(len(nodelist["simulation"]))]
-    sim_dd = DDict(None, 
-                   None, 
-                   sim_dict_mem,
-                   policy=sim_dd_policy)
-    print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes", flush=True)
+    if args.load == "False":
+        sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
+        sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
+                                host_name=Node(nodelist["simulation"][node]).hostname,
+                                cpu_affinity=sim_dd_cpu_bind) \
+                        for node in range(len(nodelist["simulation"]))]
+        sim_dd = DDict(None, 
+                    None, 
+                    sim_dict_mem,
+                    policy=sim_dd_policy)
+        print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes", flush=True)
 
     model_dd_cpu_bind = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
     model_dd_policy = Policy(cpu_affinity=model_dd_cpu_bind)
@@ -178,14 +181,22 @@ if __name__ == "__main__":
     toc = perf_counter()
     load_time = toc - tic
     if loader_proc.exitcode == 0:
-        print(f"Loaded inference data in {load_time:.3f} seconds", flush=True)
+        print(f"Executed inference data mp.Process in {load_time:.3f} seconds", flush=True)
     else:
         raise Exception(f"Data loading failed with exception {loader_proc.exitcode}")
 
     if args.logging == "debug":
-        print("Here are the stats after data loading...")
-        print("Data Dictionary stats:", flush=True)
-        print(data_dd.stats)
+        print("\nHere are the data DDict stats after data loading...",flush=True)
+        for stat in data_dd.stats:
+            print(f"manager_ID={stat.manager_id}, ",
+                  f"host_name={stat.hostname}, ",
+                  f"num_keys={stat.num_keys}, ",
+                  f"used_mem={stat.pool_utilization}, ",
+                  f"total_mem={stat.total_bytes}",
+                  flush=True)
+    
+    if args.load == "True":
+        sys.exit()
 
     # Load pretrained model
     load_pretrained_model(model_list_dd)

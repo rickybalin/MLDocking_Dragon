@@ -190,6 +190,7 @@ def load_inference_data(_dict: DDict,
     total_data_size = 0
     io_times = []
     ddict_times = []
+    tic = perf_counter()
     if load_split_factor == 1:
         pool = mp.Pool(num_procs, 
                        initializer=initialize_worker, 
@@ -209,8 +210,7 @@ def load_inference_data(_dict: DDict,
             num_pool_procs = num_procs
             pool = mp.Pool(num_pool_procs, 
                         initializer=initialize_worker, 
-                        initargs=(_dict,),
-                        policy=policy)
+                        initargs=(_dict,))
             #print(f"Pool initialized", flush=True)
             #print(f"Reading smiles for {num_files}", flush=True)
 
@@ -235,6 +235,8 @@ def load_inference_data(_dict: DDict,
             print(f"Pool closed", flush=True)
             pool.join()
             print(f"Pool joined", flush=True)
+    load_time = perf_counter() - tic
+    print(f"Loaded inference data in {load_time} sec", flush=True)
     print(f"Total data read {total_data_size} GB", flush=True)
     print(f"IO times: avg={sum(io_times)/len(io_times)} sec, max={max(io_times)} sec", flush=True)
     print(f"DDict times: avg={sum(ddict_times)/len(ddict_times)} sec, max={max(ddict_times)} sec", flush=True)
