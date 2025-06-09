@@ -349,9 +349,10 @@ if __name__ == "__main__":
         iter += 1
 
 
-    # # Close the dictionary
-    # print("Closing the Dragon Dictionary and exiting ...", flush=True)
-    # # cand_dd.destroy()
-    # data_dd.destroy()
-    # end_time = perf_counter()
-    # print(f"Total time {end_time - start_time} seconds", flush=True)
+    # Close the dictionary
+    print("Closing the Dragon Dictionary and exiting ...", flush=True)
+    model_list_dd.destroy()
+    data_dd.destroy()
+    sim_dd.destroy()
+    end_time = perf_counter()
+    print(f"Total time {end_time - start_time} seconds", flush=True)
