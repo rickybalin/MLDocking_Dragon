@@ -131,11 +131,13 @@ if __name__ == "__main__":
                              host_name=Node(nodelist["inference"][node]).hostname,
                              cpu_affinity=data_dd_cpu_bind) \
                       for node in range(len(nodelist["inference"]))]
+    tic = perf_counter()
     data_dd = DDict(None, 
                     None, 
                     data_dict_mem, 
                     policy=data_dd_policy)
-    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes", flush=True)
+    toc = perf_counter()
+    print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes in {toc-tic} seconds", flush=True)
     
     if args.load == "False" and args.inference_and_sort == "False":
         sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
@@ -143,20 +145,24 @@ if __name__ == "__main__":
                                 host_name=Node(nodelist["simulation"][node]).hostname,
                                 cpu_affinity=sim_dd_cpu_bind) \
                         for node in range(len(nodelist["simulation"]))]
+        tic = perf_counter()
         sim_dd = DDict(None, 
                     None, 
                     sim_dict_mem,
                     policy=sim_dd_policy)
-        print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes", flush=True)
+        toc = perf_counter()
+        print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes in {toc-tic} seconds", flush=True)
 
     model_dd_cpu_bind = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
     model_dd_policy = Policy(cpu_affinity=model_dd_cpu_bind)
+    tic = perf_counter()
     model_list_dd = DDict(args.managers_per_node, 
                           num_tot_nodes, 
                           model_list_dict_mem, 
                           policy=model_dd_policy, 
                           working_set_size=10)
-    print(f"Launched Dragon Dictionary for model list with total memory size {model_list_dict_mem} on {num_tot_nodes} nodes", flush=True)
+    toc = perf_counter()
+    print(f"Launched Dragon Dictionary for model list with total memory size {model_list_dict_mem} on {num_tot_nodes} nodes in {toc-tic} seconds", flush=True)
 
     # Load data into the data dictionary
     print("\nLoading inference data into Dragon Dictionary ...", flush=True)
