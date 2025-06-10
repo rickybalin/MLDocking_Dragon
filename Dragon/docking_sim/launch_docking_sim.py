@@ -78,7 +78,8 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
             proc_id = node_num*num_procs_pn+proc
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name,
-                                  cpu_affinity=[available_cores[proc]])
+                                  #cpu_affinity=[available_cores[proc]],
+                                  )
             grp.add_process(nproc=1,
                             template=ProcessTemplate(target=run_docking,
                                                         args=(cdd,

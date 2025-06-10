@@ -128,8 +128,7 @@ if __name__ == "__main__":
     # Initialize Dragon Dictionaries for inference, docking simulation, and model list
     data_dd_cpu_bind = os.getenv("DATA_DD_CPU_AFFINITY").split(",")
     data_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                             host_name=Node(nodelist["inference"][node]).hostname,
-                             cpu_affinity=data_dd_cpu_bind) \
+                             host_name=Node(nodelist["inference"][node]).hostname) \
                       for node in range(len(nodelist["inference"]))]
     tic = perf_counter()
     data_dd = DDict(None, 
@@ -142,8 +141,7 @@ if __name__ == "__main__":
     if args.load == "False" and args.inference_and_sort == "False":
         sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
         sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
-                                host_name=Node(nodelist["simulation"][node]).hostname,
-                                cpu_affinity=sim_dd_cpu_bind) \
+                                host_name=Node(nodelist["simulation"][node]).hostname) \
                         for node in range(len(nodelist["simulation"]))]
         tic = perf_counter()
         sim_dd = DDict(None, 
@@ -159,7 +157,7 @@ if __name__ == "__main__":
     model_list_dd = DDict(args.managers_per_node, 
                           num_tot_nodes, 
                           model_list_dict_mem, 
-                          policy=model_dd_policy, 
+                          policy=None, 
                           working_set_size=10)
     toc = perf_counter()
     print(f"Launched Dragon Dictionary for model list with total memory size {model_list_dict_mem} on {num_tot_nodes} nodes in {toc-tic} seconds", flush=True)

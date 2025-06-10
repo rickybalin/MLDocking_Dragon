@@ -94,7 +94,7 @@ def launch_inference(data_dd: DDict,
 
             local_policy = Policy(placement=Policy.Placement.HOST_NAME,
                                   host_name=node_name, 
-                                  cpu_affinity=inf_cpu_bind[proc],
+                                  #cpu_affinity=inf_cpu_bind[proc],
                                   gpu_affinity=inf_gpu_bind[proc])
             grp.add_process(nproc=1, 
                             template=ProcessTemplate(target=infer, 

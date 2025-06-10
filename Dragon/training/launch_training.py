@@ -58,7 +58,7 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
     node_name = Node(node).hostname
     local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                           host_name=node_name, 
-                          cpu_affinity=cpu_affinity, 
+                          #cpu_affinity=cpu_affinity, 
                           gpu_affinity=[gpu_devices[0]])
     grp.add_process(nproc=1, 
                     template=ProcessTemplate(target=fine_tune,
