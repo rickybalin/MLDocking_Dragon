@@ -60,6 +60,8 @@ if __name__ == "__main__":
                         help='Perform data loading only')
     parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
                         help='Perform inference and sorting only')
+    parser.add_argument('--pool_chunksize', type=int, default=1,
+                        help='Chunksize to use for the data loader mp.Pool')
     args = parser.parse_args()
 
     # Start driver
@@ -179,7 +181,8 @@ if __name__ == "__main__":
         kwargs={
             'num_files': num_files,
             'nodelist': None,
-            'load_split_factor': 1
+            'load_split_factor': 1,
+            'chunksize': args.pool_chunksize,
         }
     )
     loader_proc.start()

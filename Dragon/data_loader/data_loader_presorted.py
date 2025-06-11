@@ -146,7 +146,8 @@ def load_inference_data(_dict: DDict,
                         num_managers: int, 
                         num_files: int = None,
                         nodelist: list = None,
-                        load_split_factor: int = 1):
+                        load_split_factor: int = 1,
+                        chunksize: int = 1):
     """Load pre-sorted inference data from files and to Dragon dictionary
 
     :param _dict: Dragon distributed dictionary
@@ -181,7 +182,7 @@ def load_inference_data(_dict: DDict,
     file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
     num_procs = min(max_procs, num_files)
-    print(f"Number of Pool processes is {num_procs}", flush=True)
+    print(f"Number of Pool processes is {num_procs} and chunk size is {chunksize}", flush=True)
     
     #policy = None
     #process_per_policy = 1
@@ -191,10 +192,12 @@ def load_inference_data(_dict: DDict,
 
     tic = perf_counter()
     if load_split_factor == 1:
+        ticc = perf_counter()
         pool = mp.Pool(num_procs, 
                        initializer=initialize_worker, 
                        initargs=(_dict,))
-        outputs = pool.imap_unordered(read_smiles, file_tuples, chunksize=5)
+        t_init = perf_counter() - ticc
+        outputs = pool.imap_unordered(read_smiles, file_tuples, chunksize=chunksize)
         pool.close()
         pool.join()
     else:
@@ -216,6 +219,7 @@ def load_inference_data(_dict: DDict,
                     i
                     * num_files_per_pool : min((i + 1) * num_files_per_pool, num_files)
                 ],
+                chunksize=chunksize
             )
             outputs.extend(output)
             #for out in outputs:
@@ -232,7 +236,7 @@ def load_inference_data(_dict: DDict,
             #print(f"Pool joined", flush=True)
     load_time = perf_counter() - tic
     
-    print(f"Loaded inference data in {load_time} sec",flush=True) #, {init_time}, {imap_time}, {close_time}", flush=True)
+    print(f"Loaded inference data in {load_time} sec ({t_init=})",flush=True)
 
     total_data_size = 0
     run_times = []
