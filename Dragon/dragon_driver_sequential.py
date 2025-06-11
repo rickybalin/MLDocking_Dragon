@@ -59,9 +59,13 @@ if __name__ == "__main__":
     parser.add_argument('--load', type=str, default="False", choices=["False", "True"],
                         help='Perform data loading only')
     parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
-                        help='Perform inference and sorting only')
+                        help='Perform loading, inference and sorting only')
+    parser.add_argument('--sort', type=str, default="False", choices=["False", "True"],
+                        help='Perform loading and sorting only')
     parser.add_argument('--pool_chunksize', type=int, default=1,
                         help='Chunksize to use for the data loader mp.Pool')
+    parser.add_argument('--candidate_fraction', type=float, default=0.0,
+                        help='Fraction of the compund list to inclide for training')
     args = parser.parse_args()
 
     # Start driver
@@ -69,6 +73,9 @@ if __name__ == "__main__":
     print("Begun dragon driver")
     print(f"Reading inference data from path: {args.data_path}", flush=True)
     mp.set_start_method("dragon")
+
+    if args.sort == "True":
+        os.environ['TEST_SORTING'] = 'True'
 
     # Get information about the allocation
     alloc = System()
@@ -137,11 +144,12 @@ if __name__ == "__main__":
     data_dd = DDict(None, 
                     None, 
                     data_dict_mem, 
-                    policy=data_dd_policy)
+                    policy=data_dd_policy,
+                    managers_per_policy=args.managers_per_node)
     toc = perf_counter()
     print(f"Launched Dragon Dictionary for inference with total memory size {data_dict_mem} on {node_counts['inference']} nodes in {toc-tic} seconds", flush=True)
     
-    if args.load == "False" and args.inference_and_sort == "False":
+    if args.load == "False" and args.inference_and_sort == "False" and args.sort == "False":
         sim_dd_cpu_bind = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
         sim_dd_policy = [Policy(placement=Policy.Placement.HOST_NAME, 
                                 host_name=Node(nodelist["simulation"][node]).hostname,
@@ -151,7 +159,8 @@ if __name__ == "__main__":
         sim_dd = DDict(None, 
                     None, 
                     sim_dict_mem,
-                    policy=sim_dd_policy)
+                    policy=sim_dd_policy,
+                    managers_per_policy=args.managers_per_node)
         toc = perf_counter()
         print(f"Launched Dragon Dictionary for docking simulation with total memory size {sim_dict_mem} on {node_counts['simulation']} nodes in {toc-tic} seconds", flush=True)
 
@@ -212,7 +221,7 @@ if __name__ == "__main__":
     print("\nLoaded pretrained model",flush=True)
 
     # Initialize simulated compounds list
-    if args.load == "False" and args.inference_and_sort == "False":
+    if args.load == "False" and args.inference_and_sort == "False" and args.sort == "False":
         sim_dd.bput('simulated_compounds', [])
 
     # Update driver log
@@ -244,31 +253,32 @@ if __name__ == "__main__":
         print(f"Current checkpoint: {model_list_dd.checkpoint_id}", flush=True)
 
         # Launch the data inference component
-        print(f"Launching inference ...", flush=True)
-        inf_num_limit = None
-        if num_tot_nodes == 1:
-            inf_num_limit = 8
-            print(f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker")
+        if args.sort == "False":
+            print(f"Launching inference ...", flush=True)
+            inf_num_limit = None
+            if num_tot_nodes == 1:
+                inf_num_limit = 8
+                print(f"Running small test on {num_tot_nodes}; limiting {inf_num_limit} keys per inference worker")
 
-        tic = perf_counter()
-        inf_proc = mp.Process(
-            target=launch_inference,
-            args=(
-                data_dd,
-                model_list_dd,
-                nodelist["inference"],
-            ),
-            kwargs={
-            'inf_num_limit': inf_num_limit,
-            }
-        )
-        inf_proc.start()
-        inf_proc.join()
-        toc = perf_counter()
-        infer_time = toc - tic
-        print(f"Executed inference mp.Process in {infer_time:.3f} seconds \n", flush=True)
-        if inf_proc.exitcode != 0:
-            raise Exception("Inference failed!\n")
+            tic = perf_counter()
+            inf_proc = mp.Process(
+                target=launch_inference,
+                args=(
+                    data_dd,
+                    model_list_dd,
+                    nodelist["inference"],
+                ),
+                kwargs={
+                'inf_num_limit': inf_num_limit,
+                }
+            )
+            inf_proc.start()
+            inf_proc.join()
+            toc = perf_counter()
+            infer_time = toc - tic
+            print(f"Executed inference mp.Process in {infer_time:.3f} seconds \n", flush=True)
+            if inf_proc.exitcode != 0:
+                raise Exception("Inference failed!\n")
         
         # Launch data sorter component
         print(f"Launching sorting ...", flush=True)
@@ -276,7 +286,7 @@ if __name__ == "__main__":
         if iter == 0:
             model_list_dd.bput("max_sort_iter",-1)
             model_list_dd.bput('current_sort_iter', -1)
-        random_number = int(0*top_candidate_number)
+        random_number = int(args.candidate_fraction*top_candidate_number)
         print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)
@@ -308,7 +318,7 @@ if __name__ == "__main__":
         toc = perf_counter()
         sort_time = toc - tic
         print(f"Executed sorting mp.Process with {num_keys} keys in {sort_time:.3f} seconds \n", flush=True)
-        if args.inference_and_sort == "True":
+        if args.inference_and_sort == "True" or args.sort == "True":
             sys.exit()
 
         # Launch Docking Simulations

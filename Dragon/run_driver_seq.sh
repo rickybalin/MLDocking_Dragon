@@ -107,6 +107,7 @@ module list
 echo $LD_LIBRARY_PATH
 #dragon-cleanup
 EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
+--logging=debug --sort=True \
 --managers_per_node=$MANAGERS \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \

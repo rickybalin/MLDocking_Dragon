@@ -198,19 +198,21 @@ def get_largest(dd, out_queue, num_return_sorted):
     # reflected in dd (i.e. dd is a manager directed
     # subset of a ddict).
     try:
+        tic = perf_counter()
         keys = dd.keys()
-        keys = [k for k in keys if "model" not in k and "iter" not in k]
+        #keys = [k for k in keys if "model" not in k and "iter" not in k]
         this_value = []
 
         for key in keys:
-            val = dd[key]
-            num_smiles = len(val['inf'])
-            this_value.extend(zip(val["inf"], 
-                                  val["smiles"], 
-                                  [val['model_iter'] for _ in range(num_smiles)]))
-            this_value = heapq.nlargest(
-                num_return_sorted, this_value, key=lambda x: x[0]
-            )
+            if "model" not in key and "iter" not in key:
+                val = dd[key]
+                num_smiles = len(val['inf'])
+                this_value.extend(zip(val["inf"], 
+                                        val["smiles"], 
+                                        [val['model_iter'] for _ in range(num_smiles)]))
+                this_value = heapq.nlargest(
+                    num_return_sorted, this_value, key=lambda x: x[0]
+                )
 
         # If EOFError is raised, the receiving side closed the queue
         try:
@@ -218,6 +220,8 @@ def get_largest(dd, out_queue, num_return_sorted):
                 out_queue.put(this_value[i])
         except EOFError:
             pass
+
+        #print(perf_counter()-tic,flush=True)
 
     except Exception as ex:
         tb = traceback.format_exc()
@@ -236,11 +240,13 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
     candidate_list = []
 
-    with dd.filter(get_largest, (num_return_sorted,), comparator) as candidates:
+    tic_filter = perf_counter()
+    with dd.filter(get_largest, (num_return_sorted,), comparator, branching_factor=5) as candidates:
         for candidate in candidates:
             candidate_list.append(candidate)
             if len(candidate_list) == num_return_sorted:
                 break
+    toc_filter = perf_counter()
 
     #print("HERE IS THE CANDIDATE LIST (first 10 only)")
     #print("******************************************", flush=True)
@@ -270,8 +276,9 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     #cdd["max_sort_iter"] = ckey
 
     io_time =(toc_w-tic_w)
+    filter_time = toc_filter - tic_filter
 
-    print(f"Performed sorting of {num_return_sorted} compounds: total={toc_end-tic_start}, IO={io_time}",flush=True)
+    print(f"Performed sorting of {num_return_sorted} compounds: total={toc_end-tic_start}, filter={filter_time}, IO={io_time}",flush=True)
     
 
 def make_random_compound_selection(random_number):
