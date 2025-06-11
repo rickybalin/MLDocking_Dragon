@@ -46,6 +46,8 @@ if __name__ == "__main__":
                         help='number of managers per node for the dragon dict')
     parser.add_argument('--mem_per_node', type=int, default=8,
                         help='managed memory size per node for dictionary in GB')
+    parser.add_argument('--mem_fraction', type=float, default=0.5,
+                        help='Fraction of node memoty to be used for DDicts managed memory')
     parser.add_argument('--max_procs_per_node', type=int, default=10,
                         help='Maximum number of processes in a Pool')
     parser.add_argument('--max_iter', type=int, default=1,
@@ -124,7 +126,7 @@ if __name__ == "__main__":
     else:
         base_path = pathlib.Path(args.data_path)
         files, num_files = get_files(base_path)
-    data_dict_mem, sim_dict_mem, model_list_dict_mem = max_data_dict_size(num_files, node_counts, max_pool_frac=0.5)
+    data_dict_mem, sim_dict_mem, model_list_dict_mem = max_data_dict_size(num_files, node_counts, max_pool_frac=args.mem_fraction)
     print(f"Setting data_dict size to {data_dict_mem} GB")
     print(f"Setting sim_dict size to {sim_dict_mem} GB")
     print(f"Setting model_list_dict size to {model_list_dict_mem} GB")

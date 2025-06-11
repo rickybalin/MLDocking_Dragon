@@ -60,12 +60,12 @@ def max_data_dict_size(num_keys: int,
     data_dict_size = max(data_dict_size, node_counts["inference"])
     model_dict_size = max(model_dict_size, num_tot_nodes)
 
-    max_mem = ddict_mem_check()
+    max_mem = ddict_mem_check(mem_fraction=max_pool_frac)
 
     print(f"Memory available for ddicts: {max_mem} GB")
 
     if sim_dict_size + data_dict_size + model_dict_size > max_mem:
-        raise Exception(f"Not enough mem for dictionaries: {max_mem=} {max_pool_frac=} {data_dict_size=} {cand_dict_size=}")
+        raise Exception(f"Not enough mem for dictionaries: {max_mem=} {max_pool_frac=} {data_dict_size=} {model_dict_size=} {sim_dict_size=}")
 
     return int(data_dict_size), int(sim_dict_size), int(model_dict_size)
 

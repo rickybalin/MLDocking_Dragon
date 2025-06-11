@@ -241,7 +241,7 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     candidate_list = []
 
     tic_filter = perf_counter()
-    with dd.filter(get_largest, (num_return_sorted,), comparator, branching_factor=5) as candidates:
+    with dd.filter(get_largest, (num_return_sorted,), comparator, branching_factor=4) as candidates:
         for candidate in candidates:
             candidate_list.append(candidate)
             if len(candidate_list) == num_return_sorted:
