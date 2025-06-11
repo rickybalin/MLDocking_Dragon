@@ -4,7 +4,7 @@ from typing import List
 import numpy as np
 import psutil
 import os
-from time import perf_counter
+from time import perf_counter, sleep
 import random
 import gc
 import socket
@@ -175,7 +175,7 @@ def infer(file_path,
             #output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
             #print(x_inference.shape,output.shape,flush=True)
             tic_fp = perf_counter()
-            output = np.random.random(len(smiles_raw))
+            output = np.random.random(len(smiles_raw)) + cutoff
             toc_fp = perf_counter()
         else:
             # run model

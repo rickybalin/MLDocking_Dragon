@@ -233,7 +233,7 @@ def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
     tic = perf_counter()
     file = file_path+"/"+fil
     f_extension = str(fil).split(".")[-1]
-    f_header = str(fil).split(".")[0]
+    f_header = fil.rstrip("."+f_extension)
     if f_extension == "smi":
         with file.open() as f:
             for line in f:

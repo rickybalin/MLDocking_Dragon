@@ -91,6 +91,7 @@ def launch_inference(file_path,
     ]
     if inf_num_limit is not None:
         all_files = all_files[:inf_num_limit]
+    print(f"Inference running on {len(all_files)} files", flush=True)
     
     # Create the process group
     tic = perf_counter()
