@@ -194,7 +194,7 @@ def load_inference_data(_dict: DDict,
         pool = mp.Pool(num_procs, 
                        initializer=initialize_worker, 
                        initargs=(_dict,))
-        outputs = pool.imap_unordered(read_smiles, file_tuples, chunksize=5)
+        outputs = pool.imap_unordered(read_smiles, file_tuples, chunksize=50)
         pool.close()
         pool.join()
     else:

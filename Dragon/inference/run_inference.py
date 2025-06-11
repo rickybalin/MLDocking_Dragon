@@ -22,6 +22,8 @@ import keras
 import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
