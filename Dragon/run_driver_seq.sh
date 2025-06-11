@@ -24,6 +24,7 @@ case "$FULL_HOSTNAME" in
 	export RECEPTOR_FILE=/flare/datascience/dragon/receptor_files/3clpro_7bqy.oedu
 	DATA_PATH=/flare/datascience/dragon/tiny
 	export DRIVER_PATH=/flare/hpe_dragon_collab/balin/PASC25/MLDocking_Dragon_pfs/Dragon/
+        export WORK_PATH=$PWD
 	export OE_LICENSE=/flare/hpe_dragon_collab/balin/oe_license.txt
     ;;
     *"polaris"* )
@@ -107,6 +108,7 @@ module list
 echo $LD_LIBRARY_PATH
 #dragon-cleanup
 EXE="dragon $DEBUG_STR ${DRIVER_PATH}/dragon_driver_sequential.py \
+--sort=True \
 --data_path=${DATA_PATH} \
 --max_procs_per_node=$PROCS_PER_NODE \
 --inference_node_num=2 --sorting_node_num=2 --simulation_node_num=1"

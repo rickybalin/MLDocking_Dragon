@@ -24,8 +24,8 @@ def mpi_sort(num_files: int, num_return_sorted: int):
     
     # Read the files
     tic_files = perf_counter()
-    driver_path = os.getenv("DRIVER_PATH")
-    predicted_data_path = driver_path + "/predicted_data"
+    data_path = os.getenv("WORK_PATH")
+    predicted_data_path = data_path + "/predicted_data"
     if rank == 0:
         # Get list of files
         all_files = os.listdir(predicted_data_path)
@@ -78,7 +78,10 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             for row in reader:
                 for key, value in row.items():
                     if key == "score":
-                        val[key].append(float(value))
+                        try:
+                            val[key].append(float(value))
+                        except:
+                            val[key].append(0.0)
                     else:
                         val[key].append(value)
         toc_read = perf_counter()
@@ -203,7 +206,7 @@ def mpi_sort(num_files: int, num_return_sorted: int):
             sort_val = {"inf": list(candidate_inf), "smiles": list(candidate_smiles)}
         
             tic_write = perf_counter()
-            sorted_data_path = driver_path + "/sorted_data"
+            sorted_data_path = data_path + "/sorted_data"
             if not os.path.exists(sorted_data_path):
                 os.makedirs(sorted_data_path)
             with open(sorted_data_path+'/sorted_smiles.csv', 'w', newline='') as file:

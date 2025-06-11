@@ -54,6 +54,8 @@ if __name__ == "__main__":
                         help='Logging level')
     parser.add_argument('--inference_and_sort', type=str, default="False", choices=["False", "True"],
                         help='Perform inference and sorting only')
+    parser.add_argument('--sort', type=str, default="False", choices=["False", "True"],
+                        help='Perform loading and sorting only')
     args = parser.parse_args()
 
     # Start driver
@@ -61,6 +63,9 @@ if __name__ == "__main__":
     print("Begun dragon driver")
     print(f"Reading inference data from path: {args.data_path}", flush=True)
     mp.set_start_method("dragon")
+
+    if args.sort == "True":
+        os.environ['TEST_SORTING'] = 'True'
 
     # Get information about the allocation
     alloc = System()
@@ -157,7 +162,7 @@ if __name__ == "__main__":
         toc = perf_counter()
         sort_time = toc - tic
         print(f"Executed sorting mp.Process in {sort_time:.3f} seconds \n", flush=True)
-        if args.inference_and_sort == "True":
+        if args.inference_and_sort == "True" or args.sort == "True":
             sys.exit()
 
         # Launch Docking Simulations

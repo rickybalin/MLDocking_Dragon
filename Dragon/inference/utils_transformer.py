@@ -227,8 +227,8 @@ def large_inference_data_gen(hyper_params, tokenizer, dirs, fil, rank):
 """
 
 def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
+    sort_test = os.getenv("TEST_SORTING")
     maxlen = hyper_params['tokenization']['maxlen']
-
     smiles_raw = []
     tic = perf_counter()
     file = file_path+"/"+fil
@@ -248,7 +248,10 @@ def large_inference_data_gen(hyper_params, tokenizer, file_path, fil):
     read_time = toc - tic
     
     tic = perf_counter()
-    x_inference = preprocess_smiles_pair_encoding(smiles_raw,
+    if sort_test:
+        x_inference = None
+    else:
+        x_inference = preprocess_smiles_pair_encoding(smiles_raw,
                                                     tokenizer,
                                                     maxlen
                                                     )

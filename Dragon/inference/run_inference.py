@@ -110,6 +110,9 @@ def infer(file_path,
     """Run inference reading from and writing data to the Dragon Dictionary"""
     tic = perf_counter()
     gc.collect()
+
+    sort_test = os.getenv("TEST_SORTING")
+
     # !!! DEBUG !!!
     if debug:
         p = psutil.Process()
@@ -157,22 +160,28 @@ def infer(file_path,
     # Iterate over files
     BATCH = hyper_params["general"]["batch_size"]
     cutoff = 9
-    output_dir = os.path.join(driver_path, "predicted_data")
+    data_path = os.getenv("WORK_PATH")
+    output_dir = os.path.join(data_path, "predicted_data")
     if proc == 0:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
     for fil in split_files:
-            
         # read files and procedd data
         smiles_raw, x_inference, header, read_time, preproc_time = large_inference_data_gen(hyper_params, 
-                                                           tokenizer, 
-                                                           file_path, 
-                                                           fil)
-        
-        # run model
-        tic_fp = perf_counter()
-        output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
-        toc_fp = perf_counter()
+                                                        tokenizer, 
+                                                        file_path, 
+                                                        fil)
+        if sort_test:
+            #output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
+            #print(x_inference.shape,output.shape,flush=True)
+            tic_fp = perf_counter()
+            output = np.random.random(len(smiles_raw))
+            toc_fp = perf_counter()
+        else:
+            # run model
+            tic_fp = perf_counter()
+            output = model.predict(x_inference, batch_size=BATCH, verbose=0).flatten()
+            toc_fp = perf_counter()
 
         SMILES_DS = np.vstack((smiles_raw, np.array(output).flatten())).T
         SMILES_DS = sorted(SMILES_DS, key=lambda x: x[1], reverse=True)

@@ -315,8 +315,9 @@ def sort_dictionary_pg(
                        num_procs: int, 
                        nodelist):
    
-    driver_path = os.getenv("DRIVER_PATH")
-    predicted_data_path = driver_path + "/predicted_data"
+    #driver_path = os.getenv("DRIVER_PATH")
+    data_path = os.getenv("WORK_PATH")
+    predicted_data_path = data_path + "/predicted_data"
 
     file_list = os.listdir(predicted_data_path)
     num_files = len(file_list)
