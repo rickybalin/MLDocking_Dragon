@@ -179,14 +179,20 @@ if __name__ == "__main__":
 
     # Load data into the data dictionary
     print("\nLoading inference data into Dragon Dictionary ...", flush=True)
-    max_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["inference"]
+    if num_tot_nodes <= 3: 
+        num_procs = num_files
+    else:
+        files_per_proc = 1000
+        max_avail_cores = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["inference"]
+        num_procs = min(num_files, int(num_files / files_per_proc) * node_counts["inference"])
+        num_procs = min(num_procs, max_avail_cores)
     tic = perf_counter()
     loader_proc = mp.Process(
         target=load_inference_data,
         args=(
             data_dd,
             args.data_path,
-            max_procs,
+            num_procs,
             node_counts["inference"] * args.managers_per_node,
         ),
         kwargs={

@@ -127,6 +127,6 @@ def launch_docking_sim(cdd, sdd, docking_iter, max_num_procs, nodelist):
     run_time = max(run_times)
     avg_io_time = (toc_write-tic_write) + sum(ddict_times)/len(ddict_times)
     max_io_time = (toc_write-tic_write) + max(ddict_times)
-    print(f'Performed docking simulation: total={run_time}, IO_avg={avg_io_time}, IO_avg={max_io_time}',flush=True)
+    print(f'Performed docking simulation: total={run_time}, IO_avg={avg_io_time}, IO_max={max_io_time}',flush=True)
     print(f"Performed docking simulations in {toc-tic} seconds", flush=True)    
 

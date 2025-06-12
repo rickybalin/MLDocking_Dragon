@@ -142,7 +142,7 @@ def initialize_worker(the_ddict):
 
 def load_inference_data(_dict: DDict, 
                         data_path: str, 
-                        max_procs: int, 
+                        num_procs: int, 
                         num_managers: int, 
                         num_files: int = None,
                         nodelist: list = None,
@@ -181,7 +181,7 @@ def load_inference_data(_dict: DDict,
 
     file_tuples = [(i, f, i % num_managers) for i, f in enumerate(files)]
 
-    num_procs = min(max_procs, num_files)
+    #num_procs = min(max_procs, num_files)
     print(f"Number of Pool processes is {num_procs} and chunk size is {chunksize}", flush=True)
     
     #policy = None
