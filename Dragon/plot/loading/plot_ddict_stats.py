@@ -18,6 +18,7 @@ class DDictScaling:
             'inf_ddict_init': np.zeros((self.n_nodes,)),
             'model_ddict_init': np.zeros((self.n_nodes,)),
             'pool_procs': np.zeros((self.n_nodes,)),
+            'num_files': np.zeros((self.n_nodes,)),
             'load_time': np.zeros((self.n_nodes,)),
             'load_IO_avg_time': np.zeros((self.n_nodes,)),
             'load_IO_max_time': np.zeros((self.n_nodes,)),
@@ -31,6 +32,7 @@ class DDictScaling:
             'inf_ddict_init': np.zeros((self.n_nodes,)),
             'model_ddict_init': np.zeros((self.n_nodes,)),
             'pool_procs': np.zeros((self.n_nodes,)),
+            'num_files': np.zeros((self.n_nodes,)),
             'load_time': np.zeros((self.n_nodes,)),
             'load_IO_avg_time': np.zeros((self.n_nodes,)),
             'load_IO_max_time': np.zeros((self.n_nodes,)),
@@ -65,6 +67,9 @@ class DDictScaling:
                                 l = l.replace("\n","")
                             self.stats['model_ddict_init'][i] += float(l.split(' ')[-2])
                             self.counts['model_ddict_init'][i] += 1
+                        if "Number of files to read is" in l:
+                            self.stats['num_files'][i] += int(l.split(' ')[-1])
+                            self.counts['num_files'][i] += 1
                         if "Number of Pool processes" in l:
                             self.stats['pool_procs'][i] += int(l.split(' ')[5])
                             self.counts['pool_procs'][i] += 1
@@ -112,7 +117,7 @@ class DDictScaling:
 
 
 base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/loading/strong_scale_ck64'
-node_list = [8,16,32,64,128]
+node_list = [4,8,16,32,64,128]
 chk64 = DDictScaling(base_path,node_list)
 chk64.parse_files()
 
@@ -121,10 +126,15 @@ node_list = [8,16,32]
 chk1 = DDictScaling(base_path,node_list)
 chk1.parse_files()
 
-#base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/loading/strong_scale_ch64_full'
-#node_list = [8,16,32,64,128,256]
-#chk64_full = DDictScaling(base_path,node_list)
-#chk64_full.parse_files()
+base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/loading/strong_scale_ch64_full'
+node_list = [16,32,64,128,256]
+chk64_full = DDictScaling(base_path,node_list)
+chk64_full.parse_files()
+
+base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/loading/weak_scale_ck64'
+node_list = [8,32,128]
+chk64_w = DDictScaling(base_path,node_list)
+chk64_w.parse_files()
 
 # Plot DDict init times
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
@@ -166,13 +176,21 @@ fig.savefig("plt_data_strong_scale.png")
 
 # Plot data loader time
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
-axs.plot(chk1.node_list, chk1.stats['load_time'],label = "Chunksize 1",marker="o",ls="-",markersize=10, linewidth=2)
-axs.plot(chk64.node_list, chk64.stats['load_time'],label = "Chunksize 64",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(chk1.node_list, chk1.stats['load_time'],label = "Chunksize 1",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(chk64.node_list, chk64.stats['load_time'],label = "131,072 files",marker="o",ls="-",markersize=10, linewidth=2)
 ideal = [chk64.stats['load_time'][0]/(nodes/chk64.node_list[0]) for nodes in chk64.node_list]
 axs.plot(chk64.node_list, ideal,ls="--", linewidth=1, color="k")
-efficiency = [id/real*100 for id,real in zip(ideal,chk64.stats['load_time'].tolist())]
-for i in range(len(efficiency)):
-    axs.text(chk64.node_list[i] + 0.1, chk64.stats['load_time'][i]+ 0.1, str(round(efficiency[i],1))+" %", fontsize=9, color='black')
+chk64_efficiency = [id/real*100 for id,real in zip(ideal,chk64.stats['load_time'].tolist())]
+for i in range(len(chk64_efficiency)):
+    axs.text(chk64.node_list[i] + 0.1, chk64.stats['load_time'][i]+ 0.1, str(round(chk64_efficiency[i],1))+" %", fontsize=9, color='black')
+
+axs.plot(chk64_full.node_list, chk64_full.stats['load_time'],label = "500,354 files",marker="o",ls="-",markersize=10, linewidth=2)
+ideal = [chk64_full.stats['load_time'][0]/(nodes/chk64_full.node_list[0]) for nodes in chk64_full.node_list]
+axs.plot(chk64_full.node_list, ideal,ls="--", linewidth=1, color="k")
+chk64_full_efficiency = [id/real*100 for id,real in zip(ideal,chk64_full.stats['load_time'].tolist())]
+for i in range(len(chk64_full_efficiency)):
+    axs.text(chk64_full.node_list[i] + 0.1, chk64_full.stats['load_time'][i]+ 0.1, str(round(chk64_full_efficiency[i],1))+" %", fontsize=9, color='black')
+
 #axs.set_xscale("log")
 axs.grid()
 axs.set_xlabel('Number of Nodes')
@@ -182,5 +200,44 @@ axs.set_ylabel('Time [sec]')
 axs.set_title('Data Loader Execution Time')
 fig.tight_layout(pad=2.0)
 fig.savefig("plt_load_strong_scale.png")
+
+
+# Plot data loader efficiency 
+fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
+ideal = [100 for _ in range(5000)]
+axs.plot(list(range(5000)), ideal,ls="--", linewidth=1, color="k")
+ch64_files_per_proc = chk64.stats["num_files"]/chk64.stats["pool_procs"]
+axs.plot(ch64_files_per_proc, chk64_efficiency,label = "131,072 files",marker="o",ls="-",markersize=10, linewidth=2)
+ch64_full_files_per_proc = chk64_full.stats["num_files"]/chk64_full.stats["pool_procs"]
+axs.plot(ch64_full_files_per_proc, chk64_full_efficiency,label = "500,354 files",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.set_xscale("log")
+axs.grid()
+axs.set_xlabel('Number of Files per Process')
+#fig.legend(bbox_to_anchor=(1.25,0.7))
+axs.legend(loc='lower right')
+axs.set_ylabel('Time [sec]')
+axs.set_ylim(0,110)
+axs.set_title('Data Loader Efficiency')
+fig.tight_layout(pad=2.0)
+fig.savefig("plt_load_eff_strong_scale.png")
+
+# Plot weak scaling
+fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
+axs.plot(chk64_w.node_list, chk64_w.stats['load_time'],label = "weak scaling",marker="o",ls="-",markersize=10, linewidth=2)
+ideal = [chk64_w.stats['load_time'][0] for _ in chk64_w.node_list]
+axs.plot(chk64_w.node_list, ideal,ls="--", linewidth=1, color="k")
+chk64_w_efficiency = [id/real*100 for id,real in zip(ideal,chk64_w.stats['load_time'].tolist())]
+for i in range(len(chk64_w_efficiency)):
+    axs.text(chk64_w.node_list[i] + 0.1, chk64_w.stats['load_time'][i]+ 0.1, str(round(chk64_w_efficiency[i],1))+" %", fontsize=9, color='black')
+#axs.set_xscale("log")
+axs.grid()
+axs.set_xlabel('Number of Nodes')
+#fig.legend(bbox_to_anchor=(1.25,0.7))
+axs.legend(loc='lower right')
+axs.set_ylabel('Time [sec]')
+axs.set_ylim(0,110)
+axs.set_title('Data Loader Execution Time')
+fig.tight_layout(pad=2.0)
+fig.savefig("plt_load_weak_scale.png")
 
 
