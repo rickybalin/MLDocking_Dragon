@@ -126,7 +126,7 @@ def infer(data_dd,
         if pvc_device:
             device = pvc_device
         hostname = socket.gethostname()
-        print(f"Launching infer for worker {proc} from process {p} on core {core_list} on device {hostname}:{device}", flush=True)
+        print(f"Launching infer for worker {proc} on core {core_list} on device {hostname}:{device}", flush=True)
     
     
     # Get local keys

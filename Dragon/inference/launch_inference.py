@@ -50,13 +50,20 @@ def launch_inference(data_dd: DDict,
     """
     num_inf_nodes = len(nodelist)
 
+    num_ccs = 1
+    if int(os.getenv("USE_CCS")) == 1:
+        ccs_string = os.getenv("ZEX_NUMBER_OF_CCS")
+        num_ccs = int(ccs_string.split(",")[0].split(":")[1])
+        print(f"Using {num_ccs} CCS on Aurora PVC",flush=True)
+
     gpu_devices_string = os.getenv("GPU_DEVICES")
     inf_gpu_bind = []
     for g in gpu_devices_string.split(","):
-        if "." in g:
-            inf_gpu_bind.append([float(g)])
-        else:
-            inf_gpu_bind.append([int(g)])
+        for _ in range(num_ccs):
+            if "." in g:
+                inf_gpu_bind.append([float(g)])
+            else:
+                inf_gpu_bind.append([int(g)])
     num_procs_pn = len(inf_gpu_bind)  # number of procs per node is number of gpus
     print(f"Inference running on {num_inf_nodes} nodes and {num_procs_pn} processes per node", flush=True)
 

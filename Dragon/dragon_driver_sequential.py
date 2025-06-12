@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # 3. model and candidate dictionary for training
     # The model and candidate dictionary will be checkpointed
     if num_tot_nodes <= 3: 
-        num_files = 24
+        num_files = 48
     else:
         base_path = pathlib.Path(args.data_path)
         files, num_files = get_files(base_path)
