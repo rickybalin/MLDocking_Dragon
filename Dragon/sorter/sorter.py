@@ -235,7 +235,7 @@ def comparator(x, y):
     return x[0] > y[0]
 
 
-def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
+def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict, random_number: int):
     tic_start = perf_counter()
     print(f"Finding the best {num_return_sorted} candidates.", flush=True)
     candidate_list = []
@@ -268,6 +268,32 @@ def sort_dictionary(dd: DDict, num_return_sorted, cdd: DDict):
     tic_w = perf_counter()
     cdd.bput("current_sort_list", sort_val)
     toc_w = perf_counter()
+
+    if random_number > 0:
+        alloc = System()
+        num_nodes = min(int(alloc.nnodes), random_number)
+        pool = mp.Pool(num_nodes, 
+                    initializer=initialize_worker, 
+                    initargs=(dd,), 
+                    )
+        out = pool.imap_unordered(make_random_compound_selection, 
+                                [random_number for _ in range(num_nodes)])
+
+        random_smiles = []
+        random_inf = []
+        random_model = []
+        for result in out:
+            for r in result:
+                sm,sc,mi = r
+                random_smiles.append(sm)
+                random_inf.append(sc)
+                random_model.append(mi)
+        pool.close()
+        pool.join()
+        print(f"Randomly sampled {len(random_smiles)} random smiles for simulation", flush=True)
+        cdd['random_compound_sample'] = {'smiles': random_smiles,
+                                        'inf': random_inf,
+                                        'model_iter': random_model,}
 
     toc_end = perf_counter()
 

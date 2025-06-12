@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # 3. model and candidate dictionary for training
     # The model and candidate dictionary will be checkpointed
     if num_tot_nodes <= 3: 
-        num_files = 48
+        num_files = 24
     else:
         base_path = pathlib.Path(args.data_path)
         files, num_files = get_files(base_path)
@@ -294,7 +294,9 @@ if __name__ == "__main__":
         if iter == 0:
             model_list_dd.bput("max_sort_iter",-1)
             model_list_dd.bput('current_sort_iter', -1)
-        random_number = int(args.candidate_fraction*top_candidate_number)
+        
+        # Add random compunds if desired
+        random_number = int(args.candidate_fraction*top_candidate_number) if iter == 0 else 0
         print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)
@@ -317,6 +319,7 @@ if __name__ == "__main__":
                                             data_dd,
                                             top_candidate_number,
                                             model_list_dd,
+                                            random_number,
                                             ),
                                       )
             sorter_proc.start()
@@ -380,7 +383,7 @@ if __name__ == "__main__":
             f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
         #tic = perf_counter()
-        #output_sims(model_list_dd, iter=iter)
+        output_sims(model_list_dd, iter=iter)
         #toc = perf_counter()
         #print(f"Output candidates in {toc -tic} seconds",flush=True)
     

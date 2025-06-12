@@ -154,6 +154,7 @@ def infer(data_dd,
             f.write(f"{model_list_dd.checkpoint_id=}\n")
     model,hyper_params = retrieve_model_from_dict(model_list_dd)
     model_iter = model_list_dd.checkpoint_id
+    print(f"Loaded model from checkpoint {model_iter}",flush=True)
     
     if debug:
         with open(log_file_name, "a") as f:
