@@ -1,4 +1,5 @@
 import os
+from time import perf_counter
 
 import dragon
 import multiprocessing as mp
@@ -29,11 +30,11 @@ def launch_training(node, BATCH, EPOCH):
     cpu_affinity = os.getenv("TRAIN_CPU_AFFINITY").split(",")
     cpu_affinity = [int(cid) for cid in cpu_affinity]
     print(f'Launching training on {cpu_affinity} CPUs and {gpu_devices} GPU',flush=True)
+    
+    tic = perf_counter()
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
-
     node_name = Node(node).hostname
-
     local_policy = Policy(placement=Policy.Placement.HOST_NAME, 
                           host_name=node_name, 
                           cpu_affinity=cpu_affinity, 
@@ -53,7 +54,7 @@ def launch_training(node, BATCH, EPOCH):
     grp.start()
     grp.join()
     grp.close()
-    print(f"Training process group stopped",flush=True)
-    #print(dd["model_iter"])
-    #print(dd["model"])
+    toc = perf_counter()
+    print(f"Performed training in {toc-tic} seconds",flush=True)
+
 

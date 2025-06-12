@@ -49,15 +49,15 @@ def launch_docking_sim(docking_iter, max_num_procs, nodelist):
     available_cores = list(range(int(os.getenv("PROCS_PER_NODE"))))
     skip_cores = os.getenv("SKIP_THREADS").split(",")
     skip_cores = [int(c) for c in skip_cores]
-    model_dd_cores = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
-    model_dd_cores = [int(c) for c in model_dd_cores]
-    sim_dd_cores = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
-    sim_dd_cores = [int(c) for c in sim_dd_cores]
+    #model_dd_cores = os.getenv("MODEL_DD_CPU_AFFINITY").split(",")
+    #model_dd_cores = [int(c) for c in model_dd_cores]
+    #sim_dd_cores = os.getenv("SIM_DD_CPU_AFFINITY").split(",")
+    #sim_dd_cores = [int(c) for c in sim_dd_cores]
     train_cores = os.getenv("TRAIN_CPU_AFFINITY").split(",")
     train_cores = [int(c) for c in train_cores]
     available_cores = [c for c in available_cores if c not in skip_cores]
-    available_cores = [c for c in available_cores if c not in model_dd_cores]
-    available_cores = [c for c in available_cores if c not in sim_dd_cores]
+    #available_cores = [c for c in available_cores if c not in model_dd_cores]
+    #available_cores = [c for c in available_cores if c not in sim_dd_cores]
     available_cores = [c for c in available_cores if c not in train_cores]
     #print('Available cores for docking sim: ',available_cores,flush=True)
     num_procs_pn = len(available_cores)
@@ -70,8 +70,8 @@ def launch_docking_sim(docking_iter, max_num_procs, nodelist):
         
     # Read sorted data and split compunds to various processes
     tic_read = perf_counter()
-    driver_path = os.getenv("DRIVER_PATH")
-    sorted_data_path = driver_path + "/sorted_data/sorted_smiles.csv"
+    data_path = os.getenv("WORK_PATH")
+    sorted_data_path = data_path + "/sorted_data/sorted_smiles.csv"
     candidates = {"smiles": [], "score": []}
     with open(sorted_data_path, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -84,6 +84,7 @@ def launch_docking_sim(docking_iter, max_num_procs, nodelist):
     toc_read = perf_counter()
 
     # Create the process group
+    tic = perf_counter()
     global_policy = Policy(distribution=Policy.Distribution.BLOCK)
     grp = ProcessGroup(policy=global_policy)
     for node_num in range(num_nodes):
@@ -123,11 +124,11 @@ def launch_docking_sim(docking_iter, max_num_procs, nodelist):
                 scores.append(float(tmp))
     grp.join()
     grp.close()
-    print(f"Joined Process Group for Docking Sims",flush=True)
+    #print(f"Joined Process Group for Docking Sims",flush=True)
 
     # Collect candidate keys and save them to simulated keys
     tic_write = perf_counter()
-    training_data_path = driver_path + "/training_data"
+    training_data_path = data_path + "/training_data"
     if not os.path.exists(training_data_path):
         os.makedirs(training_data_path)
     with open(training_data_path+'/training_smiles.csv', 'w', newline='') as file:
@@ -135,9 +136,11 @@ def launch_docking_sim(docking_iter, max_num_procs, nodelist):
         writer.writerow(['smiles', 'score'])
         writer.writerows(zip(candidates["smiles"],scores))
     toc_write = perf_counter()
+    toc = perf_counter()
     write_time = toc_write - tic_write
     
     total_io_time = write_time + (toc_read - tic_read)
     print(f'Performed docking simulation: total={0}, IO={total_io_time}',flush=True)
+    print(f"Performed docking simulations in {toc-tic} seconds", flush=True)
     
 

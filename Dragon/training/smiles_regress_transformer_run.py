@@ -52,8 +52,8 @@ def fine_tune(
     #    f.write(f"Create training data\n")
     # Read sorted data and split compunds to various processes
     tic_read = perf_counter()
-    driver_path = os.getenv("DRIVER_PATH")
-    sorted_data_path = driver_path + "/training_data/training_smiles.csv"
+    data_path = os.getenv("WORK_PATH")
+    sorted_data_path = data_path + "/training_data/training_smiles.csv"
     candidates = {"smiles": [], "score": []}
     with open(sorted_data_path, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -96,7 +96,7 @@ def fine_tune(
         #        f.write(f"{model_path=}")
 
     tic_write = perf_counter()
-    model.save_weights('final_weights.h5')
+    model.save_weights(data_path+'/final_weights.h5')
     toc_write = perf_counter()
 
     toc = perf_counter()
