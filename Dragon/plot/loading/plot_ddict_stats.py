@@ -136,6 +136,7 @@ node_list = [8,32,128]
 chk64_w = DDictScaling(base_path,node_list)
 chk64_w.parse_files()
 
+############################
 # Plot DDict init times
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 axs.plot(chk64.node_list, chk64.stats['inf_ddict_init'],label = "Inference DDict",marker="o",ls="-",markersize=10, linewidth=2)
@@ -150,6 +151,7 @@ axs.set_title('DDict Init Time')
 fig.tight_layout(pad=2.0)
 fig.savefig("plt_ddict_strong_scale.png")
 
+############################
 # Plot DDict memory usage and load imbalance
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 axs.plot(chk64.node_list, chk64.stats['load_mem']/1000/1000/1000,label = "Average Data Utilization Per Node",marker="o",ls="-",markersize=10, linewidth=2)
@@ -174,9 +176,10 @@ axs.set_title('DDict Statistics')
 fig.tight_layout(pad=2.0)
 fig.savefig("plt_data_strong_scale.png")
 
+############################
 # Plot data loader time
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
-#axs.plot(chk1.node_list, chk1.stats['load_time'],label = "Chunksize 1",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(chk1.node_list, chk1.stats['load_time'],label = "131,072 files, chksz=1",marker="o",ls="-",markersize=10, linewidth=2)
 axs.plot(chk64.node_list, chk64.stats['load_time'],label = "131,072 files",marker="o",ls="-",markersize=10, linewidth=2)
 ideal = [chk64.stats['load_time'][0]/(nodes/chk64.node_list[0]) for nodes in chk64.node_list]
 axs.plot(chk64.node_list, ideal,ls="--", linewidth=1, color="k")
@@ -201,7 +204,7 @@ axs.set_title('Data Loader Execution Time')
 fig.tight_layout(pad=2.0)
 fig.savefig("plt_load_strong_scale.png")
 
-
+############################
 # Plot data loader efficiency 
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 ideal = [100 for _ in range(5000)]
@@ -221,6 +224,30 @@ axs.set_title('Data Loader Efficiency')
 fig.tight_layout(pad=2.0)
 fig.savefig("plt_load_eff_strong_scale.png")
 
+############################
+# Plot data loader IO and DDict times
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 7))
+axs[0].plot(chk64.node_list, chk64.stats['load_IO_avg_time'],label = "IO time avg.",marker="o",ls="-",markersize=10, linewidth=2, color='tab:blue')
+axs[0].plot(chk64.node_list, chk64.stats['load_IO_max_time'],label = "IO time max.",marker="o",ls="--",markersize=5, linewidth=1,color='tab:blue')
+axs[0].plot(chk64.node_list, chk64.stats['load_ddict_avg_time'],label = "DDict time avg.",marker="o",ls="-",markersize=10, linewidth=2, color='tab:orange')
+axs[0].plot(chk64.node_list, chk64.stats['load_ddict_max_time'],label = "DDict time max.",marker="o",ls="--",markersize=5, linewidth=1,color='tab:orange')
+
+axs[1].plot(chk64_full.node_list, chk64_full.stats['load_IO_avg_time'],label = "IO time avg.",marker="o",ls="-",markersize=10, linewidth=2, color='tab:blue')
+axs[1].plot(chk64_full.node_list, chk64_full.stats['load_IO_max_time'],label = "IO time max.",marker="o",ls="--",markersize=5, linewidth=1,color='tab:blue')
+axs[1].plot(chk64_full.node_list, chk64_full.stats['load_ddict_avg_time'],label = "DDict time avg.",marker="o",ls="-",markersize=10, linewidth=2, color='tab:orange')
+axs[1].plot(chk64_full.node_list, chk64_full.stats['load_ddict_max_time'],label = "DDict time max.",marker="o",ls="--",markersize=5, linewidth=1,color='tab:orange')
+
+axs[0].grid(); axs[1].grid(); 
+axs[0].set_xlabel('Number of Nodes'); axs[1].set_xlabel('Number of Nodes')
+#fig.legend(bbox_to_anchor=(1.25,0.7))
+axs[0].legend(loc='upper right')
+axs[0].set_ylabel('Time [sec]'); axs[1].set_ylabel('Time [sec]')
+axs[0].set_title('Data Loader IO and DDict Times (131,072)'); axs[1].set_title('Data Loader IO and DDict Times (500,354)')
+axs[0].set_yscale("log"); axs[1].set_yscale("log")
+fig.tight_layout(pad=2.0)
+fig.savefig("plt_loadIO_strong_scale.png")
+
+############################
 # Plot weak scaling
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 axs.plot(chk64_w.node_list, chk64_w.stats['load_time'],label = "weak scaling",marker="o",ls="-",markersize=10, linewidth=2)
