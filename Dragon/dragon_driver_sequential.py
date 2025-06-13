@@ -184,7 +184,7 @@ if __name__ == "__main__":
     else:
         files_per_proc = 1000
         max_avail_cores = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["inference"]
-        num_procs = min(num_files, int(num_files / files_per_proc) * node_counts["inference"])
+        num_procs = min(num_files, int(num_files / files_per_proc))
         num_procs = min(num_procs, max_avail_cores)
     tic = perf_counter()
     loader_proc = mp.Process(
