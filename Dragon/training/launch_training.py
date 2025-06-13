@@ -34,7 +34,7 @@ def read_output(stdout_conn: Connection) -> str:
     return output
 
 
-def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
+def launch_training(model_dd: DDict, sim_dd: DDict, iter, node, BATCH, EPOCH):
     """Launch the inference ruotine
 
     :param dd: Dragon distributed dictionary
@@ -64,6 +64,7 @@ def launch_training(model_dd: DDict, sim_dd: DDict, node, BATCH, EPOCH):
                     template=ProcessTemplate(target=fine_tune,
                                                 args=(model_dd, 
                                                     sim_dd, 
+                                                    iter,
                                                     BATCH, 
                                                     EPOCH, 
                                                 ),

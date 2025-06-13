@@ -38,6 +38,7 @@ def load_pretrained_model(dd: DDict):
 
 def launch_inference(data_dd: DDict, 
                      model_list_dd: DDict, 
+                     iter,
                      nodelist,
                      num_procs: int = 1, 
                      inf_num_limit = None):
@@ -51,7 +52,7 @@ def launch_inference(data_dd: DDict,
     num_inf_nodes = len(nodelist)
 
     num_ccs = 1
-    if int(os.getenv("USE_CCS")) == 1:
+    if int(os.environ.get('USE_CCS', '0')) == 1:
         ccs_string = os.getenv("ZEX_NUMBER_OF_CCS")
         num_ccs = int(ccs_string.split(",")[0].split(":")[1])
         print(f"Using {num_ccs} CCS on Aurora PVC",flush=True)
@@ -107,6 +108,7 @@ def launch_inference(data_dd: DDict,
                             template=ProcessTemplate(target=infer, 
                                                      args=(data_dd,
                                                         model_list_dd,
+                                                        iter,
                                                         num_procs_pn,
                                                         proc_id, 
                                                         None, # Continue event not used in sequential wf

@@ -28,17 +28,18 @@ from dragon.data.ddict.ddict import DDict
 
 def fine_tune(model_dd: DDict, 
                 sim_dd: DDict, 
+                iter: int,
                 BATCH: int, 
                 EPOCH: int, 
                 save_model=False,
                 debug=False):
 
-    fine_tune_log = "training.log"
+    fine_tune_log = f"training_{iter}.log"
     tic_start = perf_counter()
 
     ######## Build model #############
     tic = perf_counter()
-    model, hyper_params = retrieve_model_from_dict(model_dd,fine_tune=True)
+    model, hyper_params = retrieve_model_from_dict(model_dd,iter,fine_tune=True)
     ddict_time = perf_counter() - tic
 
     ########Create training and validation data#####
@@ -74,7 +75,7 @@ def fine_tune(model_dd: DDict,
 
         # Save to DDict
         tic = perf_counter()
-        save_model_weights(model_dd, model)
+        save_model_weights(model_dd, model, iter+1)
         ddict_time += perf_counter() - tic
         toc_end = perf_counter()
 

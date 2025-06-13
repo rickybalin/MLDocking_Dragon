@@ -27,7 +27,7 @@ from docking_sim.launch_docking_sim import launch_docking_sim
 from training.launch_training import launch_training
 from data_loader.data_loader_presorted import get_files
 from data_loader.model_loader import load_pretrained_model
-from driver_functions import max_data_dict_size, output_sims
+from driver_functions import max_data_dict_size, save_candidates, save_simulations
 
 
 if __name__ == "__main__":
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     
     # Number of top candidates to produce
     if num_tot_nodes <= 3:
-        top_candidate_number = 1000
+        top_candidate_number = 100
     else:
         top_candidate_number = 10000
 
@@ -274,6 +274,7 @@ if __name__ == "__main__":
                 args=(
                     data_dd,
                     model_list_dd,
+                    iter,
                     nodelist["inference"],
                 ),
                 kwargs={
@@ -297,7 +298,6 @@ if __name__ == "__main__":
         
         # Add random compunds if desired
         random_number = int(args.candidate_fraction*top_candidate_number) if iter == 0 else 0
-        print(f"Adding {random_number} random candidates to training", flush=True)
         if os.getenv("USE_MPI_SORT"):
             print("Using MPI sort",flush=True)
             max_sorter_procs = (args.max_procs_per_node-len(data_dd_cpu_bind)-len(model_dd_cpu_bind)) * node_counts["sorting"]
@@ -318,6 +318,7 @@ if __name__ == "__main__":
                                       args=(
                                             data_dd,
                                             top_candidate_number,
+                                            nodelist["sorting"],
                                             model_list_dd,
                                             random_number,
                                             ),
@@ -362,6 +363,7 @@ if __name__ == "__main__":
             args=(
                 model_list_dd,
                 sim_dd,
+                iter,
                 nodelist["training"][0],  # training is always 1 node
                 BATCH,
                 EPOCH,
@@ -383,7 +385,8 @@ if __name__ == "__main__":
             f.write(f"{iter}  {infer_time}  {sort_time}  {dock_time}  {train_time}\n")
 
         #tic = perf_counter()
-        output_sims(model_list_dd, iter=iter)
+        save_candidates(model_list_dd, iter)
+        save_simulations(sim_dd, iter)
         #toc = perf_counter()
         #print(f"Output candidates in {toc -tic} seconds",flush=True)
     

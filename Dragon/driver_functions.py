@@ -2,23 +2,38 @@ from dragon.data.ddict import DDict
 from dragon.native.machine import System, Node
 
 
-def output_sims(cdd: DDict, iter=0):
+def save_candidates(cdd: DDict, iter: int):
 
     candidate_list = cdd['current_sort_list']
+    candidate_smiles = candidate_list["smiles"]
+    candidate_pred = candidate_list["inf"]
 
     with open(f'top_candidates_{iter}.out','w') as f:
-        f.write("# smiles  docking_score  inf_scores(score model_iter) \n")
-        for i in range(len(candidate_list)):
-            smiles = candidate_list[i]
-            results = cdd[smiles]
-            inference_scores = results['inf_scores']
+        f.write("# smiles  inf_score\n")
+        for i in range(len(candidate_smiles)):
+            smiles = candidate_smiles[i]
+            pred = candidate_pred[i]
+            #inference_scores = results['inf_scores']
             #print(inference_scores,flush=True)
-            docking_score = results['dock_score']
-            line = f"{smiles}    {docking_score}    "
-            for inf_result in inference_scores:
-                sc = inf_result[0] # inference score
-                mi = inf_result[1] # corresponding model iter
-                line += f'{sc}    {mi}    '
+            #docking_score = results['dock_score']
+            line = f"{smiles}    {pred}"
+            #for inf_result in inference_scores:
+            #    sc = inf_result[0] # inference score
+            #    mi = inf_result[1] # corresponding model iter
+            #    line += f'{sc}    {mi}    '
+            f.write(line+"\n")
+
+def save_simulations(sdd: DDict, iter: int):
+
+    simulated_smiles = sdd['simulated_compounds']
+
+    with open(f'simulated_compounds_{iter}.out','w') as f:
+        f.write("# smiles  dock_score\n")
+        for i in range(len(simulated_smiles)):
+            smiles = simulated_smiles[i]
+            dock_score = sdd[smiles]["dock_score"]
+            #pred = candidate_pred[i]
+            line = f"{smiles}    {dock_score}"
             f.write(line+"\n")
 
 def max_data_dict_size(num_keys: int, 

@@ -351,7 +351,7 @@ def run_docking(cdd, sdd, docking_iter, proc: int, num_procs: int):
         random_candidates = cdd['random_compound_sample']
         dict_time += perf_counter() - tic
         random_candidates_list = list(zip(random_candidates['smiles'],random_candidates['inf'],random_candidates['model_iter']))
-        if proc == 1: print(f"Random candidate list has {len(random_candidates_list)} candidates", flush=True)
+        #if proc == 1: print(f"Random candidate list has {len(random_candidates_list)} candidates", flush=True)
         top_candidates_list += random_candidates_list
                              
     top_candidates_dict = {}

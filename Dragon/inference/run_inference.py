@@ -101,6 +101,7 @@ def check_model_iter(continue_event):
 
 def infer(data_dd, 
           model_list_dd, 
+          iter,
           num_procs, proc, 
           continue_event, 
           limit=None, 
@@ -130,18 +131,19 @@ def infer(data_dd,
     
     
     # Get local keys
-    current_host = host_id()
-    manager_nodes = data_dd.manager_nodes
-    keys = []
-    if debug: 
-        print(f"{current_host=}",flush=True)
-        if proc == 0: print(f"{manager_nodes=}",flush=True)
-    for i in range(len(manager_nodes)):
-        if manager_nodes[i].h_uid == current_host:
-            local_manager = i
-            #print(f"{proc}: getting keys from local manager {local_manager}")
-            dm = data_dd.manager(i)
-            keys.extend(dm.keys())
+    #current_host = host_id()
+    #manager_nodes = data_dd.manager_nodes
+    #keys = []
+    #if debug: 
+    #    print(f"{current_host=}",flush=True)
+    #    if proc == 0: print(f"{manager_nodes=}",flush=True)
+    #for i in range(len(manager_nodes)):
+    #    if manager_nodes[i].h_uid == current_host:
+    #        local_manager = i
+    #        #print(f"{proc}: getting keys from local manager {local_manager}")
+    #        dm = data_dd.manager(i)
+    #        keys.extend(dm.keys())
+    keys = data_dd.local_keys()
     if debug: print(f"{proc}: found {len(keys)} local keys")
     
     # Load model from dictionary
@@ -152,9 +154,8 @@ def infer(data_dd,
     if debug:
         with open(log_file_name, "a") as f:
             f.write(f"{model_list_dd.checkpoint_id=}\n")
-    model,hyper_params = retrieve_model_from_dict(model_list_dd)
+    model,hyper_params = retrieve_model_from_dict(model_list_dd, iter)
     model_iter = model_list_dd.checkpoint_id
-    print(f"Loaded model from checkpoint {model_iter}",flush=True)
     
     if debug:
         with open(log_file_name, "a") as f:

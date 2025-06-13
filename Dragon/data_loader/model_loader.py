@@ -5,7 +5,7 @@ from training.ST_funcs.smiles_regress_transformer_funcs import ModelArchitecture
 
 driver_path = os.getenv("DRIVER_PATH")
 
-def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
+def save_model_weights(dd: Union[DDict, dict], model, iter, verbose = False):
 
     weights_dict = {}
     num_layers = 0
@@ -27,7 +27,7 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
     print(f"model weights: {num_layers=} {num_weights=} {tot_memory=}")
 
     # Future version will use broadcast put to send model to every manager
-    dd.bput('model', weights_dict)
+    dd.bput(f'model_{iter}', weights_dict)
 
     #dd['model'] = weights_dict
     #dd['model_iter'] = model_iter
@@ -36,13 +36,13 @@ def save_model_weights(dd: Union[DDict, dict], model, verbose = False):
 
     #print(f"Saved model to dictionary", flush=True)
 
-def retrieve_model_from_dict(dd: Union[DDict, dict], fine_tune: bool = False):
+def retrieve_model_from_dict(dd: Union[DDict, dict], iter: int, fine_tune: bool = False):
 
     #weights_dict = dd["model"]
     #model_iter = dd["model_iter"]
     #hyper_params = dd["model_hyper_params"]
 
-    weights_dict = dd.bget('model')
+    weights_dict = dd.bget(f'model_{iter}')
     hyper_params = dd.bget("model_hyper_params")
 
     try:
@@ -72,7 +72,7 @@ def load_pretrained_model(dd: Union[DDict, dict]):
     model = ModelArchitecture(hyper_params).call()
     model.load_weights(os.path.join(driver_path,"inference/smile_regress.autosave.model.h5"))
     #print(f"Loaded pretrained model weights from disk", flush=True)
-    save_model_weights(dd, model, verbose=False)
+    save_model_weights(dd, model, 0, verbose=False)
 
     #print(f"Loaded pretrained model into dictionary", flush=True)
 
