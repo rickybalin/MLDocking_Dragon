@@ -200,8 +200,6 @@ fig.savefig('plt_pfs_comp_time.png')
 # Plot IO times
 labels = ['Inference', 'Sorting', 'Simulation', 'Training']
 x = np.arange(len(labels))  # the label locations
-width = 0.12  # the width of the bars
-factors = [-0.5,0.5]
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 axs.bar(x-0.5*width, [pfs.stats["inf_io_time"].item(), pfs.stats["sort_io_time"].item(), pfs.stats["sim_io_time"].item(), pfs.stats["train_io_time"].item()], width,label="PFS")
 axs.bar(x+0.5*width, [ddict.stats["inf_io_time"].item(), ddict.stats["sort_io_time"].item(), ddict.stats["sim_io_time"].item(), ddict.stats["train_io_time"].item()], width,label="DDict")
@@ -212,5 +210,6 @@ axs.set_xticks(x);axs.set_xticklabels(labels)
 #axs.set_xticks(x, labels)
 axs.legend()
 axs.grid(axis='y')
+axs.set_ylim(0.01,200)
 fig.savefig('plt_pfs_io_time.png')
 
