@@ -43,7 +43,7 @@ def fine_tune(
     hyper_params = ParamsJson(json_file)
 
     ######## Load model #############
-    model = ModelArchitecture(hyper_params).call()
+    model = ModelArchitecture(hyper_params, fine_tune=True).call()
     model.load_weights(os.path.join(driver_path,"training/smile_regress.autosave.model.h5"))
     toc_read_model = perf_counter()
 
