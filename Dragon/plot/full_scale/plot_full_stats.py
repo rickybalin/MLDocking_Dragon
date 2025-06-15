@@ -59,7 +59,10 @@ class WFStats:
 
     def parse_files(self):
         for i in range(self.n_nodes):
-            path = self.base_path+f"/{self.cases[i]}/ddict/mldocking*"
+            if "_" in self.cases[i]:
+                path = self.base_path+f"/{self.cases[i]}/ddict/mldocking*"
+            else:
+                path = self.base_path+f"/{self.cases[i]}/mldocking*"
             # Loop over runs found
             run_files = glob.glob(path)
             for run_file in run_files:
@@ -154,15 +157,25 @@ class WFStats:
                     #self.train_fom[key][:,j] = np.divide(val[:,j], self.counts[key], where=self.counts[key]>0)
                     np.divide(val[:,j], self.counts[key], out=self.stats[key][:,j], where=self.counts[key]>0)
 
+system = "local"
+if system == "aurora":
+    root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
+elif system == "local":
+    root = '/Users/riccardobalin/Documents/ALCF/Conferences/PASC25'
 
-base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/pfs_vs_ddict'
 nodes = [12, 48, 192, 768]
+base_path = root+'/runs/pfs_vs_ddict'
 cases = ['tiny_8192','small_32768','med_131072','full_500354']
-wf = WFStats(base_path,cases,nodes)
-wf.parse_files()
+wf_1ccs = WFStats(base_path,cases,nodes)
+wf_1ccs.parse_files()
 
-print(wf.stats["inf_time"][0])
+base_path = root+'/runs/full_wf'
+cases = ['8192','32768','131072','500354']
+wf_4ccs = WFStats(base_path,cases,nodes)
+wf_4ccs.parse_files()
+print(wf_4ccs.stats)
 
+"""
 # Plot component times
 labels = ['Loading', 'Inference', 'Sorting', 'Simulation', 'Training']
 x = np.arange(len(labels))  # the label locations
@@ -179,14 +192,24 @@ axs.set_xticks(x);axs.set_xticklabels(labels)
 axs.legend()
 axs.grid(axis='y')
 fig.savefig('plt_full_comp_time_bar.png')
+"""
 
 # Plot component times
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
-axs.plot(wf.nodes, wf.stats['load_time'],label = "Loading",marker="o",ls="-",markersize=10, linewidth=2)
-axs.plot(wf.nodes, wf.stats['inf_time'],label = "Inference",marker="o",ls="-",markersize=10, linewidth=2)
-axs.plot(wf.nodes, wf.stats['sort_time'],label = "Sorting",marker="o",ls="-",markersize=10, linewidth=2)
-axs.plot(wf.nodes, wf.stats['sim_time'],label = "Simulation",marker="o",ls="-",markersize=10, linewidth=2)
-axs.plot(wf.nodes, wf.stats['train_time'],label = "Training",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_1ccs.nodes, wf_1ccs.stats['load_time'],label = "Loading",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_1ccs.nodes, wf_1ccs.stats['inf_time'],label = "Inference",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_1ccs.nodes, wf_1ccs.stats['sort_time'],label = "Sorting",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_1ccs.nodes, wf_1ccs.stats['sim_time'],label = "Simulation",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_1ccs.nodes, wf_1ccs.stats['train_time'],label = "Training",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(wf_4ccs.nodes, wf_4ccs.stats['load_time'],label = "Loading",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(wf_4ccs.nodes, wf_4ccs.stats['inf_time'],label = "Inference",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(wf_4ccs.nodes, wf_4ccs.stats['sort_time'],label = "Sorting",marker="o",ls="-",markersize=10, linewidth=2)
+axs.plot(wf_4ccs.nodes, wf_4ccs.stats['sim_time'],label = "Simulation",marker="o",ls="-",markersize=10, linewidth=2)
+#axs.plot(wf_4ccs.nodes, wf_4ccs.stats['train_time'],label = "Training",marker="o",ls="-",markersize=10, linewidth=2)
+files = ['8192', '32768', '131072','500354']
+for i in range(len(wf_4ccs.nodes)):
+    axs.text(wf_4ccs.nodes[i], wf_4ccs.stats['inf_time'][i]- 500, f"{files[i]} files", fontsize=12, color='black')
+
 axs.set_yscale('log')
 axs.set_xscale('log')
 axs.set_xlim(10,1000)
@@ -194,10 +217,12 @@ axs.set_ylabel('Time [sec]')
 axs.set_ylabel('Number of Nodes')
 axs.set_title('Component Run Time')
 #axs.set_xticks(x, labels)
-axs.legend()
+axs.legend(loc='lower right', ncol=2)
 axs.grid()
+axs.set_ylim(10,5000)
 fig.savefig('plt_full_comp_time.png')
 
+"""
 # Plot efficiencies
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 axs.plot(wf.nodes, wf.stats['load_time'][0]/wf.stats['load_time']*100,label = "Loading",marker="o",ls="-",markersize=10, linewidth=2)
@@ -215,6 +240,6 @@ axs.set_title('Component Run Time')
 axs.legend()
 axs.grid()
 fig.savefig('plt_full_comp_eff.png')
-
+"""
 
 

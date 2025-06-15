@@ -31,6 +31,8 @@ class PFSStats:
             'sim_io_time': np.zeros((self.n_nodes,)),
             'train_time': np.zeros((self.n_nodes,)),
             'train_io_time': np.zeros((self.n_nodes,)),
+            'num_smiles': np.zeros((self.n_nodes,)),
+            'iter_time': np.zeros((self.n_nodes,)),
         }
         self.counts = {
             'inf_ddict_init': np.zeros((self.n_nodes,)),
@@ -50,6 +52,8 @@ class PFSStats:
             'sim_io_time': np.zeros((self.n_nodes,)),
             'train_time': np.zeros((self.n_nodes,)),
             'train_io_time': np.zeros((self.n_nodes,)),
+            'num_smiles': np.zeros((self.n_nodes,)),
+            'iter_time': np.zeros((self.n_nodes,)),
         }
 
     def avg(self, my_list):
@@ -62,6 +66,7 @@ class PFSStats:
             run_files = glob.glob(path)
             for run_file in run_files:
                 inf_io_times = []
+                num_smiles = []
                 print('Reading file: ', run_file)
                 with open(run_file,'r') as fh:
                     for l in fh:
@@ -102,6 +107,8 @@ class PFSStats:
                             parsed_l = l.split(":")[-1]
                             ddict_l = parsed_l.split(",")[1]
                             inf_io_times.append(float(ddict_l.split("=")[-1]))
+                            parsed_l_2 = l.split(":")[0]
+                            num_smiles.append(int(parsed_l_2.split(" ")[6]))
                         if "Performed inference in" in l:
                             if "\n" in l:
                                 l = l.replace("\n","")
@@ -131,10 +138,15 @@ class PFSStats:
                             self.counts['train_time'][i] += 1
                             self.stats['train_io_time'][i] += float(l.split(':')[-1].split(',')[1].split('=')[-1])
                             self.counts['train_io_time'][i] += 1
+                        if "Performed iter" in l:
+                            self.stats["iter_time"][i] = float(l.split(" ")[4])
+                            self.counts['iter_time'][i] += 1
                         
 
                 self.stats['inf_io_time'][i] = sum(inf_io_times)/len(inf_io_times)
                 self.counts['inf_io_time'][i] += 1
+                self.stats['num_smiles'][i] = sum(num_smiles)
+                self.counts['num_smiles'][i] += 1
 
 
         # Divide by the counts for each gpu number to get the average over runs
@@ -148,28 +160,33 @@ class PFSStats:
                     #self.train_fom[key][:,j] = np.divide(val[:,j], self.counts[key], where=self.counts[key]>0)
                     np.divide(val[:,j], self.counts[key], out=self.stats[key][:,j], where=self.counts[key]>0)
 
+system = "local"
+if system == "aurora":
+    root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
+elif system == "local":
+    root = '/Users/riccardobalin/Documents/ALCF/Conferences/PASC25'
 
-base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/pfs_vs_ddict/small_32768/pfs'
+base_path = root+'/runs/pfs_vs_ddict/small_32768/pfs'
 pfs = PFSStats(base_path)
 pfs.parse_files()
-print(pfs.stats)
+print(pfs.stats['num_smiles'])
 print()
 
-base_path = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25/runs/pfs_vs_ddict/small_32768/ddict'
+base_path = root+'/runs/pfs_vs_ddict/small_32768/ddict'
 ddict = PFSStats(base_path)
 ddict.parse_files()
-print(ddict.stats)
+print(ddict.stats['num_smiles'])
 print()
 
 
 # Plot component times
-labels = ['Inference', 'Sorting', 'Simulation', 'Training']
+labels = ['Inference', 'Sorting', 'Simulation', 'Training','Iteration']
 x = np.arange(len(labels))  # the label locations
-width = 0.12  # the width of the bars
+width = 0.2  # the width of the bars
 factors = [-0.5,0.5]
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
-axs.bar(x-0.5*width, [pfs.stats["inf_time"].item(), pfs.stats["sort_time"].item(), pfs.stats["sim_time"].item(), pfs.stats["train_time"].item()], width,label="PFS")
-axs.bar(x+0.5*width, [ddict.stats["inf_time"].item(), ddict.stats["sort_time"].item(), ddict.stats["sim_time"].item(), ddict.stats["train_time"].item()], width,label="DDict")
+axs.bar(x-0.5*width, [pfs.stats["inf_time"].item(), pfs.stats["sort_time"].item(), pfs.stats["sim_time"].item(), pfs.stats["train_time"].item(), pfs.stats["iter_time"].item()], width,label="PFS")
+axs.bar(x+0.5*width, [ddict.stats["inf_time"].item(), ddict.stats["sort_time"].item(), ddict.stats["sim_time"].item(), ddict.stats["train_time"].item(), ddict.stats["iter_time"].item()], width,label="DDict")
 axs.set_yscale('log')
 axs.set_ylabel('Time [sec]')
 axs.set_title('Component Run Time')
@@ -177,6 +194,7 @@ axs.set_xticks(x);axs.set_xticklabels(labels)
 #axs.set_xticks(x, labels)
 axs.legend()
 axs.grid(axis='y')
+axs.set_ylim(10,6000)
 fig.savefig('plt_pfs_comp_time.png')
 
 # Plot IO times

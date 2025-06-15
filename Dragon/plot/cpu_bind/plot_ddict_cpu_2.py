@@ -4,20 +4,26 @@ from matplotlib import pyplot as plt
 font = {
         'family' : 'serif',
         'weight' : 'normal',
-        'size'   : 18}
+        'size'   : 16}
 matplotlib.rc('font', **font)
 
+system = "local"
+if system == "aurora":
+    root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
+elif system == "local":
+    root = '/Users/riccardobalin/Documents/ALCF/Conferences/PASC25'
+
 case_files = [
-    '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/no_bind/mldocking_seq_ddict.o5523558',
-    '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/1c_1s/mldocking_seq_ddict.o5522824',
-    '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/4c_1s/mldocking_seq_ddict.o5522912',
-    '/flare/hpe_dragon_collab/balin/PASC25/runs/ddict_cpu_bind/tiny_8192/4c_2s/mldocking_seq_ddict.o5529579', #mldocking_seq_ddict.o5522914'
+    root+'/runs/ddict_cpu_bind/tiny_8192/no_bind/mldocking_seq_ddict.o5523558',
+    root+'/runs/ddict_cpu_bind/tiny_8192/1c_1s/mldocking_seq_ddict.o5522824',
+    root+'/runs/ddict_cpu_bind/tiny_8192/4c_1s/mldocking_seq_ddict.o5522912',
+    root+'/runs/ddict_cpu_bind/tiny_8192/4c_2s/mldocking_seq_ddict.o5529579', #mldocking_seq_ddict.o5522914'
 ]
 legend = [
-    'no binding',
-    '1 core on 1 socket',
-    '4 cores on 1 socket',
-    '8 cores on 2 socket',
+    'none',
+    '1 core, 1 socket',
+    '4 cores, 1 socket',
+    '8 cores, 2 socket',
 ]
 keys = ['nodes',
         'procs',
@@ -99,7 +105,7 @@ def avg(my_list: list):
 labels = ['Data Loader', 'Inference', 'Sorting']
 x = np.arange(len(labels))  # the label locations
 width = 0.1  # the width of the bars
-factors = [-2.5,-1.5,-0.5,0.5,1.5,2.5]
+factors = [-1.5,-0.5,0.5,1.5]
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(9, 7))
 for i, case in enumerate(cases):
     axs.bar(x+factors[i]*width, [avg(cases[case]['load']), cases[case]['inference'], avg(cases[case]['sort'])], width,label=legend[i])
@@ -119,7 +125,7 @@ for i, case in enumerate(cases):
 axs.set_yscale('log')
 axs.set_ylim(0.01,1)
 axs.set_ylabel('Time [sec]')
-axs.set_title('Component Average DDict Time')
+axs.set_title('Average DDict Send/Recv Time')
 axs.set_xticks(x);axs.set_xticklabels(labels)
 #axs.set_xticks(x, labels)
 axs.legend()
@@ -132,7 +138,7 @@ for i, case in enumerate(cases):
 axs.set_yscale('log')
 #axs.set_ylim(0.01,1)
 axs.set_ylabel('Time [sec]')
-axs.set_title('Component Max DDict Time')
+axs.set_title('Max. DDict Send/Recv Time')
 axs.set_xticks(x);axs.set_xticklabels(labels)
 #axs.set_xticks(x, labels)
 axs.legend()
