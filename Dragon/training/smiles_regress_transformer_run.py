@@ -40,11 +40,10 @@ def fine_tune(model_dd: DDict,
     ######## Build model #############
     tic = perf_counter()
     model, hyper_params = retrieve_model_from_dict(model_dd,iter,fine_tune=True)
-    ddict_time = perf_counter() - tic
+    model_read_time = perf_counter() - tic
 
     ########Create training and validation data#####
-    x_train, y_train, x_val, y_val, time = train_val_data(sim_dd,method="stratified")
-    ddict_time += time
+    x_train, y_train, x_val, y_val, data_read_time = train_val_data(sim_dd,method="stratified")
     with open(fine_tune_log, 'w') as f:
         f.write(f"{BATCH=} {EPOCH=} {len(x_train)=} {len(x_val)=}\n")
     
@@ -76,9 +75,10 @@ def fine_tune(model_dd: DDict,
         # Save to DDict
         tic = perf_counter()
         save_model_weights(model_dd, model, iter+1)
-        ddict_time += perf_counter() - tic
+        model_save_time = perf_counter() - tic
         toc_end = perf_counter()
-
+        print(model_read_time,data_read_time,model_save_time,flush=True)
+        ddict_time = model_read_time + data_read_time + model_save_time
         print(f"Performed training: total={toc_end-tic_start}, IO={ddict_time}",flush=True)
     
 

@@ -336,7 +336,7 @@ if __name__ == "__main__":
         # Launch Docking Simulations
         print(f"Launched docking simulations ...", flush=True)
         tic = perf_counter()
-        max_num_procs = top_candidate_number//4
+        max_num_procs = top_candidate_number//1
         dock_proc = mp.Process(
             target=launch_docking_sim,
             args=(model_list_dd, 

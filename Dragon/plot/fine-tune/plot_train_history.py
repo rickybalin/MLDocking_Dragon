@@ -43,16 +43,16 @@ class History():
                             self.stats[tmp].append(float(parsed_l[i+1]))
 
 
-system = "local"
+system = "aurora"
 if system == "aurora":
     root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
 elif system == "local":
     root = '/Users/riccardobalin/Documents/ALCF/Conferences/PASC25'
 
-i0 = History(root+"/runs/fine_tune/try_2/training_0.log")
-i1 = History(root+"/runs/fine_tune/try_2/training_1.log")
-i2 = History(root+"/runs/fine_tune/try_2/training_2.log")
-i3 = History(root+"/runs/fine_tune/try_2/training_3.log")
+i0 = History(root+"/runs/fine_tune/try_4/training_0.log")
+i1 = History(root+"/runs/fine_tune/try_4/training_1.log")
+i2 = History(root+"/runs/fine_tune/try_4/training_2.log")
+i3 = History(root+"/runs/fine_tune/try_4/training_3.log")
 
 # Plot Train R2
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
@@ -63,9 +63,10 @@ axs.plot(i3.stats['r2'],label="iter 4",ls="-",linewidth=2)
 #axs.set_yscale("log")
 axs.grid()
 axs.set_xlabel('Training Epochs')
-axs.set_ylabel('Train R2')
+axs.set_ylabel('R2 (Coeff. of Determination)')
+axs.set_title('Training Set')
 axs.legend(loc='lower right')
-fig.savefig('plt_train_r2.png')
+fig.savefig('plt_train_r2.png',bbox_inches='tight')
 
 # Plot Val R2
 fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
@@ -76,6 +77,8 @@ axs.plot(i3.stats['val_r2'],label="iter 4",ls="-",linewidth=2)
 #axs.set_yscale("log")
 axs.grid()
 axs.set_xlabel('Training Epochs')
-axs.set_ylabel('Validation R2')
+axs.set_ylabel('R2 (Coeff. of Determination)')
+axs.set_title('Validation Set')
 axs.legend(loc='lower right')
-fig.savefig('plt_val_r2.png')
+axs.set_ylim(0,1)
+fig.savefig('plt_val_r2.png',bbox_inches='tight')

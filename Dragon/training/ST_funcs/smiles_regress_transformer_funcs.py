@@ -213,18 +213,18 @@ def assemble_docking_data_top(sim_dd):
     for sm in top_smiles:
         if sm not in ckeys:
             num_skipped += 1
-            with open("training.log", "a") as f:
-                f.write(f"Could not find top candidate in keys: {sm}\n")
+            #with open("training.log", "a") as f:
+            #    f.write(f"Could not find top candidate in keys: {sm}\n")
             continue
         val = sim_dd[sm]
         sc = float(val["dock_score"])
         if sc > 0:
             train_smiles.append(sm)
             train_scores.append(sc)
-    with open("training.log", "a") as f:
-        f.write(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training")
-        f.write(f"Missing {num_skipped} candidates from dictionary")
-        f.write(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates") 
+    #with open("training.log", "a") as f:
+    #    f.write(f"Retrieved {len(train_smiles)} out of {len(top_smiles)} candidates for training")
+    #    f.write(f"Missing {num_skipped} candidates from dictionary")
+    #    f.write(f"Zero results for {len(top_smiles) - num_skipped - len(train_smiles)} candidates") 
     return train_smiles, train_scores
     
 

@@ -157,7 +157,7 @@ class WFStats:
                     #self.train_fom[key][:,j] = np.divide(val[:,j], self.counts[key], where=self.counts[key]>0)
                     np.divide(val[:,j], self.counts[key], out=self.stats[key][:,j], where=self.counts[key]>0)
 
-system = "local"
+system = "aurora"
 if system == "aurora":
     root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
 elif system == "local":
@@ -208,14 +208,14 @@ axs.plot(wf_4ccs.nodes, wf_4ccs.stats['sim_time'],label = "Simulation",marker="o
 #axs.plot(wf_4ccs.nodes, wf_4ccs.stats['train_time'],label = "Training",marker="o",ls="-",markersize=10, linewidth=2)
 files = ['8192', '32768', '131072','500354']
 for i in range(len(wf_4ccs.nodes)):
-    axs.text(wf_4ccs.nodes[i], wf_4ccs.stats['inf_time'][i]- 500, f"{files[i]} files", fontsize=12, color='black')
+    axs.text(wf_4ccs.nodes[i], wf_4ccs.stats['inf_time'][i]- 500, f"{files[i]} files", fontsize=13, color='black',fontweight='bold')
 
 axs.set_yscale('log')
 axs.set_xscale('log')
 axs.set_xlim(10,1000)
 axs.set_ylabel('Time [sec]')
-axs.set_ylabel('Number of Nodes')
-axs.set_title('Component Run Time')
+axs.set_xlabel('Number of Nodes')
+axs.set_title('Workflow Component Run Time')
 #axs.set_xticks(x, labels)
 axs.legend(loc='lower right', ncol=2)
 axs.grid()

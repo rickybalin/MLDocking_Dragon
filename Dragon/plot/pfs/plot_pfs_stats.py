@@ -160,7 +160,7 @@ class PFSStats:
                     #self.train_fom[key][:,j] = np.divide(val[:,j], self.counts[key], where=self.counts[key]>0)
                     np.divide(val[:,j], self.counts[key], out=self.stats[key][:,j], where=self.counts[key]>0)
 
-system = "local"
+system = "aurora"
 if system == "aurora":
     root = '/lus/flare/projects/hpe_dragon_collab/balin/PASC25'
 elif system == "local":
